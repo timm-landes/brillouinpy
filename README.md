@@ -9,7 +9,7 @@ Eine kurze Beschreibung, was das Modul macht.
 Um das Paket direkt aus dem GitLab-Repository zu installieren, verwenden Sie:
 
 ```bash
-pip install git+https://gitlab.uni-hannover.de/IhrBenutzername/my_module.git
+pip install git+https://gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer.git
 ```
 					
 ### Lokale Installation
@@ -18,7 +18,7 @@ pip install git+https://gitlab.uni-hannover.de/IhrBenutzername/my_module.git
 1. Klonen Sie das Repository:
 
    ```bash
-   git clone https://gitlab.uni-hannover.de/IhrBenutzername/my_module.git
+   git clone https://gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer.git
    ```
 
 2. Wechseln Sie in das Verzeichnis:
