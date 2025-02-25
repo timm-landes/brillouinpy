@@ -5,7 +5,13 @@ Eine kurze Beschreibung, was das Modul macht.
 ## Installation
 
 ### Vom Git-Repository
+Erzeuge ein neues Environment in conda
+conda 
 
+Install pysptools via pip:
+```bash
+pip install pysptools
+```
 Um das Paket direkt aus dem GitLab-Repository zu installieren, verwenden Sie:
 
 ```bash

@@ -12,7 +12,13 @@ setup(
     version='0.1',  
     packages=find_packages(),  # Automatisches Finden von Paketen im Projektverzeichnis
     install_requires=[  # Liste von Abhängigkeiten Ihres Pakets
-        # 'somepackage>=1.0',
+         'numpy',
+         'scipy',
+         'tqdm',
+         'matplotlib',
+         'pybaseline',
+         'scikit-image',
+         'scikit-learn',
     ],
     author='Timm Landes',
     author_email='timm.landes@hot.uni-hannover.de',
