@@ -50,6 +50,9 @@ def _fitDHO(x, y, X, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs
 
 def _fit_concurrent(intensity_data, spectral_axis, expected_peaks, p0=None, bounds=None, padding=100):
     variables = int(expected_peaks * 3 + 2)
+    if p0 is not None and len(p0) != variables:
+        p0 = None
+        print('Lenght of p0 does not match the model. Fallback to p0 = None')
     fit_results = np.zeros((intensity_data.shape[0], intensity_data.shape[1], variables))
     cov_results = np.empty((intensity_data.shape[0], intensity_data.shape[1], variables, variables))
 
