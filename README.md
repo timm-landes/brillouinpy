@@ -45,7 +45,7 @@ pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyze
    
 ## Example
 ```python
-import BrillouinAnalyzer as bp
+import brillouinanalyzer as bp
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
