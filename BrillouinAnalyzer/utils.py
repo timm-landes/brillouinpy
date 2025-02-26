@@ -55,7 +55,6 @@ def fsr(mirror_spacing):
 def brillouin_spectral_axis(mirror_spacing, scan_amplitude, no_of_channels, laser_wavelength = 532.1e-9):
     freq_limits = fsr(mirror_spacing) * scan_amplitude / laser_wavelength
     freq_limits_GHz = freq_limits * 1e-9
-    print(freq_limits_GHz)
     return np.linspace(-freq_limits_GHz, freq_limits_GHz, no_of_channels)
 
     
