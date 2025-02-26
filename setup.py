@@ -19,6 +19,7 @@ setup(
          'pybaselines',
          'scikit-image',
          'scikit-learn',
+         'pysptools',
     ],
     author='Timm Landes',
     author_email='timm.landes@hot.uni-hannover.de',
