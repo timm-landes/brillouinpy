@@ -16,7 +16,7 @@ setup(
          'scipy',
          'tqdm',
          'matplotlib',
-         'pybaseline',
+         'pybaselines',
          'scikit-image',
          'scikit-learn',
     ],
