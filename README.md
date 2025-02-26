@@ -1,6 +1,7 @@
+
 #  Brillouin Analyzer
 
-This modul should help you to analyze Brillouin light scattering data efficiently. This is heavily, let's say "inspired" by the package RamanSPy. For the most steps it uses the same syntax, but I started removing unnecessary functions and adding meaningfull ones for Brillouin imaging.
+This module should help you to analyze Brillouin light scattering data efficiently. This is heavily, let's say "inspired" by the package [RamanSPy](https://github.com/barahona-research-group/RamanSPy). For the most steps it uses the same syntax, but I started removing unnecessary functions and adding meaningfull ones for Brillouin imaging.
 
 ## Installation
 This gives a short manual for installation of Anaconda and BrillouinAnalyzer. I highly recommend the use of Anaconda as a Python distribution if you are new to Python Scripting and Programming.
@@ -58,7 +59,7 @@ if __name__ == '__main__':
     
     # Load of the Brillouin spectral data
     brillouin_data = bp.utils.load_spectral_image(project_path, 'Brillouin')
-    # Calculate the Frequency axis of the Brillouin data. The sett
+    # Calculate the Frequency axis of the Brillouin data.
     brillouin_frequency_scale = bp.utils.brillouin_spectral_axis(
         mirror_spacing = 6e-3, # [m]
         scan_amplitude = 480e-9, # [m] 
@@ -141,7 +142,7 @@ if __name__ == '__main__':
 ```
 
 ## Usage in Spyder
-When you want to use the package in spyder you have to install the spyder kernels:
+When you want to use the package in spyder you have to install the spyder kernels in your environment:
 ```bash
    conda install spyder-kernels
    ```
