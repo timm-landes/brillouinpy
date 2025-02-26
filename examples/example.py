@@ -4,7 +4,7 @@ Created on Mon Feb 17 15:37:29 2025
 
 @author: Timm
 """
-import BrillouinAnalyzer as bp
+import brillouinanalyzer as bp
 import ramanspy as rp
 import matplotlib.pyplot as plt
 import numpy as np

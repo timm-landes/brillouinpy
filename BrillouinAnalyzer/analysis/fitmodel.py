@@ -60,7 +60,7 @@ def _fit_concurrent(intensity_data, spectral_axis, expected_peaks, p0=None, boun
     X = spectral_axis[0]
     print('Starting of Multiprocessing can take up to 10 seconds.')
     tasks = []
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+    with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.75))) as executor:
         for x in range(intensity_data.shape[0]):
             for y in range(intensity_data.shape[1]):
                 intensity_data_slice = intensity_data[x, y, :]
