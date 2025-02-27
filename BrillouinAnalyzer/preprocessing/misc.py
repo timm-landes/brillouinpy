@@ -37,7 +37,7 @@ class Cropper(PreprocessingStep):
             - [(700, 1800)] - keeps the bands between 700 and 1800 (i.e. the "fingerprint" region)
     """
 
-    def __init__(self, *, region: Tuple[Number or None, Number or None]):
+    def __init__(self, *, region: Tuple[Number or None, Number or None]): # type: ignore
         if len(region) != 2:
             raise ValueError("The region must be a tuple of two elements")
 
@@ -56,7 +56,7 @@ class IRF_Remover(PreprocessingStep):
             - None - only the IRF gets detected, saved and removed from the spectral data
             - 10 - the IRF and additional 10 channels get removed
     """
-    def __init__(self, *, offset: Number or None):
+    def __init__(self, *, offset: Number or None): # type: ignore
 
         super().__init__(_irf_remove, offset=offset)
 
@@ -64,7 +64,7 @@ class IRF_Remover(PreprocessingStep):
 class Deconvoluter_IRF(PreprocessingStep):
     
     
-    def __init__(self, *, offset: Number or None, iterations: Number or None, padding: Number or None):
+    def __init__(self, *, offset: Number or None, iterations: Number or None, padding: Number or None): # type: ignore
         super().__init__(_deconvolute_irf, offset = offset, iterations = iterations, padding = padding)
 
 def _subtract_background(original_intensity_data, original_spectral_axis, background: Spectrum):
@@ -129,3 +129,17 @@ def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations = 4, padd
             corrected_intensity_data[x, y, start-offset:end+offset] = 0
     
     return corrected_intensity_data, spectral_axis
+
+
+def _data_padding(data, padding):
+    freq_step = np.abs(data[0, -1] - data[0, -2])
+    pad_freq = np.arange(start=data[0, -1] + freq_step, 
+                         stop=data[0, -1] + freq_step * (padding + 1), 
+                         step=freq_step, dtype=type(freq_step))
+    average = int(np.average(data[1, 0:20]))
+    pad_data = [average for _ in range(padding)]
+    pad_array = np.vstack((pad_freq, pad_data))
+    
+    lower_pad = np.flip(pad_array, axis=1)
+    lower_pad[0, :] = -lower_pad[0, :]
+    return np.hstack((lower_pad, data, pad_array))

@@ -220,7 +220,7 @@ class Poly(PybaselinesCorrector):
 
     .. note :: Implementation based on `pybaselines <https://pybaselines.readthedocs.io>`_.
     """
-    def __init__(self, *, poly_order=2, regions: List[Tuple[Number or None, Number or None]] = None):
+    def __init__(self, *, poly_order=2, regions: List[Tuple[Number or None, Number or None]] = None): # type: ignore
         if regions is not None:
             for region in regions:
                 if len(region) != 2:
