@@ -20,7 +20,7 @@ Now you can choose one of the two next sections to install Brillouin Analyzer de
  1. Installation using the **Git-Repository**. This method is recommended if you do not work on the package itself. Here you will always find the latest version of BrillouinAnalyzer.
  2. Installation from a **local directory**. This method is recommended if you want to work on the package code istelf. It will be possible to make changes to the code that can be applied directly.
   
-Now just one remark: **Keep the installation of Conda as it is, unless you definitly need newer packages! :)**
+Now just one remark: **Keep the installation of Conda as it is, unless you definitly need newer packages! :)** I bricked my conda several times updateing conda.
 
 ### Install BrillouinAnalyzer from the Git-Repository
 For this you'll need git and need to setup a local SSH key in Gitlab. However, this installation has the big advantage that its easier to keep your installation up-to-date. 
@@ -116,4 +116,9 @@ When you want to use the package in spyder you have to install the spyder kernel
 ```bash
    conda install spyder-kernels
    ```
-You then can open a new console and select the environment.
+If you are using Spyder 5.XX you'll need to install spyder-kernels in a specific version. 
+```bash
+   conda install spyder-kernels=2.5
+   ```
+Do **NOT** use pip here!
+You then can open a new console (Spyder 6) and select the environment or change the default environment (Spyder 5) with right-click on the bottom status bar right.
