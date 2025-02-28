@@ -23,7 +23,8 @@ Now you can choose one of the two next sections to install Brillouin Analyzer de
 Now just one remark: **Keep the installation of Conda as it is, unless you definitly need newer packages! :)** I bricked my conda several times updateing conda.
 
 ### Install BrillouinAnalyzer from the Git-Repository
-For this you'll need git Intall it via `conda install pip` and need to setup a local SSH key in Gitlab. A nice tutorial you can find [here (Link to youtube)](https://www.youtube.com/watch?v=Vmt0V6a3ppE). 
+For this you'll need git Intall it via `conda install pip` and need to setup a local SSH key in Gitlab. A nice tutorial you can find [here (Link to youtube)](https://www.youtube.com/watch?v=Vmt0V6a3ppE).
+You have already installed git. So you can directly type in the Anaconda promt.
 However, this installation has the big advantage that its easier to keep your installation up-to-date. 
 
 ```bash
