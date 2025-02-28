@@ -18,7 +18,9 @@ This gives a short manual for installation of Anaconda and BrillouinAnalyzer. I 
 
 Now you can choose one of the two next sections to install Brillouin Analyzer depending on your needs. 
  1. Installation using the **Git-Repository**. This method is recommended if you do not work on the package itself. Here you will always find the latest version of BrillouinAnalyzer.
-  2. Installation from a **local directory**. This method is recommended if you want to work on the package code istelf. It will be possible to make changes to the code that can be applied directly.
+ 2. Installation from a **local directory**. This method is recommended if you want to work on the package code istelf. It will be possible to make changes to the code that can be applied directly.
+  
+Now just one remark: **Keep the installation of Conda as it is, unless you definitly need newer packages! :)**
 
 ### Install BrillouinAnalyzer from the Git-Repository
 For this you'll need git and need to setup a local SSH key in Gitlab. However, this installation has the big advantage that its easier to keep your installation up-to-date. 
