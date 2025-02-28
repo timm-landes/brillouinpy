@@ -14,7 +14,7 @@ This gives a short manual for installation of Anaconda and BrillouinAnalyzer. I 
  1. Install Anaconda: [Link to Anaconda download website](https://www.anaconda.com/download/success).
  2. Create a new conda environment `conda create --name <mynewenv>`. Make sure to replace `<mynewenv>` with a correct an perceptible name. You will later need to recall it.
  3. Activate the environment via `conda activate <mynewenv>`.
- 4. Install pip and git via `conda install pip git`.
+ 4. Install pip and git via `conda install pip`.
 
 Now you can choose one of the two next sections to install Brillouin Analyzer depending on your needs. 
  1. Installation using the **Git-Repository**. This method is recommended if you do not work on the package itself. Here you will always find the latest version of BrillouinAnalyzer.
@@ -23,7 +23,8 @@ Now you can choose one of the two next sections to install Brillouin Analyzer de
 Now just one remark: **Keep the installation of Conda as it is, unless you definitly need newer packages! :)** I bricked my conda several times updateing conda.
 
 ### Install BrillouinAnalyzer from the Git-Repository
-For this you'll need git and need to setup a local SSH key in Gitlab. However, this installation has the big advantage that its easier to keep your installation up-to-date. 
+For this you'll need git Intall it via `conda install pip` and need to setup a local SSH key in Gitlab. A nice tutorial you can find [here (Link to youtube)](https://www.youtube.com/watch?v=Vmt0V6a3ppE). 
+However, this installation has the big advantage that its easier to keep your installation up-to-date. 
 
 ```bash
 pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer.git
