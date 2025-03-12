@@ -3,7 +3,6 @@ import brillouinanalyzer as bp
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
-import os
 
 #%% Simple data import
 if __name__ == '__main__':
