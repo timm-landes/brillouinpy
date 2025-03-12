@@ -57,14 +57,27 @@ class Lorentzian(FitStep):
 
 
 def _fitDHO(x, y, X, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs):
-    Y = intensity_data_slice
+    # Convert masked values to nan
+    if np.ma.is_masked(intensity_data_slice):
+        # Check if all values are masked
+        if np.ma.getmask(intensity_data_slice).all():
+            return x, y, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
+        Y = intensity_data_slice.filled(np.nan)
+    else:
+        Y = intensity_data_slice.copy()
     Y[Y == 0] = np.nan
+    
+    # If all values are NaN, return NaN results
+    if np.all(np.isnan(Y)):
+        return x, y, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
+    
     if p0 is None:
         p0 = [1] * (expected_peaks * 3 + 2)  # Default initial guesses
     if bounds is None:
         bounds = (0, np.inf)  # No negative values allowed
 
     try:
+        # Use nan_policy='omit' to handle NaN values
         popt, pcov = curve_fit(fit_funcs[expected_peaks], X, Y, p0=p0, bounds=bounds, nan_policy='omit')
         return x, y, popt, pcov
     except RuntimeError:
@@ -73,14 +86,20 @@ def _fitDHO(x, y, X, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs
 
 
 def _fitLorentzian(x, y, X, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs):
-    Y = intensity_data_slice
+    # Convert masked values to nan
+    if np.ma.is_masked(intensity_data_slice):
+        Y = intensity_data_slice.filled(np.nan)
+    else:
+        Y = intensity_data_slice.copy()
     Y[Y == 0] = np.nan
+    
     if p0 is None:
         p0 = [1] * (expected_peaks * 3 + 2)  # Default initial guesses
     if bounds is None:
         bounds = (0, np.inf)  # No negative values allowed
 
     try:
+        # Use nan_policy='omit' to handle NaN values
         popt, pcov = curve_fit(fit_funcs[expected_peaks], X, Y, p0=p0, bounds=bounds, nan_policy='omit')
         return x, y, popt, pcov
     except RuntimeError:
@@ -92,7 +111,7 @@ def _fit_concurrent(intensity_data, spectral_axis, expected_peaks, p0=None, boun
     variables = int(expected_peaks * 3 + 2)
     if p0 is not None and len(p0) != variables:
         p0 = None
-        print('Lenght of p0 does not match the model. Fallback to p0 = None')
+        print('Length of p0 does not match the model. Fallback to p0 = None')
     fit_results = np.zeros((intensity_data.shape[0], intensity_data.shape[1], variables))
     cov_results = np.empty((intensity_data.shape[0], intensity_data.shape[1], variables, variables))
 
@@ -104,6 +123,11 @@ def _fit_concurrent(intensity_data, spectral_axis, expected_peaks, p0=None, boun
         for x in range(intensity_data.shape[0]):
             for y in range(intensity_data.shape[1]):
                 intensity_data_slice = intensity_data[x, y, :]
+                # Skip if all values are masked
+                if np.ma.is_masked(intensity_data_slice) and np.ma.getmask(intensity_data_slice).all():
+                    fit_results[x, y, :] = np.nan
+                    cov_results[x, y, :, :] = np.nan
+                    continue
                 task = executor.submit(_fitDHO, x, y, X, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs)
                 tasks.append(task)
         
@@ -131,6 +155,11 @@ def _fit_concurrent_lorentzian(intensity_data, spectral_axis, expected_peaks, p0
         for x in range(intensity_data.shape[0]):
             for y in range(intensity_data.shape[1]):
                 intensity_data_slice = intensity_data[x, y, :]
+                # Skip if all values are masked
+                if np.ma.is_masked(intensity_data_slice) and np.ma.getmask(intensity_data_slice).all():
+                    fit_results[x, y, :] = np.nan
+                    cov_results[x, y, :, :] = np.nan
+                    continue
                 task = executor.submit(_fitLorentzian, x, y, X, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs)
                 tasks.append(task)
 

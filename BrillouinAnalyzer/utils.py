@@ -6,7 +6,7 @@ Created on Tue Feb 18 15:35:14 2025
 """
 
 import numpy as np
-import os, re, tqdm
+import os, re, tqdm, warnings
 
 
 def is_aligned(raman_objects):
@@ -97,7 +97,7 @@ def load_spectral_image(project_path, spectral_data_type):
         raise ValueError('Spectral data not supported')
         
     
-    # prepare spectral data: (x, y, spektrale_dimension)
+    # prepare spectral data: (x, y, spectral_dimension)
     max_coord = [0, 0, 0, 0]
     for f in files:
         coordinates = extract_coordinates(f, spectral_data_type)
@@ -105,24 +105,35 @@ def load_spectral_image(project_path, spectral_data_type):
             max_coord = [max(m, c) for m, c in zip(max_coord, coordinates)]
     x_dim, y_dim, _, _ =  max_coord
     
-    spectral_data_array = np.zeros((x_dim+1, y_dim+1, spectral_dimension))
-
-    assert len(files) == (x_dim+1) * (y_dim+1), "Die Anzahl der Dateien entspricht nicht der Anzahl der erwarteten (x, y) Punkte"
+        # Create a masked array to handle missing data points
+    spectral_data_array = np.ma.masked_all((x_dim+1, y_dim+1, spectral_dimension))
+    
+    if len(files) != (x_dim+1) * (y_dim+1):
+        warnings.warn("The number of points do not match the expected number of (y, y) points.")
     
     for f in tqdm.tqdm(files, desc="Processing Spectral data"):
-        x, y, z, t = extract_coordinates(f, spectral_data_type)
-        
-        if f.endswith('.csv'):
-            data = np.loadtxt(f, delimiter=',')
-            spectrum = data[1]
-        elif f.endswith('.txt'):
-            data = np.loadtxt(f)
-            spectrum = data[:-1, 1]
-        elif f.endswith('.DAT'):
-            spectrum, _ = import_DAT_File(f)
-        
-        spectral_data_array[x, y, :] = spectrum
-        
+        coordinates = extract_coordinates(f, spectral_data_type)
+        if not coordinates:
+            continue
+            
+        x, y, z, t = coordinates
+        try:
+            if f.endswith('.csv'):
+                data = np.loadtxt(f, delimiter=',')
+                spectrum = data[1]
+            elif f.endswith('.txt'):
+                data = np.loadtxt(f)
+                spectrum = data[:-1, 1]
+            elif f.endswith('.DAT'):
+                spectrum, _ = import_DAT_File(f)
+                
+            spectral_data_array[x, y, :] = spectrum
+            
+        except Exception as e:
+            warnings.warn(f"Could not load data for coordinates ({x}, {y}): {str(e)}")
+            # Point remains masked
+            continue
+    
     return spectral_data_array
 
 

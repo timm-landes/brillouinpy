@@ -60,10 +60,18 @@ class AnalysisStep:
             ValueError("Cannot perform analysis step on unaligned spectra. Spectral axis must match.")
 
         # Unfold data
-        spectral_data = np.vstack([raman_object.flat.spectral_data for raman_object in raman_objects])
+        spectral_data = []
+        for raman_object in raman_objects:
+            data = raman_object.flat.spectral_data
+            # Only handle masked arrays, keep normal arrays unchanged
+            if isinstance(data, np.ma.MaskedArray):
+                # Handle masked arrays by filling with 0
+                data = data.filled(0)
+            spectral_data.append(data)
+        spectral_data = np.vstack(spectral_data)
 
         # apply method
-        projections, components = self.method(spectral_data, *self.args, **self.kwargs)
+        projections, components = self.method(spectral_data, *self.args, *self.kwargs)
 
         components = [components[i, ...] for i in range(components.shape[0])]
 

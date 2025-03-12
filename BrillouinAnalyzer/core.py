@@ -65,7 +65,12 @@ class SpectralContainer:
         raman_object = rp.SpectralContainer(spectral_data, spectral_axis)
     """
     def __init__(self, spectral_data, spectral_axis):
-        self.spectral_data = np.asarray(spectral_data)
+        # Convert to masked array if it isn't already one
+        if np.ma.is_masked(spectral_data):
+            self.spectral_data = spectral_data
+        else:
+            self.spectral_data = np.ma.asarray(spectral_data)
+            
         self.spectral_axis = np.asarray(spectral_axis)
         self.instrument_response_function = None
 

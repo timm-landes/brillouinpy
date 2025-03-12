@@ -1,6 +1,7 @@
 from typing import Union, Callable
 import copy
 from typing import final, List
+import numpy as np
 
 from ..core import SpectralObject
 
@@ -62,8 +63,26 @@ class PreprocessingStep:
     def _process_object(self, raman_object: SpectralObject) -> SpectralObject:
         new_raman_object = copy.deepcopy(raman_object)
 
+        if np.ma.is_masked(new_raman_object.spectral_data):
+            # Keep track of the original mask
+            original_mask = new_raman_object.spectral_data.mask
+            # Fill masked values with NaN for processing
+            spectral_data = new_raman_object.spectral_data.filled(np.nan)
+        else:
+            original_mask = None
+            spectral_data = new_raman_object.spectral_data
+
+        # Process the data
         preprocessed_spectral_data, preprocessed_spectral_axis = self(
-            new_raman_object.spectral_data, new_raman_object.spectral_axis, **self.kwargs)
+            spectral_data, new_raman_object.spectral_axis, **self.kwargs)
+
+        # Restore masked array properties
+        if original_mask is not None:
+            preprocessed_spectral_data = np.ma.array(
+                preprocessed_spectral_data,
+                mask=original_mask,
+                fill_value=np.nan
+            )
 
         new_raman_object.spectral_data = preprocessed_spectral_data
         new_raman_object.spectral_axis = preprocessed_spectral_axis
