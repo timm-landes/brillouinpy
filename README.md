@@ -49,11 +49,27 @@ pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyze
    ```
 
 7. You can install the package editable for development purposes:
-
    ```bash
    pip install -e .
    ```
-
+## Updates
+1. To update the installation of BrillouinAnalyzer open the anaconda promt and start the conda environment `conda activate <mynewenv>`.
+2. When installed from the git repository type
+   ```bash
+   pip install --upgrade git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer.git.
+   ```
+3. When installed from a local folder navigate to the folder
+   ```bash
+   cd <your folder path>
+   ```
+   and then for the locked installation
+   ```bash
+   pip install --upgrade .
+   ```
+   For the editable mode:
+   ```bash
+   pip install -e .
+   ```
 
 ## Example
 I attached some examples in the [`example`-folder](/examples/) of this project. You can access those, copy them, alter them, or clone them. This shows how capable BrillouinAnalyzer is regarding ML approaches.
@@ -124,3 +140,8 @@ If you are using Spyder 5.XX you'll need to install spyder-kernels in a specific
    ```
 Do **NOT** use pip here!
 You then can open a new console (Spyder 6) and select the environment or change the default environment (Spyder 5) with right-click on the bottom status bar right.
+
+
+## Changelog
+- 0.1: Initial upload
+- 0.1.1: Added support for missing data points. Now the pipeline gives the user a warning, when points are missing but doesn't stop executing. The missing values are treated as None.
