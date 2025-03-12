@@ -1,44 +1,36 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Feb 17 15:37:29 2025
-
-@author: Timm
-"""
+#%% Package import
 import brillouinanalyzer as bp
-import ramanspy as rp
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
+import os
 
-#%% Simple Analysis
+#%% Simple data import
 if __name__ == '__main__':
     # Set the project path. Here, your data should be located in a folder data.
     # All output will be stored in the folder pp_data. If nonexistent, it will be generated. 
-    # project_path = r'C:/Users/Timm/Desktop/Leipzig/Zygo_1'
-    project_path = r'C:\Users\Timm\Desktop\Victor\Idared_95_05'
+    project_path = r'C:\\Users\\Timm\\Desktop\\Leipzig\\Zygo_2_4'
+    # project_path = r'C:\Users\Timm\Desktop\Victor\Idared_95_05'
     
     # Load of the Brillouin spectral data
     brillouin_data = bp.utils.load_spectral_image(project_path, 'Brillouin')
-    # Calculate the Frequency axis of the Brillouin data. The sett
+    # Calculate the Frequency axis of the Brillouin data.
     brillouin_frequency_scale = bp.utils.brillouin_spectral_axis(
         mirror_spacing = 6e-3, # [m]
         scan_amplitude = 480e-9, # [m] 
         no_of_channels = brillouin_data.shape[-1] # get spectral dimension from data
     )
-    
+
     # Generate the Brillouin object
     brillouin_data = bp.SpectralImage(brillouin_data, brillouin_frequency_scale)
-    
-    # Plot the mean spectrum of the samples data
-    bp.plot.mean_spectra(brillouin_data, title='Raw Brillouin Data')
-    # plt.ylim(.1,100)
-    bp.plot.show()
-    
+
+    #%%% Basic Analysis
+    #     
     # Define the processing pipeline. This gives you an example on what data manipulation/processing is possible
     pipeline = bp.preprocessing.Pipeline([
         # # Normalization regarding the spectrometer performance
-        # bp.preprocessing.normalise.MaxIntensity(pixelwise=True # When pixelwise normalization is wanted
-        #                                         ), 
+        bp.preprocessing.normalise.MaxIntensity(pixelwise=True # When pixelwise normalization is wanted
+                                                ), 
         
         # # Removal of the Intrument Response Function (IRF) and intensity signal deconvolution
         bp.preprocessing.misc.Deconvoluter_IRF(offset=65, # additional offset from IRF. You can use this parameter to remove unwanted Rayleigh scattered light
@@ -57,24 +49,62 @@ if __name__ == '__main__':
     # Apply the pipeline to the data
     pp_brillouin_data = pipeline.apply(brillouin_data)
     
-    # Plot the mean spectrum of the preprocessed samples data
+    # Plot the mean spectrum of the raw and preprocessed samples data
+    fig = plt.figure(figsize=(10, 5), layout='constrained')
+    plt.subplot(121)
+    bp.plot.mean_spectra(brillouin_data, title='Raw Brillouin Data', yscale='log')  
+    plt.subplot(122)
     bp.plot.mean_spectra(pp_brillouin_data, title='Processed Brillouin Data', yscale='linear')
-    plt.ylim(.0,30)
-    bp.plot.show()
-    
+    plt.show()
+
     # Perform the data fitting using the DHO
-    DHO_fit = bp.analysis.fitmodel.DHO(expected_peaks=2,        # How much peaks do you expect
-                                       p0= [10,7.5,1,5,15,1,0,0],    # Give the algorithm a good starting point, must match the lenght (expected_peaks*3)+2
+    DHO_fit = bp.analysis.fitmodel.DHO(expected_peaks=1,        # How much peaks do you expect
+                                       p0= [        # Give the algorithm a good starting point, must match the lenght (expected_peaks*3)+2
+                                           0.005,   # Amplitude
+                                           8.5,     # Frequency Shift in GHz
+                                           1,       # FWHM in GHz
+                                           0,       # Background
+                                           0        # Symmetry
+                                           ],    
                                        bounds= None,            # Give some bounds if you get unreasonable results or have strongly overlapping features
-                                       padding = None              # Gurrently not in use
     )
     fitted_parameters, metric = DHO_fit.apply(pp_brillouin_data)
+    
+    for parameter in fitted_parameters:
+        print('DHO:', np.nanmean(parameter))
+    
+    # Plot all fitted variables
+    plt.figure(figsize=(15, 5), layout='constrained')
+    plt.subplot(131)
+    plt.imshow(fitted_parameters[0])    
+    plt.colorbar(label='Amplitude (a.u.)')
+    plt.subplot(132)
+    plt.imshow(fitted_parameters[1])
+    plt.colorbar(label='Frequency (GHz)')
+    plt.subplot(133)
+    plt.imshow(fitted_parameters[2])
+    plt.colorbar(label='Linewidth (GHz)')
+    plt.title('Deconvolution then fit')
+    plt.show()
 
+    # # Perform the data fitting using the DHO
+    # LOR_fit = bp.analysis.fitmodel.Lorentzian(expected_peaks=1,        # How much peaks do you expect
+    #                                    p0= [1500,9,1,0,0],    # Give the algorithm a good starting point, must match the lenght (expected_peaks*3)+2
+    #                                    bounds= None,            # Give some bounds if you get unreasonable results or have strongly overlapping features
+    # )
+    # fitted_parameters, metric = LOR_fit.apply(pp_brillouin_data)
+    
+    # for parameter in fitted_parameters:
+    #     print('Lorentz:', np.nanmean(parameter))
+        
     # Plot all fitted variables    
-    for parameter in fitted_parameters[:-2]:
-        plt.imshow(parameter)
-        plt.colorbar()
-        plt.show()
+    # for parameter in fitted_parameters[:-2]:
+    #     vmax = np.nanmean(parameter) + 1 * np.nanstd(parameter)
+    #     vmin = np.nanmean(parameter) - 1 * np.nanstd(parameter)
+    #     plt.imshow(parameter)
+        
+    #     plt.colorbar()
+    #     plt.show()
         
     # Basic data analysis part done!
 #%% Advanced Analysis
@@ -87,11 +117,13 @@ if __name__ == '__main__':
     abundance_maps, endmembers = unmixer.apply(pp_brillouin_data)
     
     # Plot the endmembers spectra
+    plt.figure(figsize=(10, 5), layout='tight')
+    plt.subplot(121)
     bp.plot.spectra(endmembers, pp_brillouin_data.spectral_axis, plot_type="single", label=[f"Endmember {i + 1}" for i in range(len(endmembers))], yscale = 'linear')
     
     
     # Let's also make an overlay plot of where each endmember is most present using matplotlib
-    fig, ax = plt.subplots()
+    ax = plt.subplot(122)
     # Define coloring of the plot
     cmap = plt.get_cmap()(np.linspace(0, 1, len(abundance_maps)))
     white = [1, 1, 1, 0]
@@ -99,33 +131,3 @@ if __name__ == '__main__':
     for i in range(len(endmembers)):
         ax.imshow(abundance_maps[i], cmap=LinearSegmentedColormap.from_list('', [white, cmap[i]]))
     plt.show()
-    
-    
-#%% Raman Analysis
-    raman_data = bp.utils.load_spectral_image(project_path, 'Raman')
-    raman_spectral_axis = rp.utils.wavelength_to_wavenumber(bp.utils.raman_spectral_axis(600,605),532.1)
-    raman_data = rp.SpectralImage(raman_data, raman_spectral_axis)
-    
-    raman_pipeline = rp.preprocessing.Pipeline([
-        rp.preprocessing.misc.Cropper(region=(500, 1800)),
-        rp.preprocessing.despike.WhitakerHayes(kernel_size=3, threshold=1),
-        rp.preprocessing.denoise.SavGol(window_length=21, polyorder=2),
-        # rp.preprocessing.denoise.Gaussian(),
-        rp.preprocessing.baseline.AIRPLS(),
-        rp.preprocessing.normalise.MaxIntensity()
-    ])
-    
-    pp_raman_data = raman_pipeline.apply(raman_data)
-    
-    
-    peak_prominence = 0.3
-    
-    rp.plot.peaks(pp_raman_data.mean, prominence=peak_prominence)
-    list_of_peaks = pp_raman_data.spectral_axis[pp_raman_data.mean.peaks(prominence=peak_prominence)[0]]
-    rp.plot.show()
-    
-    for peak in list_of_peaks:
-        ax = rp.plot.image(pp_raman_data.band(peak), title = f'Peak at {peak}')
-        plt.tight_layout()
-        # ax.figure.savefig(f'Raman_{np.round(peak, 3)}.png', dpi = 600)
-    rp.plot.show()
