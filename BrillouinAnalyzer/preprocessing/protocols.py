@@ -1,5 +1,5 @@
 from . import Pipeline
-from . import denoise, baseline, despike, normalise, misc
+from . import denoise, despike, normalise, misc
 
 
 def georgiev2023_P1(normalisation_pixelwise: bool = True, fingerprint: bool = True) -> Pipeline:
@@ -11,7 +11,6 @@ def georgiev2023_P1(normalisation_pixelwise: bool = True, fingerprint: bool = Tr
     - optional: spectral cropping to the fingerprint region (700-1800 cm-1);
     - cosmic ray removal with Whitaker-Hayes algorithm;
     - denoising with a Gaussian filter;
-    - baseline correction with Asymmetric Least Squares;
     - Area under the curve normalisation.
 
     Parameters
@@ -37,7 +36,6 @@ def georgiev2023_P1(normalisation_pixelwise: bool = True, fingerprint: bool = Tr
     pipe = Pipeline([
         despike.WhitakerHayes(),
         denoise.Gaussian(),
-        baseline.ASLS(),
         normalise.AUC(pixelwise=normalisation_pixelwise),
     ])
 
@@ -56,7 +54,6 @@ def georgiev2023_P2(normalisation_pixelwise: bool = True, fingerprint: bool = Tr
     - optional: spectral cropping to the fingerprint region (700-1800 cm-1);
     - cosmic ray removal with Whitaker-Hayes algorithm;
     - denoising with Savitzky-Golay filter with window length 9 and polynomial order 3;
-    - baseline correction with Adaptive Smoothness Penalized Least Squares (asPLS);
     - MinMax normalisation.
 
     Parameters
@@ -82,7 +79,6 @@ def georgiev2023_P2(normalisation_pixelwise: bool = True, fingerprint: bool = Tr
     pipe = Pipeline([
         despike.WhitakerHayes(),
         denoise.SavGol(window_length=9, polyorder=3),
-        baseline.ASPLS(),
         normalise.MinMax(pixelwise=normalisation_pixelwise),
     ])
 
@@ -125,7 +121,6 @@ def georgiev2023_P3(normalisation_pixelwise: bool = True, fingerprint: bool = Tr
     """
     pipe = Pipeline([
         despike.WhitakerHayes(),
-        baseline.Poly(poly_order=3),
         normalise.Vector(pixelwise=normalisation_pixelwise),
     ])
 
@@ -161,7 +156,6 @@ def bergholt2016() -> Pipeline:
         preprocessed_data = pipeline.apply(data)
     """
     return Pipeline([
-        baseline.Poly(poly_order=2, regions=[(700, 3600)]),
         misc.Cropper(region=(700, 1800)),
         normalise.Vector(pixelwise=True),
         despike.WhitakerHayes(),
