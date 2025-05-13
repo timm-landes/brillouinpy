@@ -109,7 +109,7 @@ def load_spectral_image(project_path, spectral_data_type):
     spectral_data_array = np.ma.masked_all((x_dim+1, y_dim+1, spectral_dimension))
     
     if len(files) != (x_dim+1) * (y_dim+1):
-        warnings.warn("The number of points do not match the expected number of (y, y) points.")
+        warnings.warn("The number of points do not match the expected number of (x, y) points.")
     
     for f in tqdm.tqdm(files, desc="Processing Spectral data"):
         coordinates = extract_coordinates(f, spectral_data_type)
@@ -121,6 +121,65 @@ def load_spectral_image(project_path, spectral_data_type):
             if f.endswith('.csv'):
                 data = np.loadtxt(f, delimiter=',')
                 spectrum = data[1]
+            elif f.endswith('.txt'):
+                data = np.loadtxt(f)
+                spectrum = data[:-1, 1]
+            elif f.endswith('.DAT'):
+                spectrum, _ = import_DAT_File(f)
+                
+            spectral_data_array[x, y, :] = spectrum
+            
+        except Exception as e:
+            warnings.warn(f"Could not load data for coordinates ({x}, {y}): {str(e)}")
+            # Point remains masked
+            continue
+    
+    return spectral_data_array
+
+
+def load_spectral_image_brio2(project_path, spectral_data_type):
+    directory = os.path.join(project_path, 'data')
+    # sort files
+    if spectral_data_type == 'Raman':
+        files = sorted(
+            os.path.join(directory, f) for f in os.listdir(directory)
+            if (f.endswith('.csv') or f.endswith('.txt')) and os.path.isfile(os.path.join(directory, f))
+        )
+        spectral_dimension = 2048
+    elif spectral_data_type == 'Brillouin':
+        files = sorted(
+            os.path.join(directory, f) for f in os.listdir(directory)
+            if (f.endswith('.DAT')) and os.path.isfile(os.path.join(directory, f))
+        )
+        _, spectral_dimension = import_DAT_File(files[0])
+    else:
+        raise ValueError('Spectral data not supported')
+        
+    
+    # prepare spectral data: (x, y, spectral_dimension)
+    max_coord = [0, 0, 0, 0]
+    for f in files:
+        coordinates = extract_coordinates(f, spectral_data_type)
+        if coordinates:
+            max_coord = [max(m, c) for m, c in zip(max_coord, coordinates)]
+    x_dim, y_dim, _, _ =  max_coord
+    
+        # Create a masked array to handle missing data points
+    spectral_data_array = np.ma.masked_all((x_dim+1, y_dim+1, spectral_dimension))
+    
+    if len(files) != (x_dim+1) * (y_dim+1):
+        warnings.warn("The number of points do not match the expected number of (y, y) points.")
+    
+    for f in tqdm.tqdm(files, desc="Processing Spectral data"):
+        coordinates = extract_coordinates(f, spectral_data_type)
+        if not coordinates:
+            continue
+            
+        x, y, z, t = coordinates
+        try:
+            if f.endswith('.csv'):
+                data = np.loadtxt(f, delimiter=',', skiprows=1)[::-1]
+                spectrum = data[:,1]
             elif f.endswith('.txt'):
                 data = np.loadtxt(f)
                 spectrum = data[:-1, 1]

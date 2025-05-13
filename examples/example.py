@@ -83,7 +83,6 @@ if __name__ == '__main__':
     plt.subplot(133)
     plt.imshow(fitted_parameters[2])
     plt.colorbar(label='Linewidth (GHz)')
-    plt.title('Deconvolution then fit')
     plt.show()
 
     # # Perform the data fitting using the DHO
