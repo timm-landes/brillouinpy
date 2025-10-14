@@ -113,33 +113,37 @@ def _find_instrumental_response(pixel_spectrum):
     
     return start, end
 
-def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations = 4, padding = 100):
-    
-    corrected_intensity_data = np.copy(intensity_data)
-    spectral_response = np.zeros(intensity_data.shape)
-    
+def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, padding=100):
+    # intensity_data kann 1D, 2D oder 3D sein
+    data = np.asarray(intensity_data)
+    original_shape = data.shape
+
+    # Bringe alles auf 3D-Form: (x, y, channels)
+    if data.ndim == 1:
+        data = data[np.newaxis, np.newaxis, :]
+    elif data.ndim == 2:
+        data = data[np.newaxis, :, :]
+    # Falls schon 3D, bleibt es so
+
+    corrected_intensity_data = np.copy(data)
+    spectral_response = np.zeros(data.shape)
+
     for x in range(corrected_intensity_data.shape[0]):
         for y in range(corrected_intensity_data.shape[1]):
-            start, end = _find_instrumental_response(intensity_data[x, y, :])
-            spectral_response[x, y, start:end] = intensity_data[x, y, start:end]
-            corrected_intensity_data[x,y,:] = restoration.richardson_lucy(corrected_intensity_data[x,y,:], 
-                                                                          spectral_response[x, y, :],
-                                                                          num_iter=iterations, clip=False, 
-                                                                          filter_epsilon=None)
-            corrected_intensity_data[x, y, start-offset:end+offset] = 0
-    
-    return corrected_intensity_data, spectral_axis
+            start, end = _find_instrumental_response(data[x, y, :])
+            spectral_response[x, y, start:end] = data[x, y, start:end]
+            corrected_intensity_data[x, y, :] = restoration.richardson_lucy(
+                corrected_intensity_data[x, y, :],
+                spectral_response[x, y, :],
+                num_iter=iterations, clip=False,
+                filter_epsilon=None
+            )
+            corrected_intensity_data[x, y, max(0, start-offset):min(data.shape[2], end+offset)] = 0
 
-
-def _data_padding(data, padding):
-    freq_step = np.abs(data[0, -1] - data[0, -2])
-    pad_freq = np.arange(start=data[0, -1] + freq_step, 
-                         stop=data[0, -1] + freq_step * (padding + 1), 
-                         step=freq_step, dtype=type(freq_step))
-    average = int(np.average(data[1, 0:20]))
-    pad_data = [average for _ in range(padding)]
-    pad_array = np.vstack((pad_freq, pad_data))
-    
-    lower_pad = np.flip(pad_array, axis=1)
-    lower_pad[0, :] = -lower_pad[0, :]
-    return np.hstack((lower_pad, data, pad_array))
+    # Form wiederherstellen
+    if original_shape == data.shape:
+        return corrected_intensity_data, spectral_axis
+    elif len(original_shape) == 2:
+        return corrected_intensity_data[0], spectral_axis
+    elif len(original_shape) == 1:
+        return corrected_intensity_data[0, 0], spectral_axis
