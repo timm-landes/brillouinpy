@@ -77,6 +77,64 @@ def extract_coordinates(filepath, spectral_data_type):
     match = re.match(pattern, filename)
     return tuple(map(int, match.groups())) if match else None
 
+def prepare_brillouin_data(project_path, spectral_data_type):
+    directory = os.path.join(project_path, 'data')
+    # sort files
+    if spectral_data_type == 'Raman':
+        files = sorted(
+            os.path.join(directory, f) for f in os.listdir(directory)
+            if (f.endswith('.csv') or f.endswith('.txt')) and os.path.isfile(os.path.join(directory, f))
+        )
+        spectral_dimension = 2048 # for Raman we assume always 2048 channels as this is the horizontal pixel number of the CCD
+    elif spectral_data_type == 'Brillouin':
+        files = sorted(
+            os.path.join(directory, f) for f in os.listdir(directory)
+            if (f.endswith('.DAT')) and os.path.isfile(os.path.join(directory, f))
+        )
+        _, spectral_dimension = import_DAT_File(files[0]) # for Brillouin we read the spectral dimension from one file
+    else:
+        raise ValueError('Spectral data not supported')
+    
+    # prepare spectral data: (x, y, z, time)
+    max_coord = [0, # x
+                 0, # y
+                 0, # z
+                 0] # time
+    for f in files:
+        coordinates = extract_coordinates(f, spectral_data_type)
+        if coordinates:
+            max_coord = [max(m, c) for m, c in zip(max_coord, coordinates)]
+    x_dim, y_dim, z_dim, timepoint =  max_coord
+
+    
+        # Create a masked array to handle missing data points
+    spectral_data_array = np.ma.masked_all((x_dim+1, y_dim+1, z_dim+1, timepoint+1, spectral_dimension))
+    
+    if len(files) != (x_dim+1) * (y_dim+1) * (z_dim+1) * (timepoint+1):
+        warnings.warn("The number of points do not match the expected number of (x, y, z, t) points.")
+    
+    for f in tqdm.tqdm(files, desc="Processing Spectral data"):
+        coordinates = extract_coordinates(f, spectral_data_type)
+        if not coordinates:
+            continue
+            
+        x, y, z, t = coordinates
+        try:
+            if f.endswith('.csv'):
+                data = np.loadtxt(f, delimiter=',')
+                spectrum = data[1]
+            elif f.endswith('.txt'):
+                data = np.loadtxt(f)
+                spectrum = data[:-1, 1]
+            elif f.endswith('.DAT'):
+                spectrum, _ = import_DAT_File(f)
+                
+            spectral_data_array[x, y, z, t, :] = spectrum
+            
+        except Exception as e:
+            warnings.warn(f"Could not load data for coordinates ({x}, {y}, {z}, {t}): {str(e)}")
+            # Point remains masked
+    return spectral_data_array
 
 def load_spectral_image(project_path, spectral_data_type):
     directory = os.path.join(project_path, 'data')
