@@ -72,10 +72,9 @@ class FitStep:
         for spectral_object in spectral_objects:
             current_projection = projections[:spectral_object.flat.shape[0]]
             current_projection = current_projection.reshape(list(spectral_object.shape) + [projections.shape[-1]])
-            current_projection = [current_projection[..., i] for i in range(current_projection.shape[-1])]
+            current_projection = np.squeeze(current_projection)  # NEU: keine Liste, sondern Array
 
             projections_folded.append(current_projection)
-
             projections = projections[spectral_object.flat.shape[0]:]
 
         if len(projections_folded) == 1:
