@@ -114,36 +114,35 @@ def _find_instrumental_response(pixel_spectrum):
     return start, end
 
 def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, padding=100):
-    # intensity_data kann 1D, 2D oder 3D sein
-    data = np.asarray(intensity_data)
-    original_shape = data.shape
-
-    # Bringe alles auf 3D-Form: (x, y, channels)
-    if data.ndim == 1:
-        data = data[np.newaxis, np.newaxis, :]
-    elif data.ndim == 2:
-        data = data[np.newaxis, :, :]
-    # Falls schon 3D, bleibt es so
-
-    corrected_intensity_data = np.copy(data)
-    spectral_response = np.zeros(data.shape)
+    '''
+    Deconvolute the intensity data with the Instrumental Response Function (IRF) using the Richardson-Lucy algorithm.
+    Additionally, the IRF gets removed from the spectral data.
+    Assuming the data is 2D (x, y, spectral) or 3D (x, y, z, spectral) or 4D (x, y, z, t, spectral).
+    '''
+    corrected_intensity_data = np.copy(np.asarray(intensity_data))
+    spectral_response = np.zeros(intensity_data.shape)
 
     for x in range(corrected_intensity_data.shape[0]):
         for y in range(corrected_intensity_data.shape[1]):
-            start, end = _find_instrumental_response(data[x, y, :])
-            spectral_response[x, y, start:end] = data[x, y, start:end]
-            corrected_intensity_data[x, y, :] = restoration.richardson_lucy(
-                corrected_intensity_data[x, y, :],
-                spectral_response[x, y, :],
-                num_iter=iterations, clip=False,
-                filter_epsilon=None
-            )
-            corrected_intensity_data[x, y, max(0, start-offset):min(data.shape[2], end+offset)] = 0
+            for z in range(corrected_intensity_data.shape[2]):
+                for t in range(corrected_intensity_data.shape[3]):
+                    start, end = _find_instrumental_response(intensity_data[x, y, z, t, :])
+                    spectral_response[x, y, z, t, start:end] = intensity_data[x, y, z, t, start:end]
 
-    # Form wiederherstellen
-    if original_shape == data.shape:
-        return corrected_intensity_data, spectral_axis
-    elif len(original_shape) == 2:
-        return corrected_intensity_data[0], spectral_axis
-    elif len(original_shape) == 1:
-        return corrected_intensity_data[0, 0], spectral_axis
+                    # Apply Richardson-Lucy deconvolution
+                    corrected_intensity_data[x, y, z, t, :] = restoration.richardson_lucy(
+                        corrected_intensity_data[x, y, z, t, :],
+                        spectral_response[x, y, z, t, :],
+                        num_iter=iterations, clip=False,
+                        filter_epsilon=None
+                    )
+                    # Remove the IRF and additional offset
+                    corrected_intensity_data[x,
+                                             y, 
+                                             z, 
+                                             t, 
+                                             max(0, start-offset):min(intensity_data.shape[-1], end+offset)
+                                             ] = np.nan
+
+    return corrected_intensity_data, spectral_axis
+    
