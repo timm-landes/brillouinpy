@@ -7,6 +7,7 @@ Created on Tue Feb 18 15:35:14 2025
 
 import numpy as np
 import os, re, tqdm, warnings
+import scipy.optimize
 
 
 def is_aligned(raman_objects):
@@ -274,15 +275,24 @@ def TFP_IRF_Analysis(intensity_data, spectral_axis):
                 for t in range(intensity_data.shape[3]):
                     start, end = _find_instrumental_response(intensity_data[x, y, z, t, :])
                     spectral_response[x, y, z, t, start:end] = intensity_data[x, y, z, t, start:end]
-                    laser_fitness[x, y, z, t] = np.max(intensity_data[x, y, z, t, start:end])
-                    half_max = laser_fitness[x, y, z, t] / 2
-                    indices_above_half_max = np.where(intensity_data[x, y, z, t, :] >= half_max)[0]
-                    if len(indices_above_half_max) > 0:
-                        fwhm_values[x, y, z, t] = spectral_axis[indices_above_half_max[-1]] - spectral_axis[indices_above_half_max[0]]
-                    
-
-            
+                    try:
+                        spectrum = spectral_response[x, y, z, t, :]
+                        p0 = [np.max(spectrum), spectral_axis[np.argmax(spectrum)], 0.1, np.min(spectrum)]
+                        popt, _ = scipy.optimize.curve_fit(_gauss, spectral_axis, spectrum, p0=p0)
+                        a, mu, sigma, c = popt
+                        fwhm = 2.3548 * abs(sigma)  # FWHM for Gaussian
+                        fwhm_values[x, y, z, t] = fwhm
+                        laser_fitness[x, y, z, t] = a
+                        # Optional: Save fitted curve if needed
+                        # spectral_response[x, y, z, t, :] = _gauss(spectral_axis, *popt)
+                    except Exception as e:
+                        fwhm_values[x, y, z, t] = np.nan
+                        laser_fitness[x, y, z, t] = np.nan
     return spectral_response, spectral_axis, laser_fitness, fwhm_values
+
+
+def _gauss(x, a, mu, sigma, c):
+    return a * np.exp(-(x - mu)**2 / (2 * sigma**2)) + c
 
 
 def _find_instrumental_response(pixel_spectrum):
