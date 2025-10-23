@@ -257,3 +257,38 @@ def load_spectral_image_brio2(project_path, spectral_data_type):
 def import_DAT_File(file):
     data = np.loadtxt(file, skiprows=11)
     return data, len(data)
+
+def TFP_IRF_Analysis(intensity_data, spectral_axis):
+    '''
+    Analyze the Instrumental Response Function (IRF) from the intensity data in terms of laser line shape and intenisty
+    Assuming the data is 2D (x, y, spectral) or 3D (x, y, z, spectral) or 4D (x, y, z, t, spectral).
+    '''
+    spectral_response = np.zeros(intensity_data.shape)
+    laser_fitness = np.zeros(intensity_data.shape[:-1])
+    fwhm_values = np.zeros(intensity_data.shape[:-1])
+
+    
+    for x in range(intensity_data.shape[0]):
+        for y in range(intensity_data.shape[1]):
+            for z in range(intensity_data.shape[2]):
+                for t in range(intensity_data.shape[3]):
+                    start, end = _find_instrumental_response(intensity_data[x, y, z, t, :])
+                    spectral_response[x, y, z, t, start:end] = intensity_data[x, y, z, t, start:end]
+                    laser_fitness[x, y, z, t] = np.max(intensity_data[x, y, z, t, start:end])
+                    half_max = laser_fitness[x, y, z, t] / 2
+                    indices_above_half_max = np.where(intensity_data[x, y, z, t, :] >= half_max)[0]
+                    if len(indices_above_half_max) > 0:
+                        fwhm_values[x, y, z, t] = spectral_axis[indices_above_half_max[-1]] - spectral_axis[indices_above_half_max[0]]
+                    
+
+            
+    return spectral_response, spectral_axis, laser_fitness, fwhm_values
+
+
+def _find_instrumental_response(pixel_spectrum):
+    max_index = np.argmax(pixel_spectrum)
+    
+    start = next((i for i in range(max_index, 0, -1) if pixel_spectrum[i] == 0), 0)
+    end = next((i for i in range(max_index, len(pixel_spectrum)) if pixel_spectrum[i] == 0), len(pixel_spectrum))
+    
+    return start, end
