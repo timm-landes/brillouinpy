@@ -95,23 +95,23 @@ def _vector_norm(intensity_data, spectral_axis, *, pixelwise: bool):
 
 def _minmax_norm(intensity_data, spectral_axis, a, b, *, pixelwise: bool):
     if pixelwise:
-        mins = np.min(intensity_data, axis=-1, keepdims=True)
-        maxs = np.max(intensity_data, axis=-1, keepdims=True)
+        mins = np.nanmin(intensity_data, axis=-1, keepdims=True)
+        maxs = np.nanmax(intensity_data, axis=-1, keepdims=True)
 
         return a + (intensity_data[..., :] - mins) * (b - a) / (maxs - mins), spectral_axis
 
     else:
-        mins = np.min(intensity_data)
-        maxs = np.max(intensity_data)
+        mins = np.nanmin(intensity_data)
+        maxs = np.nanmax(intensity_data)
 
         return a + (intensity_data - mins) * (b - a) / (maxs - mins), spectral_axis
 
 
 def _max_intensity_norm(intensity_data, spectral_axis, *, pixelwise: bool):
     if pixelwise:
-        return intensity_data[..., :] / np.max(intensity_data, axis=-1, keepdims=True), spectral_axis
+        return intensity_data[..., :] / np.nanmax(intensity_data, axis=-1, keepdims=True), spectral_axis
     else:
-        return intensity_data / np.max(intensity_data), spectral_axis
+        return intensity_data / np.nanmax(intensity_data), spectral_axis
 
 
 def _auc_norm(intensity_data, spectral_axis, *, pixelwise: bool):
