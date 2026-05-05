@@ -10,8 +10,90 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 import os
 
+from multiprocessing import shared_memory
+
 from .FitStep import FitStep
 
+
+# Worker-Globals
+_DHO3_DATA = None
+_DHO3_SPECTRAL_AXIS = None
+_DHO3_EXPECTED_PEAKS = None
+_DHO3_P0 = None
+_DHO3_BOUNDS = None
+_DHO3_FIT_FUNC = None
+_DHO3_SHM = None
+
+
+def _init_dho3_worker(shm_name, shape, dtype, spectral_axis, expected_peaks, p0, bounds, fit_func):
+    global _DHO3_DATA, _DHO3_SPECTRAL_AXIS, _DHO3_EXPECTED_PEAKS, _DHO3_P0, _DHO3_BOUNDS, _DHO3_FIT_FUNC, _DHO3_SHM
+
+    _DHO3_SHM = shared_memory.SharedMemory(name=shm_name)
+    _DHO3_DATA = np.ndarray(shape, dtype=dtype, buffer=_DHO3_SHM.buf)
+    _DHO3_SPECTRAL_AXIS = spectral_axis
+    _DHO3_EXPECTED_PEAKS = expected_peaks
+    _DHO3_P0 = p0
+    _DHO3_BOUNDS = bounds
+    _DHO3_FIT_FUNC = fit_func
+
+
+def _fit_dho3_worker(idx):
+    intensity_data_slice = _DHO3_DATA[idx + (slice(None),)]
+    return _fitDHO2(
+        idx,
+        _DHO3_SPECTRAL_AXIS,
+        intensity_data_slice,
+        _DHO3_EXPECTED_PEAKS,
+        _DHO3_P0,
+        _DHO3_BOUNDS,
+        _DHO3_FIT_FUNC,
+    )
+
+
+def _fit_concurrent_DHO3(intensity_data, spectral_axis, expected_peaks, p0=None, bounds=None):
+    variables = int(expected_peaks * 3 + 2)
+
+    if p0 is not None and len(p0) != variables:
+        p0 = None
+        print("Length of p0 does not match the model. Fallback to p0 = None")
+
+    fit_results = np.full(intensity_data.shape[:-1] + (variables,), np.nan)
+    cov_results = np.full(intensity_data.shape[:-1] + (variables, variables), np.nan)
+
+    fit_func = {1: _DHO_1, 2: _DHO_2, 3: _DHO_3}[expected_peaks]
+    spectral_axis = spectral_axis[0]
+
+    # Masken im Spektrum behalten, aber als NaN speichern, damit curve_fit sie ignoriert
+    data = np.asarray(np.ma.filled(intensity_data, np.nan), dtype=np.float64)
+    spatial_shape = data.shape[:-1]
+    indices = list(np.ndindex(spatial_shape))
+
+    max_workers = max(1, int(os.cpu_count() * 0.75))
+    chunksize = max(1, len(indices) // (max_workers * 4))
+
+    shm = shared_memory.SharedMemory(create=True, size=data.nbytes)
+    try:
+        shared_data = np.ndarray(data.shape, dtype=data.dtype, buffer=shm.buf)
+        shared_data[:] = data
+
+        with ProcessPoolExecutor(
+            max_workers=max_workers,
+            initializer=_init_dho3_worker,
+            initargs=(shm.name, data.shape, data.dtype, spectral_axis, expected_peaks, p0, bounds, fit_func),
+        ) as executor:
+            for idx, popt, pcov in tqdm(
+                executor.map(_fit_dho3_worker, indices, chunksize=chunksize),
+                total=len(indices),
+                desc="Fitting Spectral data",
+            ):
+                fit_results[idx] = popt
+                cov_results[idx] = pcov
+
+    finally:
+        shm.close()
+        shm.unlink()
+
+    return fit_results, cov_results
     
 class DHO(FitStep):
     """
@@ -120,7 +202,7 @@ def _fit_concurrent_DHO2(intensity_data, spectral_axis, expected_peaks, p0=None,
     spectral_axis = spectral_axis[0]
     print('Starting of Multiprocessing can take up to 10 seconds.')
     tasks = []
-    with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.75))) as executor:
+    with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.25))) as executor:
         for idx in np.ndindex(spatial_shape):
             intensity_data_slice = intensity_data[idx + (slice(None),)]
             task = executor.submit(_fitDHO2, idx, spectral_axis, intensity_data_slice, expected_peaks, p0, bounds, fit_func)
