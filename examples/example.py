@@ -9,10 +9,10 @@ if __name__ == '__main__':
     # Set the project path. Here, your data should be located in a folder data.
     # All output will be stored in the folder pp_data. If nonexistent, it will be generated. 
     project_path = r'C:\\Users\\Timm\\Desktop\\Leipzig\\Zygo_2_4'
-    # project_path = r'C:\Users\Timm\Desktop\Victor\Idared_95_05'
+    project_path = r'C:\Users\Timm\Desktop\data\Victor\Idared_95_05'
     
     # Load of the Brillouin spectral data
-    brillouin_data = bp.utils.load_spectral_image(project_path, 'Brillouin')
+    brillouin_data = bp.utils.prepare_brillouin_data(project_path, 'Brillouin')
     # Calculate the Frequency axis of the Brillouin data.
     brillouin_frequency_scale = bp.utils.brillouin_spectral_axis(
         mirror_spacing = 6e-3, # [m]
@@ -54,14 +54,27 @@ if __name__ == '__main__':
     bp.plot.mean_spectra(brillouin_data, title='Raw Brillouin Data', yscale='log')  
     plt.subplot(122)
     bp.plot.mean_spectra(pp_brillouin_data, title='Processed Brillouin Data', yscale='linear')
+    plt.plot(pp_brillouin_data.spectral_axis, bp.analysis.fitmodel._DHO_2(pp_brillouin_data.spectral_axis, *[        # Give the algorithm a good starting point, must match the lenght (expected_peaks*3)+2
+                                           0.001,   # Amplitude
+                                           8.5,     # Frequency Shift in GHz
+                                           1,       # FWHM in GHz
+                                           0.0005,
+                                           17.5,
+                                           1,
+                                           0,       # Background
+                                           0        # Symmetry
+                                           ],), label='DHO2 Fit', color='red')
     plt.show()
 
     # Perform the data fitting using the DHO
-    DHO_fit = bp.analysis.fitmodel.DHO(expected_peaks=1,        # How much peaks do you expect
+    DHO_fit = bp.analysis.fitmodel.DHO(expected_peaks=2,        # How much peaks do you expect
                                        p0= [        # Give the algorithm a good starting point, must match the lenght (expected_peaks*3)+2
                                            0.005,   # Amplitude
                                            8.5,     # Frequency Shift in GHz
                                            1,       # FWHM in GHz
+                                           0.0006,
+                                           17.5,
+                                           1,
                                            0,       # Background
                                            0        # Symmetry
                                            ],    
@@ -69,19 +82,17 @@ if __name__ == '__main__':
     )
     fitted_parameters, metric = DHO_fit.apply(pp_brillouin_data)
     
-    for parameter in fitted_parameters:
-        print('DHO:', np.nanmean(parameter))
     
     # Plot all fitted variables
     plt.figure(figsize=(15, 5), layout='constrained')
     plt.subplot(131)
-    plt.imshow(fitted_parameters[0])    
+    plt.imshow(fitted_parameters[:, :, 3])    
     plt.colorbar(label='Amplitude (a.u.)')
     plt.subplot(132)
-    plt.imshow(fitted_parameters[1])
+    plt.imshow(fitted_parameters[:, :, 4])
     plt.colorbar(label='Frequency (GHz)')
     plt.subplot(133)
-    plt.imshow(fitted_parameters[2])
+    plt.imshow(fitted_parameters[:, :, 5])
     plt.colorbar(label='Linewidth (GHz)')
     plt.show()
 
@@ -107,25 +118,25 @@ if __name__ == '__main__':
     # Basic data analysis part done!
 #%% Advanced Analysis
 
-    # Here we do a Vertex Component Analysis (VCA)
-    # Definition of the VCA parameters. Important for you is here the number of endmembers n_endmembers. Abundance_method is less relevant to you and defines the algorithm to determine the maps of the members.
-    unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls') 
+    # # Here we do a Vertex Component Analysis (VCA)
+    # # Definition of the VCA parameters. Important for you is here the number of endmembers n_endmembers. Abundance_method is less relevant to you and defines the algorithm to determine the maps of the members.
+    # unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls') 
     
-    # Applying the VCA onto our Brillouin object. That is already all that's to it.
-    abundance_maps, endmembers = unmixer.apply(pp_brillouin_data)
+    # # Applying the VCA onto our Brillouin object. That is already all that's to it.
+    # abundance_maps, endmembers = unmixer.apply(pp_brillouin_data)
     
-    # Plot the endmembers spectra
-    plt.figure(figsize=(10, 5), layout='tight')
-    plt.subplot(121)
-    bp.plot.spectra(endmembers, pp_brillouin_data.spectral_axis, plot_type="single", label=[f"Endmember {i + 1}" for i in range(len(endmembers))], yscale = 'linear')
+    # # Plot the endmembers spectra
+    # plt.figure(figsize=(10, 5), layout='tight')
+    # plt.subplot(121)
+    # bp.plot.spectra(endmembers, pp_brillouin_data.spectral_axis, plot_type="single", label=[f"Endmember {i + 1}" for i in range(len(endmembers))], yscale = 'linear')
     
     
-    # Let's also make an overlay plot of where each endmember is most present using matplotlib
-    ax = plt.subplot(122)
-    # Define coloring of the plot
-    cmap = plt.get_cmap()(np.linspace(0, 1, len(abundance_maps)))
-    white = [1, 1, 1, 0]
+    # # Let's also make an overlay plot of where each endmember is most present using matplotlib
+    # ax = plt.subplot(122)
+    # # Define coloring of the plot
+    # cmap = plt.get_cmap()(np.linspace(0, 1, len(abundance_maps)))
+    # white = [1, 1, 1, 0]
     
-    for i in range(len(endmembers)):
-        ax.imshow(abundance_maps[i], cmap=LinearSegmentedColormap.from_list('', [white, cmap[i]]))
-    plt.show()
+    # for i in range(len(endmembers)):
+    #     ax.imshow(abundance_maps[i], cmap=LinearSegmentedColormap.from_list('', [white, cmap[i]]))
+    # plt.show()

@@ -19,7 +19,11 @@ setup(
          'scikit-image',
          'scikit-learn',
          'pysptools',
+         'tifffile',
     ],
+    extras_require={
+        'hdf5_bls': ['HDF5_BLS'],
+    },
     author='Timm Landes',
     author_email='timm.landes@hot.uni-hannover.de',
     description='Geänderte Version von RamanSPy um die Brillouin-Daten damit zu analysieren',

@@ -68,7 +68,7 @@ def _fit_concurrent_DHO3(intensity_data, spectral_axis, expected_peaks, p0=None,
     spatial_shape = data.shape[:-1]
     indices = list(np.ndindex(spatial_shape))
 
-    max_workers = max(1, int(os.cpu_count() * 0.75))
+    max_workers = max(1, int(os.cpu_count() * 0.25))
     chunksize = max(1, len(indices) // (max_workers * 4))
 
     shm = shared_memory.SharedMemory(create=True, size=data.nbytes)
@@ -249,7 +249,7 @@ def _fit_concurrent_DHO(intensity_data, spectral_axis, expected_peaks, p0=None, 
     spectral_axis = spectral_axis[0]
     print('Starting of Multiprocessing can take up to 10 seconds.')
     tasks = []
-    with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.75))) as executor:
+    with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.25))) as executor:
         for x in range(intensity_data.shape[0]):
             for y in range(intensity_data.shape[1]):
                 for z in range(intensity_data.shape[2]):
@@ -283,7 +283,7 @@ def _fit_concurrent_lorentzian(intensity_data, spectral_axis, expected_peaks, p0
     X = spectral_axis[0]
     print('Starting of Multiprocessing can take up to 10 seconds.')
     tasks = []
-    with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.75))) as executor:
+    with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.25))) as executor:
         for x in range(intensity_data.shape[0]):
             for y in range(intensity_data.shape[1]):
                 intensity_data_slice = intensity_data[x, y, :]

@@ -1,14 +1,14 @@
 
 #  Brillouin Analyzer
 
-This module should help you to analyze Brillouin light scattering data efficiently. This is strongly, let's say "inspired" by the package [RamanSPy](https://github.com/barahona-research-group/RamanSPy). For the most steps it uses the same syntax, but I started to remove unnecessary functions and added usefull ones for Brillouin imaging. For instance, Raman scattering data often requires a baseline correction. This however, is something we don't do in Brillouin. Usually the background in Brillouin light scattering experiments is very flat and only requires the removal of a constant background. But analyis of Brillouin data requires removal of the Rayleigh scattered light, or in our case removal of the reference beam.
+This module should help you to analyze Brillouin light scattering data efficiently. This is strongly, let's say "inspired" by the package [RamanSPy](https://github.com/barahona-research-group/RamanSPy). For the most steps it uses the same syntax, but I started to remove unnecessary functions and added useful ones for Brillouin imaging. For instance, Raman scattering data often requires a baseline correction. This however, is something we don't do in Brillouin. Usually the background in Brillouin light scattering experiments is very flat and only requires the removal of a constant background. But analysis of Brillouin data requires removal of the Rayleigh scattered light, or in our case removal of the reference beam.
 
 
 
 **Currently only for internal use within the Phytophotonics Division, as it contains many RamanSPy references that are not clearly marked! Please do not share this package with others without asking for permission first.**.
 
 ## Installation
-This gives a short manual for installation of Anaconda and BrillouinAnalyzer. I highly recommend the use of Anaconda as a Python distribution if you are new to Python Scripting and Programming. After installing BrillouinAnalyzer, you will be able to use Brillouinanalyzer like any other Python package.
+This gives a short manual for installation of Anaconda and BrillouinAnalyzer. I highly recommend the use of Anaconda as a Python distribution if you are new to Python Scripting and Programming. After installing BrillouinAnalyzer, you will be able to use BrillouinAnalyzer like any other Python package.
 
 ### Prerequisites
  1. Install Anaconda: [Link to Anaconda download website](https://www.anaconda.com/download/success).
@@ -20,12 +20,12 @@ Now you can choose one of the two next sections to install Brillouin Analyzer de
  1. Installation using the **Git-Repository**. This method is recommended if you do not work on the package itself. Here you will always find the latest version of BrillouinAnalyzer.
  2. Installation from a **local directory**. This method is recommended if you want to work on the package code istelf. It will be possible to make changes to the code that can be applied directly.
   
-Now just one remark: **Keep the installation of Conda as it is, unless you definitly need newer packages! :)** I bricked my conda several times updateing conda.
+Now just one remark: **Keep the installation of Conda as it is, unless you definitly need newer packages! :)** I bricked my conda several times updating conda.
 
 ### Install BrillouinAnalyzer from the Git-Repository
-For this you'll need git Intall it via `conda install pip` and need to setup a local SSH key in Gitlab. A nice tutorial you can find [here (Link to youtube)](https://www.youtube.com/watch?v=Vmt0V6a3ppE).
-You have already installed git. So you can directly type in the Anaconda promt.
-However, this installation has the big advantage that its easier to keep your installation up-to-date. 
+For this you'll need git. Intall it via `conda install pip` and need to set up a local SSH key in GitLab. A nice tutorial you can find [here (Link to Youtube)](https://www.youtube.com/watch?v=Vmt0V6a3ppE).
+You have already installed git. So you can directly type in the Anaconda prompt.
+However, this installation has the big advantage that it's easier to keep your installation up-to-date. 
 
 ```bash
 pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer.git
@@ -35,7 +35,7 @@ pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyze
 
 
 1. Generate a folder where you want to save the module.
-2. Move to the folder in the Anaconda promt: 
+2. Move to the folder in the Anaconda prompt: 
    ```bash
    cd <your folder path>
    ```
@@ -53,7 +53,7 @@ pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyze
    pip install -e .
    ```
 ## Updates
-1. To update the installation of BrillouinAnalyzer open the anaconda promt and start the conda environment `conda activate <mynewenv>`.
+1. To update the installation of BrillouinAnalyzer open the anaconda prompt and start the conda environment `conda activate <mynewenv>`.
 2. When installed from the git repository type
    ```bash
    pip install --upgrade git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer.git.
@@ -130,7 +130,7 @@ if __name__ == '__main__':
 ```
 
 ## Usage in Spyder
-When you want to use the package in spyder you have to install the spyder kernels in your environment:
+When you want to use the package in Spyder you have to install the Spyder kernels in your environment:
 ```bash
    conda install spyder-kernels
    ```
