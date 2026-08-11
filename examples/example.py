@@ -1,6 +1,8 @@
 #%% Package import
+import numpy as np
 import brillouinanalyzer as bp
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 
 #%% Simple data import
 if __name__ == '__main__':
@@ -116,25 +118,35 @@ if __name__ == '__main__':
     # Basic data analysis part done!
 #%% Advanced Analysis
 
-    # # Here we do a Vertex Component Analysis (VCA)
-    # # Definition of the VCA parameters. Important for you is here the number of endmembers n_endmembers. Abundance_method is less relevant to you and defines the algorithm to determine the maps of the members.
-    # unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls')
+    # Here we do a Vertex Component Analysis (VCA)
+    # Definition of the VCA parameters. Important for you is here the number of endmembers n_endmembers. Abundance_method is less relevant to you and defines the algorithm to determine the maps of the members.
+    unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls')
 
-    # # Applying the VCA onto our Brillouin object. That is already all that's to it.
-    # abundance_maps, endmembers = unmixer.apply(pp_brillouin_data)
+    # Applying the VCA onto our Brillouin object. That is already all that's to it.
+    abundance_maps, endmembers = unmixer.apply(pp_brillouin_data)
 
-    # # Plot the endmembers spectra
-    # plt.figure(figsize=(10, 5), layout='tight')
-    # plt.subplot(121)
-    # bp.plot.spectra(endmembers, pp_brillouin_data.spectral_axis, plot_type="single", label=[f"Endmember {i + 1}" for i in range(len(endmembers))], yscale = 'linear')
+    # Plot the endmembers spectra
+    plt.figure(figsize=(10, 5), layout='tight')
+    plt.subplot(121)
+    bp.plot.spectra(endmembers, pp_brillouin_data.spectral_axis, plot_type="single", label=[f"Endmember {i + 1}" for i in range(len(endmembers))], yscale = 'linear')
 
 
-    # # Let's also make an overlay plot of where each endmember is most present using matplotlib
-    # ax = plt.subplot(122)
-    # # Define coloring of the plot
-    # cmap = plt.get_cmap()(np.linspace(0, 1, len(abundance_maps)))
-    # white = [1, 1, 1, 0]
+    # Let's also make an overlay plot of where each endmember is most present using matplotlib
+    ax = plt.subplot(122)
+    # Define coloring of the plot
+    cmap = plt.get_cmap()(np.linspace(0, 1, len(abundance_maps)))
+    white = [1, 1, 1, 0]
 
-    # for i in range(len(endmembers)):
-    #     ax.imshow(abundance_maps[i], cmap=LinearSegmentedColormap.from_list('', [white, cmap[i]]))
-    # plt.show()
+    for i in range(len(endmembers)):
+        # abundance_maps keep the full (x, y, z, t) spatial shape of the source data;
+        # squeeze the singleton z/t axes since imshow only understands 2D image data.
+        abundance_map = np.squeeze(abundance_maps[i])
+        if abundance_map.ndim != 2:
+            raise ValueError(
+                f"Cannot plot endmember {i + 1}: its abundance map has shape {abundance_maps[i].shape} "
+                f"(x, y, z, t), which is still {abundance_map.ndim}D after removing singleton axes. "
+                "imshow() can only display a flat 2D image, so pick a single z-layer and/or timepoint "
+                "to plot, e.g. abundance_maps[i][:, :, z_index, t_index]."
+            )
+        ax.imshow(abundance_map, cmap=LinearSegmentedColormap.from_list('', [white, cmap[i]]))
+    plt.show()

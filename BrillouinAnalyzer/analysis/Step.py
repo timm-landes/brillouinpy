@@ -59,21 +59,40 @@ class AnalysisStep:
         if not utils.is_aligned(spectral_objects):
             ValueError("Cannot perform analysis step on unaligned spectra. Spectral axis must match.")
 
-        # Unfold data
+        # Unfold data, tracking NaN/masked values per spectral channel
         spectral_data = []
+        invalid_masks = []
         for spectral_object in spectral_objects:
             data = spectral_object.flat.spectral_data
-            # Only handle masked arrays, keep normal arrays unchanged
             if isinstance(data, np.ma.MaskedArray):
-                # Handle masked arrays by filling with 0
-                data = data.filled(0)
+                invalid = np.ma.getmaskarray(data) | np.isnan(np.ma.filled(data, np.nan))
+                data = np.ma.filled(data, np.nan)
+            else:
+                data = np.asarray(data)
+                invalid = np.isnan(data)
             spectral_data.append(data)
+            invalid_masks.append(invalid)
         spectral_data = np.vstack(spectral_data)
+        invalid_mask = np.vstack(invalid_masks)
+
+        # Decomposition/unmixing methods need a value for every pixel in every channel, so
+        # channels that are NaN/masked for at least one pixel (e.g. a removed IRF region) are
+        # dropped entirely rather than filled in, to avoid biasing the result with fake signal.
+        valid_channels = ~invalid_mask.any(axis=0)
+        if not valid_channels.any():
+            raise ValueError(
+                "Every spectral channel contains a NaN/masked value in at least one of the spectra provided; "
+                "nothing left to analyse.")
+        spectral_data = spectral_data[:, valid_channels]
 
         # apply method
-        projections, components = self.method(spectral_data, *self.args, *self.kwargs)
+        projections, components = self.method(spectral_data, *self.args, **self.kwargs)
 
-        components = [components[i, ...] for i in range(components.shape[0])]
+        # Re-embed components/endmembers into the full channel range (NaN for dropped
+        # channels) so they keep aligning with the original (un-cropped) spectral_axis.
+        full_components = np.full((components.shape[0], valid_channels.shape[0]), np.nan)
+        full_components[:, valid_channels] = components
+        components = [full_components[i, ...] for i in range(full_components.shape[0])]
 
         # Fold data
         projections_folded = []
