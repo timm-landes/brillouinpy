@@ -22,7 +22,7 @@ class FitStep:
     def apply(self, spectral_objects: Union[core.SpectralObject, List[core.SpectralObject]]) -> \
             Tuple[Union[List[NDArray], List[List[NDArray]]], List[NDArray]]:
         """
-        Applies the defined analysis method on the Raman spectroscopic objects provided.
+        Applies the defined analysis method on the Brillouin spectroscopic objects provided.
 
         The single point-of-contact method of analysis methods.
 
@@ -30,14 +30,14 @@ class FitStep:
 
         Parameters
         ----------
-        raman_objects : Union[core.SpectralObject, List[core.SpectralObject]]
+        spectral_objects : Union[core.SpectralObject, List[core.SpectralObject]]
             The data to analyse, where SpectralObject := Union[SpectralContainer, Spectrum, SpectralImage, SpectralVolume].
 
         Returns
         ----------
         List[numpy.array] or List[List[numpy.array]] :
             The projected data.
-            For each object in ``raman_objects``, a list of length equal to the dimensionality of the projective space is derived,
+            For each object in ``spectral_objects``, a list of length equal to the dimensionality of the projective space is derived,
             containing the corresponding projection maps.
         List[numpy.array] :
             The metrics of the fit.
@@ -48,9 +48,9 @@ class FitStep:
 
         .. code::
 
-            # once an analysis method is initialised, it can be applied to different Raman data
-            projections, metrics = analysis_method.apply(raman_object)
-            projections, metrics = analysis_method.apply([raman_object, raman_spectrum, raman_image])
+            # once an analysis method is initialised, it can be applied to different Brillouin data
+            projections, metrics = analysis_method.apply(brillouin_object)
+            projections, metrics = analysis_method.apply([brillouin_object, brillouin_spectrum, brillouin_image])
         """
 
         if not isinstance(spectral_objects, list):

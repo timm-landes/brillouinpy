@@ -18,7 +18,7 @@ class Vector(PreprocessingStep):
     ----------
     pixelwise : bool
         If ``True`` (default), method is applied to each spectrum individually. If ``False``, spectra are divided by the norm of
-        the spectra with the largest norm in the given :class:`ramanspy.SpectralContainer` instance.
+        the spectra with the largest norm in the given :class:`brillouinanalyzer.SpectralContainer` instance.
     """
 
     def __init__(self, *, pixelwise: bool = True):
@@ -77,7 +77,7 @@ class AUC(PreprocessingStep):
     ----------
     pixelwise : bool
         If ``True`` (default), method is applied to each spectra individually. If ``False``, spectra are divided by the area under
-        the curve of the spectrum with the largest one in the given :class:`ramanspy.SpectralContainer` instance.
+        the curve of the spectrum with the largest one in the given :class:`brillouinanalyzer.SpectralContainer` instance.
     """
 
     def __init__(self, *, pixelwise: bool = True):

@@ -18,7 +18,7 @@ class Pipeline:
 
     .. code::
 
-        from ramanspy import preprocessing
+        from brillouinanalyzer import preprocessing
 
         preprocessing_pipeline = preprocessing.Pipeline([
             preprocessing.PreprocessingStep(some_custom_preprocessing_func, *args, **kwargs),
@@ -139,13 +139,13 @@ class Pipeline:
     def apply(self, spectral_objects: Union[SpectralObject, List[Union[SpectralObject, List[SpectralObject]]]]) -> \
             Union[SpectralObject, List[Union[SpectralObject, List[SpectralObject]]]]:
         """
-        Preprocess Raman spectroscopic data using the initialised pipeline.
+        Preprocess Brillouin spectroscopic data using the initialised pipeline.
 
         The single point-of-contact method of the :class:`Pipeline` class.
 
         Parameters
         ----------
-        raman_objects : Union[SpectralObject, List[Union[SpectralObject, List[SpectralObject]]]]
+        spectral_objects : Union[SpectralObject, List[Union[SpectralObject, List[SpectralObject]]]]
             The objects to preprocess, where SpectralObject := Union[SpectralContainer, Spectrum, SpectralImage, SpectralVolume].
 
         Returns
@@ -162,10 +162,10 @@ class Pipeline:
 
         .. code::
 
-            # once a preprocessing pipeline is initialised, it can be applied to different Raman data just as single PreprocessingStep instances
-            preprocessed_data = preprocessing_pipeline.apply(raman_object)
-            preprocessed_data = preprocessing_method.apply([raman_object, raman_spectrum, raman_image])
-            preprocessed_data = preprocessing_method.apply([raman_object, raman_spectrum], raman_object, [raman_spectrum, raman_image])
+            # once a preprocessing pipeline is initialised, it can be applied to different Brillouin data just as single PreprocessingStep instances
+            preprocessed_data = preprocessing_pipeline.apply(brillouin_object)
+            preprocessed_data = preprocessing_method.apply([brillouin_object, brillouin_spectrum, brillouin_image])
+            preprocessed_data = preprocessing_method.apply([brillouin_object, brillouin_spectrum], brillouin_object, [brillouin_spectrum, brillouin_image])
 
 
         """

@@ -94,7 +94,7 @@ def _fit_concurrent_DHO3(intensity_data, spectral_axis, expected_peaks, p0=None,
         shm.unlink()
 
     return fit_results, cov_results
-    
+
 class DHO(FitStep):
     """
     Fit of one or multiple density distributions of Damped Harmonic Oscillators (DHO)
@@ -109,13 +109,12 @@ class DHO(FitStep):
     bounds : list[list[floats], list[floats]] or None
         Boundaries for the plot
     **kwargs :
-        
 
     """
     def __init__(self, *, expected_peaks, p0, bounds):
         super().__init__(_fit_concurrent_DHO2, expected_peaks=expected_peaks, p0=p0, bounds=bounds)
 
-    
+
 class Lorentzian(FitStep):
     """
     Fit of one or multiple Lorentzian lines
@@ -131,7 +130,6 @@ class Lorentzian(FitStep):
     bounds : list[list[floats], list[floats]] or None
         Boundaries for the plot
     **kwargs :
-        
 
     """
     def __init__(self, *, expected_peaks, p0, bounds):
@@ -148,11 +146,11 @@ def _fitDHO(x, y, z, t, spectral_axis, intensity_data_slice, expected_peaks, p0,
     else:
         intensity_axis = intensity_data_slice.copy()
     intensity_axis[intensity_axis == 0] = np.nan
-    
+
     # If all values are NaN, return NaN results
     if np.all(np.isnan(intensity_axis)):
         return x, y, z, t, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
-    
+
     if p0 is None:
         p0 = [1] * (expected_peaks * 3 + 2)  # Default initial guesses
     if bounds is None:
@@ -190,7 +188,7 @@ def _fitDHO2(idx, spectral_axis, intensity_data_slice, expected_peaks, p0, bound
     except RuntimeError:
         print(f"Fit not successful for pixel {idx}")
         return idx, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
-    
+
 def _fit_concurrent_DHO2(intensity_data, spectral_axis, expected_peaks, p0=None, bounds=None):
     variables = int(expected_peaks * 3 + 2)
     spatial_shape = intensity_data.shape[:-1]
@@ -212,7 +210,7 @@ def _fit_concurrent_DHO2(intensity_data, spectral_axis, expected_peaks, p0=None,
             idx, popt, pcov = future.result()
             fit_results[idx] = popt
             cov_results[idx] = pcov
-            
+
     return fit_results, cov_results
 
 def _fitLorentzian(x, y, X, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs):
@@ -222,7 +220,7 @@ def _fitLorentzian(x, y, X, intensity_data_slice, expected_peaks, p0, bounds, fi
     else:
         Y = intensity_data_slice.copy()
     Y[Y == 0] = np.nan
-    
+
     if p0 is None:
         p0 = [1] * (expected_peaks * 3 + 2)  # Default initial guesses
     if bounds is None:
@@ -262,7 +260,7 @@ def _fit_concurrent_DHO(intensity_data, spectral_axis, expected_peaks, p0=None, 
                             #     continue
                             task = executor.submit(_fitDHO, x, y, z, t,  spectral_axis, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs)
                             tasks.append(task)
-        
+
         # Use tqdm to display a progress bar
         for future in tqdm(as_completed(tasks), total=len(tasks), desc='Fitting Spectral data'):
             x, y, z, t, popt, pcov = future.result()

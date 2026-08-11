@@ -19,10 +19,10 @@ class AnalysisStep:
         self.args = args
         self.kwargs = kwargs
 
-    def apply(self, raman_objects: Union[core.SpectralObject, List[core.SpectralObject]]) -> \
+    def apply(self, spectral_objects: Union[core.SpectralObject, List[core.SpectralObject]]) -> \
             Tuple[Union[List[NDArray], List[List[NDArray]]], List[NDArray]]:
         """
-        Applies the defined analysis method on the Raman spectroscopic objects provided.
+        Applies the defined analysis method on the Brillouin spectroscopic objects provided.
 
         The single point-of-contact method of analysis methods.
 
@@ -30,14 +30,14 @@ class AnalysisStep:
 
         Parameters
         ----------
-        raman_objects : Union[core.SpectralObject, List[core.SpectralObject]]
+        spectral_objects : Union[core.SpectralObject, List[core.SpectralObject]]
             The data to analyse, where SpectralObject := Union[SpectralContainer, Spectrum, SpectralImage, SpectralVolume].
 
         Returns
         ----------
         List[numpy.array] or List[List[numpy.array]] :
             The projected data.
-            For each object in ``raman_objects``, a list of length equal to the dimensionality of the projective space is derived,
+            For each object in ``spectral_objects``, a list of length equal to the dimensionality of the projective space is derived,
             containing the corresponding projection maps.
         List[numpy.array] :
             The components derived.
@@ -48,21 +48,21 @@ class AnalysisStep:
 
         .. code::
 
-            # once an analysis method is initialised, it can be applied to different Raman data
-            projections, components = analysis_method.apply(raman_object)
-            projections, components = analysis_method.apply([raman_object, raman_spectrum, raman_image])
+            # once an analysis method is initialised, it can be applied to different Brillouin data
+            projections, components = analysis_method.apply(brillouin_object)
+            projections, components = analysis_method.apply([brillouin_object, brillouin_spectrum, brillouin_image])
         """
 
-        if not isinstance(raman_objects, list):
-            raman_objects = [raman_objects]
+        if not isinstance(spectral_objects, list):
+            spectral_objects = [spectral_objects]
 
-        if not utils.is_aligned(raman_objects):
+        if not utils.is_aligned(spectral_objects):
             ValueError("Cannot perform analysis step on unaligned spectra. Spectral axis must match.")
 
         # Unfold data
         spectral_data = []
-        for raman_object in raman_objects:
-            data = raman_object.flat.spectral_data
+        for spectral_object in spectral_objects:
+            data = spectral_object.flat.spectral_data
             # Only handle masked arrays, keep normal arrays unchanged
             if isinstance(data, np.ma.MaskedArray):
                 # Handle masked arrays by filling with 0
@@ -77,14 +77,14 @@ class AnalysisStep:
 
         # Fold data
         projections_folded = []
-        for raman_object in raman_objects:
-            current_projection = projections[:raman_object.flat.shape[0]]
-            current_projection = current_projection.reshape(list(raman_object.shape) + [projections.shape[-1]])
+        for spectral_object in spectral_objects:
+            current_projection = projections[:spectral_object.flat.shape[0]]
+            current_projection = current_projection.reshape(list(spectral_object.shape) + [projections.shape[-1]])
             current_projection = [current_projection[..., i] for i in range(current_projection.shape[-1])]
 
             projections_folded.append(current_projection)
 
-            projections = projections[raman_object.flat.shape[0]:]
+            projections = projections[spectral_object.flat.shape[0]:]
 
         if len(projections_folded) == 1:
             return projections_folded[0], components
