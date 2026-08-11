@@ -3,6 +3,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
+extend-exclude = ["build"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
