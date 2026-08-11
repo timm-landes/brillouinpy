@@ -131,11 +131,11 @@ class VCA(AnalysisStep):
         The abundance finder method to use. Default is ``'fcls'``.
 
         - ``'ucls'`` - Unconstrained Least Squares;
-        - ``'nnls'` - Non-negative Least Squares;
+        - ``'nnls'`` - Non-negative Least Squares;
         - ``'fcls'`` - Fully-constrained Least Squares.
 
 
-    .. note :: Implementation based on `the MATLAB code provided by the authors <http://www.lx.it.pt/~bioucas/code.htm>`,
+    .. note :: Implementation based on `the MATLAB code provided by the authors <http://www.lx.it.pt/~bioucas/code.htm>`_,
                and `Adrien Lagrange's translation to Python <https://github.com/Laadr/VCA>`_.
 
 

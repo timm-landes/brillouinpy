@@ -94,10 +94,10 @@ def peaks(spectrum: Spectrum,
 
     .. code::
 
-        import Brillouinspy as rp
+        import brillouinanalyzer as bp
 
         # plots peaks within a single spectrum
-        rp.plot.peaks(spectrum, **kwargs)
+        bp.plot.peaks(spectrum, **kwargs)
     """
 
     peaks, properties = spectrum.peaks(height=height, threshold=threshold, distance=distance, prominence=prominence, width=width, wlen=wlen, rel_height=rel_height, plateau_size=plateau_size)
@@ -148,7 +148,7 @@ def spectra(
         The type of the plot. Default is ``'separate'``.
 
         - ``'single'`` - groups are plotted in the same plot;
-        - ``'separate'` - groups are plotted in individual plots;
+        - ``'separate'`` - groups are plotted in individual plots;
         - ``'stacked'`` - groups are plotted in individual plots, stacked on top of each other;
         - ``'single stacked'`` - groups are plotted in the same plot, stacked on top of each other.
 
@@ -178,22 +178,22 @@ def spectra(
 
     .. code::
 
-        import Brillouinspy as rp
+        import brillouinanalyzer as bp
 
         # plots a single spectrum
-        rp.plot.spectra(spectrum)
+        bp.plot.spectra(spectrum)
 
         # plots all spectra within a SpectralContainer instance as a single group
-        rp.plot.spectra(spectral_object)
+        bp.plot.spectra(spectral_object)
 
         # plots 3 spectra as individual groups
-        rp.plot.spectra([spectrum_1, spectrum_2, spectrum_3])
+        bp.plot.spectra([spectrum_1, spectrum_2, spectrum_3])
 
         # plots 2 groups of spectra (size does not need to be the same across groups)
-        rp.plot.spectra([spectrum_1, spectrum_2, spectrum_3], [spectrum_4, spectrum_5])
+        bp.plot.spectra([spectrum_1, spectrum_2, spectrum_3], [spectrum_4, spectrum_5])
 
         # plots 3 spectra as a single group
-        rp.plot.spectra([[spectrum_1, spectrum_2, spectrum_3]])
+        bp.plot.spectra([[spectrum_1, spectrum_2, spectrum_3]])
     """
     options = get_args(_core.SPECTRA_PLOT_TYPES)
     if plot_type not in options:
@@ -249,7 +249,7 @@ def mean_spectra(
         The type of the plot. Default is ``'separate'``.
 
         - ``'single'`` - groups are plotted in the same plot;
-        - ``'separate'` - groups are plotted in individual plots;
+        - ``'separate'`` - groups are plotted in individual plots;
         - ``'stacked'`` - groups are plotted in individual plots, stacked on top of each other;
         - ``'single stacked'`` - groups are plotted in the same plot, stacked on top of each other.
 
@@ -281,10 +281,10 @@ def mean_spectra(
 
     .. code::
 
-        import Brillouinspy as rp
+        import brillouinanalyzer as bp
 
         # plots the distributions of 2 groups of spectra
-        rp.plot.mean_spectra([spectrum_1, spectrum_2, spectrum_3], [spectrum_4, spectrum_5])
+        bp.plot.mean_spectra([spectrum_1, spectrum_2, spectrum_3], [spectrum_4, spectrum_5])
 
     """
     options = get_args(_core.SPECTRA_PLOT_TYPES)
@@ -399,10 +399,10 @@ def image(
 
     .. code::
 
-        import Brillouinspy as rp
+        import brillouinanalyzer as bp
 
         # plot single image slice
-        ax = rp.plot.image(Brillouin_image.band(1500))
+        ax = bp.plot.image(Brillouin_image.band(1500))
 
         # visualising
         plt.show()
@@ -412,13 +412,13 @@ def image(
 
 
         # plot a list of image slices
-        ax = rp.plot.image([Brillouin_image.band(1500), Brillouin_image.band(2500)])
+        ax = bp.plot.image([Brillouin_image.band(1500), Brillouin_image.band(2500)])
 
         # plot a list of image slices with shared parameters
-        ax = rp.plot.image([Brillouin_image.band(1500), Brillouin_image.band(2500)], title="Spectral slice", cbar=True, ...)
+        ax = bp.plot.image([Brillouin_image.band(1500), Brillouin_image.band(2500)], title="Spectral slice", cbar=True, ...)
 
         # plot a list of image slices with different parameters
-        ax = rp.plot.image([Brillouin_image.band(1500), Brillouin_image.band(2500)], title=["Spectral slice A", "Spectral slice B"], cbar=[True, False], ...)
+        ax = bp.plot.image([Brillouin_image.band(1500), Brillouin_image.band(2500)], title=["Spectral slice A", "Spectral slice B"], cbar=[True, False], ...)
     """
     if threshold is not None:
         image = copy.deepcopy(image)
@@ -515,10 +515,10 @@ def volume(
 
     .. code::
 
-        import Brillouinspy as rp
+        import brillouinanalyzer as bp
 
         # plot single volume slice
-        ax = rp.plot.volume(Brillouin_volume.band(1500))
+        ax = bp.plot.volume(Brillouin_volume.band(1500))
 
         # visualising
         plt.show()
@@ -528,13 +528,13 @@ def volume(
 
 
         # plot a list of volume slices
-        rp.plot.volume([Brillouin_volume.band(1500), Brillouin_volume.band(2500)])
+        bp.plot.volume([Brillouin_volume.band(1500), Brillouin_volume.band(2500)])
 
         # plot a list of volume slices with shared parameters
-        rp.plot.volume([Brillouin_volume.band(1500), Brillouin_volume.band(2500)], title="Spectral slice", cbar=True, ...)
+        bp.plot.volume([Brillouin_volume.band(1500), Brillouin_volume.band(2500)], title="Spectral slice", cbar=True, ...)
 
         # plot a list of volume slices with different parameters
-        rp.plot.volume([Brillouin_volume.band(1500), Brillouin_volume.band(2500)], title=["Spectral slice A", "Spectral slice B"], cbar=[True, False], ...)
+        bp.plot.volume([Brillouin_volume.band(1500), Brillouin_volume.band(2500)], title=["Spectral slice A", "Spectral slice B"], cbar=[True, False], ...)
 
     """
     if ax is None:
@@ -640,13 +640,13 @@ def peak_dist(
     .. code::
 
         import matplotlib.pyplot as plt
-        import Brillouinspy as rp
+        import brillouinanalyzer as bp
 
         # plots the peak distributions at 1500cm^-1 of 2 groups of spectra
-        ax = rp.plot.peak_dist([spectrum_1, spectrum_2, spectrum_3], [spectrum_4, spectrum_5], band=1500, labels=["Group A", "Group B"])
+        ax = bp.plot.peak_dist([spectrum_1, spectrum_2, spectrum_3], [spectrum_4, spectrum_5], band=1500, labels=["Group A", "Group B"])
 
         # visualising
-        plt.show()  # or rp.plot.show()
+        plt.show()  # or bp.plot.show()
 
         # saving
         ax.figure.savefig('...')
