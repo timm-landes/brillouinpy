@@ -189,68 +189,70 @@ def to_hdf5_bls(
         Overwrite ``filepath`` if it already exists, by default False.
     """
     wrapper = _open_hdf5_bls(None)
-    wrapper.create_group("Measure", parent_group="Brillouin", brillouin_type="Measure")
-    wrapper.add_PSD(np.ma.filled(spectral_object.spectral_data, np.nan), parent_group="Brillouin/Measure")
-    wrapper.add_frequency(np.asarray(spectral_object.spectral_axis), parent_group="Brillouin/Measure")
+    try:
+        wrapper.create_group("Measure", parent_group="Brillouin", brillouin_type="Measure")
+        wrapper.add_PSD(np.ma.filled(spectral_object.spectral_data, np.nan), parent_group="Brillouin/Measure")
+        wrapper.add_frequency(np.asarray(spectral_object.spectral_axis), parent_group="Brillouin/Measure")
 
-    shape = spectral_object.shape
-    if shape != (1,):
-        if len(shape) >= 1:
-            x_axis = np.arange(shape[0]) * (x_step if x_step else 1)
-            wrapper.add_abscissa(
-                x_axis, parent_group="Brillouin/Measure", name="X",
-                unit=spatial_unit if x_step else "px", dim_start=0, dim_end=1,
-            )
-        if len(shape) >= 2:
-            y_axis = np.arange(shape[1]) * (y_step if y_step else 1)
-            wrapper.add_abscissa(
-                y_axis, parent_group="Brillouin/Measure", name="Y",
-                unit=spatial_unit if y_step else "px", dim_start=1, dim_end=2,
-            )
-
-    meta = dict(attributes or {})
-    if sample is not None:
-        meta["Sample"] = sample
-    if meta:
-        wrapper.add_attributes(meta, parent_group="Brillouin/Measure")
-
-    if fit_result is not None:
-        fit_result = np.asarray(fit_result)
-        if parameter_names is None:
-            if expected_peaks is None:
-                raise ValueError(
-                    "Provide either 'parameter_names' or 'expected_peaks' together with 'fit_result'."
+        shape = spectral_object.shape
+        if shape != (1,):
+            if len(shape) >= 1:
+                x_axis = np.arange(shape[0]) * (x_step if x_step else 1)
+                wrapper.add_abscissa(
+                    x_axis, parent_group="Brillouin/Measure", name="X",
+                    unit=spatial_unit if x_step else "px", dim_start=0, dim_end=1,
                 )
-            parameter_names = _dho_parameter_names(expected_peaks)
+            if len(shape) >= 2:
+                y_axis = np.arange(shape[1]) * (y_step if y_step else 1)
+                wrapper.add_abscissa(
+                    y_axis, parent_group="Brillouin/Measure", name="Y",
+                    unit=spatial_unit if y_step else "px", dim_start=1, dim_end=2,
+                )
 
-        n_params = fit_result.shape[-1]
-        if len(parameter_names) != n_params:
-            raise ValueError(
-                f"'parameter_names' has {len(parameter_names)} entries but "
-                f"fit_result's last axis has {n_params}."
-            )
+        meta = dict(attributes or {})
+        if sample is not None:
+            meta["Sample"] = sample
+        if meta:
+            wrapper.add_attributes(meta, parent_group="Brillouin/Measure")
 
-        n_peaks = (n_params - 2) // 3
-        wrapper.create_group("Treatment", parent_group="Brillouin", brillouin_type="Treatment")
+        if fit_result is not None:
+            fit_result = np.asarray(fit_result)
+            if parameter_names is None:
+                if expected_peaks is None:
+                    raise ValueError(
+                        "Provide either 'parameter_names' or 'expected_peaks' together with 'fit_result'."
+                    )
+                parameter_names = _dho_parameter_names(expected_peaks)
 
-        for i in range(n_peaks):
-            wrapper.add_treated_data(
-                parent_group="Brillouin/Treatment",
-                name_group=f"Treat_{i}",
-                amplitude=np.asarray(fit_result[..., 3 * i]),
-                shift=np.asarray(fit_result[..., 3 * i + 1]),
-                linewidth=np.asarray(fit_result[..., 3 * i + 2]),
-            )
+            n_params = fit_result.shape[-1]
+            if len(parameter_names) != n_params:
+                raise ValueError(
+                    f"'parameter_names' has {len(parameter_names)} entries but "
+                    f"fit_result's last axis has {n_params}."
+                )
 
-        for j, name in enumerate(parameter_names[3 * n_peaks:]):
-            wrapper.add_other(
-                np.asarray(fit_result[..., 3 * n_peaks + j]),
-                parent_group="Brillouin/Treatment",
-                name=name,
-            )
+            n_peaks = (n_params - 2) // 3
+            wrapper.create_group("Treatment", parent_group="Brillouin", brillouin_type="Treatment")
 
-    wrapper.save_as_hdf5(filepath, overwrite=overwrite)
-    wrapper.close()
+            for i in range(n_peaks):
+                wrapper.add_treated_data(
+                    parent_group="Brillouin/Treatment",
+                    name_group=f"Treat_{i}",
+                    amplitude=np.asarray(fit_result[..., 3 * i]),
+                    shift=np.asarray(fit_result[..., 3 * i + 1]),
+                    linewidth=np.asarray(fit_result[..., 3 * i + 2]),
+                )
+
+            for j, name in enumerate(parameter_names[3 * n_peaks:]):
+                wrapper.add_other(
+                    np.asarray(fit_result[..., 3 * n_peaks + j]),
+                    parent_group="Brillouin/Treatment",
+                    name=name,
+                )
+
+        wrapper.save_as_hdf5(filepath, overwrite=overwrite)
+    finally:
+        wrapper.close()
 
 
 def fit_to_tiff(
