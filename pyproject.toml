@@ -1,0 +1,14 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+# E501 (line too long): not enforced yet, pending a broader reformatting pass over legacy code.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# utils.py: pre-existing dead code / undefined names in Raman-specific helpers, left untouched intentionally.
+"brillouinanalyzer/utils.py" = ["F821", "F841", "W293"]

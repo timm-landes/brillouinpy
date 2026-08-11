@@ -1,0 +1,19 @@
+stages:
+  - lint
+  - test
+
+default:
+  image: python:3.12
+  before_script:
+    - pip install .
+    - pip install pytest ruff
+
+lint:
+  stage: lint
+  script:
+    - ruff check .
+
+test:
+  stage: test
+  script:
+    - pytest tests/ -v
