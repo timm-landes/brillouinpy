@@ -6,11 +6,10 @@ Created on Tue Feb 18 15:19:25 2025
 """
 
 from __future__ import annotations  # default if Python >= 3.10
-import itertools
 from numbers import Number
 import os
 import pickle
-from typing import List, Union, Optional
+from typing import List, Union
 import numpy as np
 from scipy.signal import find_peaks
 
@@ -39,14 +38,7 @@ class SpectralContainer:
     spectral_data : array_like of shape (x, y, z, ..., B)
         The intensity values to store. Last dimension must be the spectral dimension.
     spectral_axis : array_like of shape (B, )
-        The Raman wavenumber axis (in cm\ :sup:`-1`). Order and length must match the last dimension of ``spectral_data``.
-
-
-    .. note:: If your spectral data is not in Raman wavenumber units (cm\ :sup:`-1`) but in Raman wavelength (nm) instead,
-              simply use the :meth:`ramanspy.utils.wavelength_to_wavenumber` method to convert your ``spectral_axis``
-              before initialising a :class:`SpectralContainer` instance.
-
-              Note that you will need to put in the excitation wavelength (nm) of the laser used to acquire the data of interest to make the conversion.
+        The Brillouin spectral axis (typically the frequency shift, in GHz). Order and length must match the last dimension of ``spectral_data``.
 
     Example
     ----------
@@ -54,15 +46,12 @@ class SpectralContainer:
     .. code::
 
         import numpy as np
-        import ramanspy as rp
+        from brillouinanalyzer import SpectralContainer
 
         spectral_data = np.random.rand(20, 1500)
-        spectral_axis = np.linspace(100, 3600, 1500)
+        spectral_axis = np.linspace(-20, 20, 1500)  # frequency shift in GHz
 
-        # if the spectral axis is in wavelength units (nm) and needs converting
-        spectral_axis = rp.utils.wavelength_to_wavenumber(spectral_axis)
-
-        raman_object = rp.SpectralContainer(spectral_data, spectral_axis)
+        brillouin_object = SpectralContainer(spectral_data, spectral_axis)
     """
     def __init__(self, spectral_data, spectral_axis):
         # Convert to masked array if it isn't already one
@@ -70,18 +59,18 @@ class SpectralContainer:
             self.spectral_data = spectral_data
         else:
             self.spectral_data = np.ma.asarray(spectral_data)
-            
+
         self.spectral_axis = np.asarray(spectral_axis)
         self.instrument_response_function = None
+
+        if self.spectral_data.shape[-1] != len(self.spectral_axis):
+            raise ValueError(
+                f"The last dimension of the data ({self.spectral_data.shape[-1]}) must match the axis provided ({len(self.spectral_axis)}).")
 
         # Order data and axis by shift number values
         sorted_indices = self.spectral_axis.argsort()
         self.spectral_data = self.spectral_data[..., sorted_indices]
         self.spectral_axis = self.spectral_axis[sorted_indices]
-        
-        if self.spectral_data.shape[-1] != len(self.spectral_axis):
-            raise ValueError(
-                f"The last dimension of the data ({self.spectral_data.shape[-1]}) must match the axis provided ({len(self.spectral_axis)}).")
 
     def save(self, filename: str, directory: str = None):
         """
@@ -115,7 +104,7 @@ class SpectralContainer:
     @classmethod
     def from_stack(cls, stack: List[Spectrum]) -> SpectralContainer:
         """
-        Returns the combined Raman object defined by stacking the collection of individual spectra given.
+        Returns the combined Brillouin object defined by stacking the collection of individual spectra given.
 
         The spectral axes of the spectra provided must match.
         """
@@ -155,7 +144,7 @@ class SpectralContainer:
         Returns the mean spectrum in the spectral object.
         """
         return Spectrum(np.nanmean(self.flat.spectral_data, axis=0), self.spectral_axis)
-    
+
     @property
     def variance(self) -> Spectrum:
         """
@@ -167,7 +156,7 @@ class SpectralContainer:
     def __getitem__(self, key):
         if self.shape == (1,):
             raise ValueError(
-                "Only spatial indexing is supported. To index spectrally, use the ramanspy.preprocessing.misc.Cropper class.")
+                "Only spatial indexing is supported. To index spectrally, use the brillouinanalyzer.preprocessing.misc.Cropper class.")
 
         spectral_data_slice = self.spectral_data[key]
 
@@ -211,12 +200,12 @@ class Spectrum(SpectralContainer):
     .. code::
 
         import numpy as np
-        import ramanspy as rp
+        from brillouinanalyzer import Spectrum
 
         spectral_data = np.random.rand(1500)
-        spectral_axis = np.linspace(100, 3600, 1500)
+        spectral_axis = np.linspace(-20, 20, 1500)  # frequency shift in GHz
 
-        raman_spectrum = rp.Spectrum(spectral_data, spectral_axis)
+        brillouin_spectrum = Spectrum(spectral_data, spectral_axis)
     """
 
     # def plot(self, **kwargs):
@@ -226,7 +215,7 @@ class Spectrum(SpectralContainer):
     #     Parameters
     #     ----------
     #     **kwargs : keyword arguments, optional,
-    #         Check the :meth:`ramanspy.plot.spectra' method for a list of keyword parameters.
+    #         Check the :meth:`brillouinanalyzer.plot.spectra' method for a list of keyword parameters.
     #     """
     #     return plot.spectra(self, **kwargs)
 
@@ -253,16 +242,16 @@ class SpectralImage(SpectralContainer):
 
     Example
     ----------
-    
+
     .. code::
 
         import numpy as np
-        import ramanspy as rp
+        from brillouinanalyzer import SpectralImage
 
         spectral_data = np.random.rand(50, 50, 1500)
-        spectral_axis = np.linspace(100, 3600, 1500)
+        spectral_axis = np.linspace(-20, 20, 1500)  # frequency shift in GHz
 
-        raman_image = rp.SpectralImage(spectral_data, spectral_axis)
+        brillouin_image = SpectralImage(spectral_data, spectral_axis)
     """
 
     # def plot(self, bands: Union[Number, List[Number]], **kwargs):
@@ -275,13 +264,13 @@ class SpectralImage(SpectralContainer):
     #     bands : Number or List[Number]
     #         The spectral bands to plot across.
     #     **kwargs : keyword arguments, optional,
-    #         Check the :meth:`ramanspy.plot.image' method for a list of keyword parameters.
+    #         Check the :meth:`brillouinanalyzer.plot.image' method for a list of keyword parameters.
     #     """
     #     if isinstance(bands, Number):
     #         bands = [bands]
 
     #     spectral_slices = [self.band(band) for band in bands]
-    #     kwargs['cbar_label'] = [f"{cbar_label} ({band} cm$^{{{-1}}}$)" for cbar_label, band in
+    #     kwargs['cbar_label'] = [f"{cbar_label} ({band} GHz)" for cbar_label, band in
     #                             zip(itertools.repeat(kwargs.pop('cbar_label', 'Peak intensity'), len(spectral_slices)), bands)]
 
     #     return plot.image(spectral_slices, **kwargs)
@@ -298,18 +287,18 @@ class SpectralVolume(SpectralContainer):
     .. code::
 
         import numpy as np
-        import ramanspy as rp
+        from brillouinanalyzer import SpectralVolume
 
         spectral_data = np.random.rand(50, 50, 10, 1500)
-        spectral_axis = np.linspace(100, 3600, 1500)
+        spectral_axis = np.linspace(-20, 20, 1500)  # frequency shift in GHz
 
-        raman_volume = rp.SpectralVolume(spectral_data, spectral_axis)
+        brillouin_volume = SpectralVolume(spectral_data, spectral_axis)
     """
 
     @classmethod
     def from_image_stack(cls, image_stack: List[SpectralImage]) -> SpectralVolume:
         """
-        Returns the volumetric Raman object defined by z-stacking the collection of spectral images given.
+        Returns the volumetric Brillouin object defined by z-stacking the collection of spectral images given.
 
         All dimensions of the spectral images must match, as well as their spectral axes.
         """
@@ -329,13 +318,13 @@ class SpectralVolume(SpectralContainer):
     #     bands : Number or List[Number]
     #         The spectral bands to plot across.
     #     **kwargs : keyword arguments, optional,
-    #         Check the :meth:`ramanspy.plot.volume' method for a list of keyword parameters.
+    #         Check the :meth:`brillouinanalyzer.plot.volume' method for a list of keyword parameters.
     #     """
     #     if isinstance(bands, Number):
     #         bands = [bands]
 
     #     spectral_slices = [self.band(band) for band in bands]
-    #     kwargs['cbar_label'] = [f"{cbar_label} ({band} cm$^{{{-1}}}$)" for cbar_label, band in
+    #     kwargs['cbar_label'] = [f"{cbar_label} ({band} GHz)" for cbar_label, band in
     #                             zip(itertools.repeat(kwargs.pop('cbar_label', 'Peak intensity'), len(spectral_slices)), bands)]
 
     #     return plot.volume(spectral_slices, **kwargs)
