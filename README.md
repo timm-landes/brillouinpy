@@ -72,7 +72,7 @@ pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyze
    ```
 
 ## Example
-I attached some examples in the [`example`-folder](/examples/) of this project. You can access those, copy them, alter them, or clone them. This shows how capable BrillouinAnalyzer is regarding ML approaches.
+I attached some examples in the [`example`-folder](examples/) of this project. You can access those, copy them, alter them, or clone them. This shows how capable BrillouinAnalyzer is regarding ML approaches.
 
 Subsequently, you'll find a short example code. Example data can be found in [here](https://seafile.projekt.uni-hannover.de/d/ae7aff2e3bf14f119ed5/). The necessary password is `brillouin_test_data`.
 ```python
