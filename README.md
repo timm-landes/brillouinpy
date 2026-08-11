@@ -7,6 +7,16 @@ This module should help you to analyze Brillouin light scattering data efficient
 
 **Currently only for internal use within the Phytophotonics Division, as it contains many RamanSPy references that are not clearly marked! Please do not share this package with others without asking for permission first.**.
 
+## Documentation
+The full API reference (built from the docstrings in this package) is published via GitLab Pages. Find the link under **Deploy → Pages** in this project on GitLab once the `pages` pipeline job has run on `main`.
+
+To build it locally instead:
+```bash
+pip install -r docs/requirements.txt
+sphinx-build -b html docs docs/_build/html
+```
+Then open `docs/_build/html/index.html` in your browser.
+
 ## Installation
 This gives a short manual for installation of Anaconda and BrillouinAnalyzer. I highly recommend the use of Anaconda as a Python distribution if you are new to Python Scripting and Programming. After installing BrillouinAnalyzer, you will be able to use BrillouinAnalyzer like any other Python package.
 
