@@ -6,7 +6,10 @@ Created on Tue Feb 18 15:35:14 2025
 """
 
 import numpy as np
-import os, re, tqdm, warnings
+import os
+import re
+import tqdm
+import warnings
 import scipy.optimize
 
 
@@ -42,7 +45,7 @@ def raman_spectral_axis(grating, wavelength):
     linearDispersion = 10**6 * np.cos(beta) * np.cos(inclineAngleRad)/(focalLength * grating* order)
     monoBandpass = linearDispersion * detWidth
     pixelBandpass = monoBandpass / detHPixel
-    lowerspectrumedge = wavelength - monoBandpass/2 
+    lowerspectrumedge = wavelength - monoBandpass/2
     higherspectrumedge = wavelength + monoBandpass/2
     wavelength_axis = np.linspace(lowerspectrumedge, higherspectrumedge, detHPixel, endpoint=True)
     return wavelength_axis
@@ -58,7 +61,7 @@ def brillouin_spectral_axis(mirror_spacing, scan_amplitude, no_of_channels, lase
     freq_limits_GHz = freq_limits * 1e-9
     return np.linspace(-freq_limits_GHz, freq_limits_GHz, no_of_channels)
 
-    
+
 def extract_coordinates(filepath, spectral_data_type):
     """
     Extract coordinates from the filename.
@@ -95,7 +98,7 @@ def prepare_brillouin_data(project_path, spectral_data_type):
         _, spectral_dimension = import_DAT_File(files[0]) # for Brillouin we read the spectral dimension from one file
     else:
         raise ValueError('Spectral data not supported')
-    
+
     # prepare spectral data: (x, y, z, time)
     max_coord = [0, # x
                  0, # y
@@ -107,18 +110,18 @@ def prepare_brillouin_data(project_path, spectral_data_type):
             max_coord = [max(m, c) for m, c in zip(max_coord, coordinates)]
     x_dim, y_dim, z_dim, timepoint =  max_coord
 
-    
+
         # Create a masked array to handle missing data points
     spectral_data_array = np.ma.masked_all((x_dim+1, y_dim+1, z_dim+1, timepoint+1, spectral_dimension))
-    
+
     if len(files) != (x_dim+1) * (y_dim+1) * (z_dim+1) * (timepoint+1):
         warnings.warn("The number of points do not match the expected number of (x, y, z, t) points.")
-    
+
     for f in tqdm.tqdm(files, desc="Processing Spectral data"):
         coordinates = extract_coordinates(f, spectral_data_type)
         if not coordinates:
             continue
-            
+
         x, y, z, t = coordinates
         try:
             if f.endswith('.csv'):
@@ -130,9 +133,9 @@ def prepare_brillouin_data(project_path, spectral_data_type):
                 spectrum = data[:-1, 1]
             elif f.endswith('.DAT'):
                 spectrum, _ = import_DAT_File(f)
-                
+
             spectral_data_array[x, y, z, t, :] = spectrum
-            
+
         except Exception as e:
             warnings.warn(f"Could not load data for coordinates ({x}, {y}, {z}, {t}): {str(e)}")
             # Point remains masked
@@ -155,8 +158,8 @@ def load_spectral_image(project_path, spectral_data_type):
         _, spectral_dimension = import_DAT_File(files[0])
     else:
         raise ValueError('Spectral data not supported')
-        
-    
+
+
     # prepare spectral data: (x, y, spectral_dimension)
     max_coord = [0, 0, 0, 0]
     for f in files:
@@ -164,18 +167,18 @@ def load_spectral_image(project_path, spectral_data_type):
         if coordinates:
             max_coord = [max(m, c) for m, c in zip(max_coord, coordinates)]
     x_dim, y_dim, _, _ =  max_coord
-    
+
         # Create a masked array to handle missing data points
     spectral_data_array = np.ma.masked_all((x_dim+1, y_dim+1, spectral_dimension))
-    
+
     if len(files) != (x_dim+1) * (y_dim+1):
         warnings.warn("The number of points do not match the expected number of (x, y) points.")
-    
+
     for f in tqdm.tqdm(files, desc="Processing Spectral data"):
         coordinates = extract_coordinates(f, spectral_data_type)
         if not coordinates:
             continue
-            
+
         x, y, z, t = coordinates
         try:
             if f.endswith('.csv'):
@@ -186,14 +189,14 @@ def load_spectral_image(project_path, spectral_data_type):
                 spectrum = data[:-1, 1]
             elif f.endswith('.DAT'):
                 spectrum, _ = import_DAT_File(f)
-                
+
             spectral_data_array[x, y, :] = spectrum
-            
+
         except Exception as e:
             warnings.warn(f"Could not load data for coordinates ({x}, {y}): {str(e)}")
             # Point remains masked
             continue
-    
+
     return spectral_data_array
 
 
@@ -214,8 +217,8 @@ def load_spectral_image_brio2(project_path, spectral_data_type):
         _, spectral_dimension = import_DAT_File(files[0])
     else:
         raise ValueError('Spectral data not supported')
-        
-    
+
+
     # prepare spectral data: (x, y, spectral_dimension)
     max_coord = [0, 0, 0, 0]
     for f in files:
@@ -223,18 +226,18 @@ def load_spectral_image_brio2(project_path, spectral_data_type):
         if coordinates:
             max_coord = [max(m, c) for m, c in zip(max_coord, coordinates)]
     x_dim, y_dim, _, _ =  max_coord
-    
+
         # Create a masked array to handle missing data points
     spectral_data_array = np.ma.masked_all((x_dim+1, y_dim+1, spectral_dimension))
-    
+
     if len(files) != (x_dim+1) * (y_dim+1) * (z_dim+1) * (timepoint+1):
         warnings.warn("The number of points do not match the expected number of (y, y) points.")
-    
+
     for f in tqdm.tqdm(files, desc="Processing Spectral data"):
         coordinates = extract_coordinates(f, spectral_data_type)
         if not coordinates:
             continue
-            
+
         x, y, z, t = coordinates
         try:
             if f.endswith('.csv'):
@@ -245,14 +248,14 @@ def load_spectral_image_brio2(project_path, spectral_data_type):
                 spectrum = data[:-1, 1]
             elif f.endswith('.DAT'):
                 spectrum, _ = import_DAT_File(f)
-                
+
             spectral_data_array[x, y, :] = spectrum
-            
+
         except Exception as e:
             warnings.warn(f"Could not load data for coordinates ({x}, {y}): {str(e)}")
             # Point remains masked
             continue
-    
+
     return spectral_data_array
 
 
@@ -269,7 +272,7 @@ def TFP_IRF_Analysis(intensity_data, spectral_axis):
     laser_fitness = np.zeros(intensity_data.shape[:-1])
     fwhm_values = np.zeros(intensity_data.shape[:-1])
 
-    
+
     for x in range(intensity_data.shape[0]):
         for y in range(intensity_data.shape[1]):
             for z in range(intensity_data.shape[2]):
@@ -286,7 +289,7 @@ def TFP_IRF_Analysis(intensity_data, spectral_axis):
                         laser_fitness[x, y, z, t] = a
                         # Optional: Save fitted curve if needed
                         # spectral_response[x, y, z, t, :] = _gauss(spectral_axis, *popt)
-                    except Exception as e:
+                    except Exception:
                         fwhm_values[x, y, z, t] = np.nan
                         laser_fitness[x, y, z, t] = np.nan
     return spectral_response, spectral_axis, laser_fitness, fwhm_values
@@ -298,10 +301,10 @@ def _gauss(x, a, mu, sigma, c):
 
 def _find_instrumental_response(pixel_spectrum):
     max_index = np.argmax(pixel_spectrum)
-    
+
     start = next((i for i in range(max_index, 0, -1) if pixel_spectrum[i] == 0), 0)
     end = next((i for i in range(max_index, len(pixel_spectrum)) if pixel_spectrum[i] == 0), len(pixel_spectrum))
-    
+
     return start, end
 
 
@@ -312,7 +315,10 @@ def prepare_raman_data(project_path):
     and returns a masked array of the spectral data and the wavelength axis.
     """
     import numpy as np
-    import os, re, tqdm, warnings
+    import os
+    import re
+    import tqdm
+    import warnings
 
     directory = os.path.join(project_path, 'data')
     files = sorted(

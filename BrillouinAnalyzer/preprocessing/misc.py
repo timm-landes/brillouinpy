@@ -42,7 +42,7 @@ class Cropper(PreprocessingStep):
             raise ValueError("The region must be a tuple of two elements")
 
         super().__init__(_crop, region=region)
-        
+
 class IRF_Remover(PreprocessingStep):
     """
     Remove the intensity values corresponding to the Instrument Response Function (IRF) including an optional little offset.
@@ -62,8 +62,8 @@ class IRF_Remover(PreprocessingStep):
 
 
 class Deconvoluter_IRF(PreprocessingStep):
-    
-    
+
+
     def __init__(self, *, offset: Number or None, iterations: Number or None, padding: Number or None): # type: ignore
         super().__init__(_deconvolute_irf, offset = offset, iterations = iterations, padding = padding)
 
@@ -96,21 +96,21 @@ def _get_indices_to_leave(spectral_axis, region):
 def _irf_remove(intensity_data, spectral_axis, offset):
     corrected_intensity_data = np.copy(intensity_data)
     spectral_response = np.zeros(intensity_data.shape)
-    
+
     for x in range(corrected_intensity_data.shape[0]):
         for y in range(corrected_intensity_data.shape[1]):
             start, end = _find_instrumental_response(intensity_data[x, y, :])
             spectral_response[x, y, start:end] = intensity_data[x, y, start:end]
             corrected_intensity_data[x, y, start-offset:end+offset] = 0
-            
+
     return corrected_intensity_data, spectral_axis
 
 def _find_instrumental_response(pixel_spectrum):
     max_index = np.argmax(pixel_spectrum)
-    
+
     start = next((i for i in range(max_index, 0, -1) if pixel_spectrum[i] == 0), 0)
     end = next((i for i in range(max_index, len(pixel_spectrum)) if pixel_spectrum[i] == 0), len(pixel_spectrum))
-    
+
     return start, end
 
 def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, padding=100):
@@ -138,11 +138,10 @@ def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, paddin
                     )
                     # Remove the IRF and additional offset
                     corrected_intensity_data[x,
-                                             y, 
-                                             z, 
-                                             t, 
+                                             y,
+                                             z,
+                                             t,
                                              max(0, start-offset):min(intensity_data.shape[-1], end+offset)
                                              ] = np.nan
 
     return corrected_intensity_data, spectral_axis
-    

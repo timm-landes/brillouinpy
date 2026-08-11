@@ -8,8 +8,8 @@ Created on Tue Feb 25 16:08:15 2025
 from setuptools import setup, find_packages
 
 setup(
-    name='BrillouinAnalyzer',  
-    version='0.1.1',  
+    name='BrillouinAnalyzer',
+    version='0.1.1',
     packages=find_packages(),  # Automatisches Finden von Paketen im Projektverzeichnis
     install_requires=[  # Liste von Abhängigkeiten Ihres Pakets
          'numpy',

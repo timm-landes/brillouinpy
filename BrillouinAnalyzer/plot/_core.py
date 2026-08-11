@@ -64,7 +64,7 @@ def plot_species_mean(species, plot_axis=plt, offset=0, dist=True, **plt_kwargs)
         alpha = plt_kwargs.pop("alpha", 1) * 0.2
         if dist:
             # Plot the shaded region corresponding to the 95% confidence interval
-            
+
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
                 std = np.nanstd(spectral_data, axis=0)
@@ -191,7 +191,7 @@ def spectra_plot_wrapper(plotting_function, genus, plot_type, yscale = 'log', **
         ax = offset_plot(plotting_function, genus, **kwargs)
         ax.set_yscale(yscale)
         return ax
-        
+
 
     elif plot_type == "stacked":
         ax = stacked_plots(plotting_function, genus, **kwargs)

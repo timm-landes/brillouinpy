@@ -4,7 +4,6 @@ import functools
 from typing import Literal
 import pysptools.abundance_maps.amaps as amaps
 import pysptools.eea as eea
-from pysptools.eea import nfindr
 
 from .Step import AnalysisStep
 
