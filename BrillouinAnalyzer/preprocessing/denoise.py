@@ -86,10 +86,10 @@ def _savgol(intensity_data, spectral_axis, **kwargs):
 
 
 def _whittaker(intensity_data, spectral_axis, lam, d):
-    I = np.eye(intensity_data.shape[-1])
-    D = np.diff(I, d).T
+    identity = np.eye(intensity_data.shape[-1])
+    D = np.diff(identity, d).T
 
-    return intensity_data @ np.linalg.inv(I + lam * D.T @ D).T, spectral_axis
+    return intensity_data @ np.linalg.inv(identity + lam * D.T @ D).T, spectral_axis
 
 
 def _kernel(intensity_data, spectral_axis, kernel_type, kernel_size):
