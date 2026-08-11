@@ -62,7 +62,27 @@ class IRF_Remover(PreprocessingStep):
 
 
 class Deconvoluter_IRF(PreprocessingStep):
+    """
+    Deconvolve the Instrument Response Function (IRF) out of the intensity data using the
+    Richardson-Lucy algorithm, then remove the (now deconvolved) IRF region from the spectrum.
 
+    Unlike :class:`IRF_Remover`, which just crops the IRF away, this step first uses the
+    detected IRF as the point-spread function to sharpen the rest of the spectrum via
+    Richardson-Lucy deconvolution, and only then blanks out the IRF channels themselves
+    (set to ``numpy.nan``) plus the requested offset around them. Downstream steps must be
+    able to handle ``numpy.nan`` values (e.g. :class:`~brillouinanalyzer.analysis.Step.AnalysisStep`
+    drops NaN-containing channels automatically).
+
+    Parameters
+    ----------
+    offset : number of spectral channels which gets removed
+        The frequency channels to blank out around the detected IRF (in channels), in
+        addition to the IRF's own extent.
+    iterations : int or None
+        The number of Richardson-Lucy deconvolution iterations to run.
+    padding : int or None
+        Currently unused by the underlying algorithm; accepted for forward compatibility.
+    """
 
     def __init__(self, *, offset: Number or None, iterations: Number or None, padding: Number or None): # type: ignore
         super().__init__(_deconvolute_irf, offset = offset, iterations = iterations, padding = padding)

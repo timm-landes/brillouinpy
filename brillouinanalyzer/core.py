@@ -154,6 +154,27 @@ class SpectralContainer:
 
     # TODO: spatial vs spectral indexing
     def __getitem__(self, key):
+        """
+        Indexes the object along its spatial dimension(s).
+
+        Only spatial indexing is supported (e.g. ``image[0]`` or ``volume[0, :, 2]``); a
+        :class:`SpectralContainer` holding a single spectrum has no spatial dimension to
+        index into and raises :class:`ValueError`. To select a slice of the spectral axis
+        instead, use the :class:`~brillouinanalyzer.preprocessing.misc.Cropper` preprocessing
+        step.
+
+        Parameters
+        ----------
+        key
+            A standard numpy index/slice applied to the spatial dimension(s).
+
+        Returns
+        -------
+        SpectralObject or numpy.ndarray
+            A new spectral object of the appropriate type for the resulting shape (see
+            :func:`_create_data`), or a bare intensity value if the index selects a single
+            spatial point and spectral channel.
+        """
         if self.shape == (1,):
             raise ValueError(
                 "Only spatial indexing is supported. To index spectrally, use the brillouinanalyzer.preprocessing.misc.Cropper class.")
@@ -230,7 +251,19 @@ class Spectrum(SpectralContainer):
               rel_height=0.5,
               plateau_size=None,
               ):
+        """
+        Finds peaks in the spectrum's intensity data.
 
+        A thin wrapper around :func:`scipy.signal.find_peaks`; all keyword arguments are
+        passed through unchanged, see its documentation for details.
+
+        Returns
+        -------
+        peaks : numpy.ndarray
+            Indices of the detected peaks (into ``spectral_data``/``spectral_axis``).
+        properties : dict
+            The peak properties computed by :func:`scipy.signal.find_peaks`.
+        """
         peaks, properties = find_peaks(self.spectral_data,  height=height, threshold=threshold, distance=distance, prominence=prominence, width=width, wlen=wlen, rel_height=rel_height, plateau_size=plateau_size)
         return peaks, properties
 
@@ -330,7 +363,7 @@ class SpectralVolume(SpectralContainer):
     #     return plot.volume(spectral_slices, **kwargs)
 
     def layer(self, layer_index: int) -> SpectralImage:
-        """Returns the :class:`SpectralImage` layer specified by the given index as a SpectralImage. Index must be between 0 and |z dimension|-1."""
+        """Returns the :class:`SpectralImage` layer specified by the given index as a SpectralImage. Index must be between 0 and z dimension - 1."""
         if not (0 <= layer_index <= self.shape[-1] - 1):
             ValueError(
                 f"The layer index must be between 0 and {self.shape[-1] - 1} inclusively. Got {layer_index} instead.")

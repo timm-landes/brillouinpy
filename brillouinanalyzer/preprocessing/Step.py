@@ -27,9 +27,10 @@ class PreprocessingStep:
         Any keyword arguments the Callable needs in its ``__call__`` method.
 
 
-    .. note:: One has to use the :class:`PreprocessingStep` class only when devising and integrating custom preprocessing methods (check :ref:`Custom algorithms`).
+    .. note:: One only needs the :class:`PreprocessingStep` class directly when devising custom preprocessing methods.
 
-              All preprocessing methods built into `brillouinanalyzer` can be directly accessed and used as indicated in :ref:`Built-in preprocessing methods`.
+              The built-in preprocessing methods (see :mod:`brillouinanalyzer.preprocessing.denoise`,
+              :mod:`~.despike`, :mod:`~.misc` and :mod:`~.normalise`) can be used directly instead.
 
     Example
     ----------

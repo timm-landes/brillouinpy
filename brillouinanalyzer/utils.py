@@ -14,6 +14,19 @@ import scipy.optimize
 
 
 def is_aligned(raman_objects):
+    """
+    Checks whether a collection of spectral objects all share the same spectral axis.
+
+    Parameters
+    ----------
+    raman_objects : list of SpectralObject
+        The spectral objects to compare.
+
+    Returns
+    -------
+    bool
+        ``True`` if all objects have an identical ``spectral_axis``, ``False`` otherwise.
+    """
     unique_shift_axes = [
         np.array(unique) for unique in set(tuple(raman_object.spectral_axis) for raman_object in raman_objects)]
 
@@ -21,14 +34,62 @@ def is_aligned(raman_objects):
 
 
 def wavelength_to_wavenumber(wavelengths, laser_excitation):
+    """
+    Converts wavelengths (nm) to Raman shift wavenumbers (cm :sup:`-1`) relative to a laser
+    excitation wavelength.
+
+    Parameters
+    ----------
+    wavelengths : array_like
+        Wavelengths to convert, in nm.
+    laser_excitation : float
+        Excitation wavelength of the laser used to acquire the data, in nm.
+
+    Returns
+    -------
+    array_like
+        The corresponding Raman shift wavenumbers, in cm :sup:`-1`.
+    """
     return 1e7/laser_excitation - 1e7/wavelengths
 
 
 def wavenumber_to_wavelength(raman_shifts, laser_excitation):
+    """
+    Converts Raman shift wavenumbers (cm :sup:`-1`) back to wavelengths (nm), the inverse of
+    :func:`wavelength_to_wavenumber`.
+
+    Parameters
+    ----------
+    raman_shifts : array_like
+        Raman shift wavenumbers to convert, in cm :sup:`-1`.
+    laser_excitation : float
+        Excitation wavelength of the laser used to acquire the data, in nm.
+
+    Returns
+    -------
+    array_like
+        The corresponding wavelengths, in nm.
+    """
     return 1/(1 / laser_excitation - raman_shifts / 1e7)
 
 
 def raman_spectral_axis(grating, wavelength):
+    """
+    Computes the wavelength axis of a Raman spectrometer for a given grating and center
+    wavelength, based on the monochromator/CCD geometry hard-coded in this function.
+
+    Parameters
+    ----------
+    grating : float
+        Groove density of the grating, in grooves/mm.
+    wavelength : float
+        Center wavelength of the monochromator, in nm.
+
+    Returns
+    -------
+    numpy.ndarray
+        The 2048-channel wavelength axis (matching the CCD's horizontal pixel count), in nm.
+    """
     # Hab jetzt den Bandpass berechnet, der passt fast immer bis auf 0.2 nm mit der Berechnung von Horiba überein.
     deviationAngle = 21.26 # deviation angle of mono in degree
     deviationAngleRad = deviationAngle * np.pi/180. # deviation angle in rad
@@ -52,11 +113,45 @@ def raman_spectral_axis(grating, wavelength):
 
 
 def fsr(mirror_spacing):
+    """
+    Computes the Free Spectral Range (FSR) of a tandem Fabry-Perot interferometer.
+
+    Parameters
+    ----------
+    mirror_spacing : float
+        The mirror spacing of the interferometer, in m.
+
+    Returns
+    -------
+    float
+        The free spectral range, in Hz.
+    """
     speed_of_light = 299792458  # m/s
     return speed_of_light / (2 * mirror_spacing)
 
 
 def brillouin_spectral_axis(mirror_spacing, scan_amplitude, no_of_channels, laser_wavelength = 532.1e-9):
+    """
+    Computes the Brillouin frequency-shift axis of a tandem Fabry-Perot interferometer scan.
+
+    Parameters
+    ----------
+    mirror_spacing : float
+        The mirror spacing of the interferometer, in m.
+    scan_amplitude : float
+        The mirror scan amplitude, in the same units expected by :func:`fsr`'s
+        ``mirror_spacing``/wavelength ratio (i.e. such that ``fsr(mirror_spacing) *
+        scan_amplitude / laser_wavelength`` yields a frequency in Hz).
+    no_of_channels : int
+        Number of spectral channels to generate.
+    laser_wavelength : float, optional
+        Excitation laser wavelength, in m. Default is 532.1 nm (``532.1e-9``).
+
+    Returns
+    -------
+    numpy.ndarray
+        The symmetric frequency-shift axis, in GHz, of length ``no_of_channels``.
+    """
     freq_limits = fsr(mirror_spacing) * scan_amplitude / laser_wavelength
     freq_limits_GHz = freq_limits * 1e-9
     return np.linspace(-freq_limits_GHz, freq_limits_GHz, no_of_channels)
@@ -82,6 +177,25 @@ def extract_coordinates(filepath, spectral_data_type):
     return tuple(map(int, match.groups())) if match else None
 
 def prepare_brillouin_data(project_path, spectral_data_type):
+    """
+    Loads all Raman/Brillouin data files from ``<project_path>/data`` into a single
+    ``(x, y, z, t, spectral)`` masked array, inferring the spatial extent from the
+    coordinates encoded in the filenames (see :func:`extract_coordinates`).
+
+    Parameters
+    ----------
+    project_path : str
+        Path to the project directory; files are expected in its ``data`` subfolder.
+    spectral_data_type : {'Raman', 'Brillouin'}
+        Which kind of data to load. Raman data is read from ``.csv``/``.txt`` files
+        (2048 channels assumed), Brillouin data from ``.DAT`` files.
+
+    Returns
+    -------
+    numpy.ma.MaskedArray
+        Array of shape ``(x_dim, y_dim, z_dim, timepoint, spectral_dimension)``; points for
+        which no matching file was found, or which failed to load, remain masked.
+    """
     directory = os.path.join(project_path, 'data')
     # sort files
     if spectral_data_type == 'Raman':
@@ -142,6 +256,25 @@ def prepare_brillouin_data(project_path, spectral_data_type):
     return spectral_data_array
 
 def load_spectral_image(project_path, spectral_data_type):
+    """
+    Loads all Raman/Brillouin data files from ``<project_path>/data`` into a single
+    ``(x, y, spectral)`` masked array (a single z-layer/timepoint), inferring the spatial
+    extent from the coordinates encoded in the filenames (see :func:`extract_coordinates`).
+
+    Parameters
+    ----------
+    project_path : str
+        Path to the project directory; files are expected in its ``data`` subfolder.
+    spectral_data_type : {'Raman', 'Brillouin'}
+        Which kind of data to load. Raman data is read from ``.csv``/``.txt`` files
+        (2048 channels assumed), Brillouin data from ``.DAT`` files.
+
+    Returns
+    -------
+    numpy.ma.MaskedArray
+        Array of shape ``(x_dim, y_dim, spectral_dimension)``; points for which no matching
+        file was found, or which failed to load, remain masked.
+    """
     directory = os.path.join(project_path, 'data')
     # sort files
     if spectral_data_type == 'Raman':
@@ -201,6 +334,30 @@ def load_spectral_image(project_path, spectral_data_type):
 
 
 def load_spectral_image_brio2(project_path, spectral_data_type):
+    """
+    Variant of :func:`load_spectral_image` for data acquired on the Brio 2 setup, where CSV
+    rows are reversed before use (``[::-1]``) to match the spectral axis convention.
+
+    Parameters
+    ----------
+    project_path : str
+        Path to the project directory; files are expected in its ``data`` subfolder.
+    spectral_data_type : {'Raman', 'Brillouin'}
+        Which kind of data to load. Raman data is read from ``.csv``/``.txt`` files
+        (2048 channels assumed), Brillouin data from ``.DAT`` files.
+
+    Returns
+    -------
+    numpy.ma.MaskedArray
+        Array of shape ``(x_dim, y_dim, spectral_dimension)``; points for which no matching
+        file was found, or which failed to load, remain masked.
+
+    Notes
+    -----
+    The file-count sanity check in this function references ``z_dim``/``timepoint``, which are
+    not defined in this 2D variant; that check currently raises ``NameError`` instead of the
+    intended warning if the file count doesn't match.
+    """
     directory = os.path.join(project_path, 'data')
     # sort files
     if spectral_data_type == 'Raman':
@@ -260,6 +417,21 @@ def load_spectral_image_brio2(project_path, spectral_data_type):
 
 
 def import_DAT_File(file):
+    """
+    Reads a single Brillouin ``.DAT`` spectrum file (11-line header).
+
+    Parameters
+    ----------
+    file : str
+        Path to the ``.DAT`` file.
+
+    Returns
+    -------
+    data : numpy.ndarray
+        The loaded spectral data.
+    spectral_dimension : int
+        The number of spectral channels (``len(data)``).
+    """
     data = np.loadtxt(file, skiprows=11)
     return data, len(data)
 
