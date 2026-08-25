@@ -11,6 +11,14 @@ Shows how to export processed data and fit results to formats other tools can re
   (:func:`brillouinanalyzer.export.to_hdf5_bls`/:func:`~brillouinanalyzer.export.from_hdf5_bls`),
   for interoperability with other Brillouin analysis software. Requires the optional
   ``HDF5_BLS`` package (``pip install HDF5_BLS``).
+- The `brim <https://github.com/brillouin-imaging/Brillouin-standard-file>`_ format
+  (:func:`brillouinanalyzer.export.to_brim`/:func:`~brillouinanalyzer.export.from_brim`),
+  a Zarr-based standard for Brillouin microscopy data that's also readable by the
+  `napari <https://github.com/brillouin-imaging/brillouin-imaging-napari>`_ and
+  `Fiji <https://github.com/brillouin-imaging/brillouin-imaging-fiji>`_ brim viewer
+  plugins, and by `BrimView <https://github.com/brillouin-imaging/BrimView>`_
+  (no installation needed). Requires the optional ``brimfile`` package
+  (``pip install brimfile``; needs Python >= 3.11).
 
 Continues from ``02_preprocess_data.py`` and ``04_fit_spectra.py``: run those first
 to get ``pp_data/preprocessed_image.pkl`` and ``pp_data/fitted_parameters.npy``,
@@ -74,3 +82,26 @@ if __name__ == '__main__':
 
     except ImportError as exc:
         print(f"Skipping HDF5_BLS export ({exc}).")
+
+    # ------------------------------------------------------------------
+    # Export the preprocessed data (+ fit) to the brim format
+    # ------------------------------------------------------------------
+    try:
+        bp.export.to_brim(
+            preprocessed_image,
+            os.path.join('pp_data', 'brillouin_data.brim.zarr'),
+            sample='Example sample',
+            laser_wavelength_nm=532.1,
+            fit_result=fitted_parameters,
+            expected_peaks=1,
+            x_step_um=0.5, y_step_um=0.5,  # brim's pixel size is always in micrometers
+            overwrite=True,
+        )
+        print('Wrote pp_data/brillouin_data.brim.zarr')
+
+        # Reading it back returns a ready-to-use spectral object
+        reloaded = bp.export.from_brim(os.path.join('pp_data', 'brillouin_data.brim.zarr'))
+        print(f"Reloaded from brim: shape {reloaded.shape}, metadata {reloaded.metadata}")
+
+    except ImportError as exc:
+        print(f"Skipping brim export ({exc}).")

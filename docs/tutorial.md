@@ -279,14 +279,29 @@ bp.export.to_hdf5_bls(
     fit_result=fitted_parameters, expected_peaks=1, overwrite=True,
 )
 reloaded = bp.export.from_hdf5_bls('pp_data/brillouin_data.h5')
+
+# The brim format (https://github.com/brillouin-imaging/Brillouin-standard-file),
+# a Zarr-based standard also readable by the napari/Fiji brim viewer plugins and
+# by BrimView, no installation needed (requires the optional 'brimfile' package:
+# pip install brimfile; needs Python >= 3.11)
+bp.export.to_brim(
+    preprocessed_image, 'pp_data/brillouin_data.brim.zarr',
+    fit_result=fitted_parameters, expected_peaks=1,
+    x_step_um=0.5, y_step_um=0.5, overwrite=True,
+)
+reloaded = bp.export.from_brim('pp_data/brillouin_data.brim.zarr')
 ```
 
 Use the TIFF export when you just need a given parameter map as an image for a
 figure or for further processing in ImageJ/Fiji (e.g. thresholding, ROI analysis).
-Use the HDF5_BLS export when you need to hand the data - spectra *and* fit result
-together, with metadata - to someone using different Brillouin analysis software
-that also speaks that format, or to keep an interoperable long-term archive of a
-measurement rather than a `brillouinanalyzer`-specific pickle file.
+Use the HDF5_BLS or brim export when you need to hand the data - spectra *and* fit
+result together, with metadata - to someone using different Brillouin analysis
+software, or to keep an interoperable long-term archive of a measurement rather
+than a `brillouinanalyzer`-specific pickle file. Between the two, brim is the
+newer, more actively developed effort at a field-wide standard (with viewer
+plugins for napari and Fiji, and the no-install BrimView web viewer), while
+HDF5_BLS has its own, separate tooling ecosystem - which one to prefer depends on
+what your collaborators already use.
 
 ## 6. Spectral unmixing - `06_unmix_vca.py`
 
