@@ -19,3 +19,14 @@ from RamanSPy at the time of writing. Before making the repository public, do a
 pass through the codebase (particularly `brillouinanalyzer/preprocessing/` and
 `brillouinanalyzer/plot/`) to confirm no other file-level copy-paste from
 RamanSPy is left unmarked, and extend this table/add inline comments accordingly.
+
+## Optional runtime dependencies
+
+These are not incorporated into brillouinanalyzer's own source (no code was
+copied) - they're only imported, at runtime, when the corresponding optional
+`export.*` function is used. Listed here because their licenses are less
+permissive than the BSD/MIT-family stack the rest of the package depends on:
+
+| Package | Used by | License |
+|---|---|---|
+| [`brimfile`](https://github.com/brillouin-imaging/brimfile) (extra: `brim`) | `export.to_brim`/`export.from_brim` | LGPL-3.0-or-later |

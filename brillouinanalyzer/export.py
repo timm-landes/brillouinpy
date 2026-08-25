@@ -319,3 +319,257 @@ def fit_to_tiff(
         written_files.append(filepath)
 
     return written_files
+
+
+def _open_brim():
+    try:
+        import brimfile as brim
+    except ImportError as exc:
+        raise ImportError(
+            "Reading/writing the brim format requires the 'brimfile' package "
+            "(https://github.com/brillouin-imaging/brimfile). Install it with "
+            "'pip install brimfile' (requires Python >= 3.11)."
+        ) from exc
+    return brim
+
+
+def _spectral_data_to_zyx_psd(spectral_object: core.SpectralObject) -> np.ndarray:
+    """Reshapes 'spectral_data' into the (z, y, x, spectral) layout brim requires."""
+    data = np.ma.filled(spectral_object.spectral_data, np.nan)
+    if data.ndim == 1:
+        return data.reshape(1, 1, 1, -1)
+    elif data.ndim == 3:
+        return np.transpose(data, (1, 0, 2))[np.newaxis, ...]
+    elif data.ndim == 4:
+        return np.transpose(data, (2, 1, 0, 3))
+    else:
+        raise ValueError(
+            "'to_brim' only supports Spectrum, SpectralImage or SpectralVolume "
+            f"objects (spectral_data with 1, 3 or 4 dimensions); got {data.ndim} dimensions."
+        )
+
+
+def _zyx_psd_to_spectral_data(psd_zyx: np.ndarray) -> np.ndarray:
+    """Inverse of '_spectral_data_to_zyx_psd'."""
+    if psd_zyx.shape[0] == 1:
+        return np.transpose(psd_zyx[0], (1, 0, 2))  # (y, x, spectral) -> (x, y, spectral)
+    return np.transpose(psd_zyx, (2, 1, 0, 3))  # (z, y, x, spectral) -> (x, y, z, spectral)
+
+
+def _spatial_map_to_zyx(array) -> np.ndarray:
+    """Reshapes a fitted parameter's (x, y) or (x, y, z) spatial map into (z, y, x)."""
+    array = np.ma.filled(array, np.nan) if np.ma.is_masked(array) else np.asarray(array)
+    if array.ndim == 2:
+        return np.transpose(array, (1, 0))[np.newaxis, ...]
+    elif array.ndim == 3:
+        return np.transpose(array, (2, 1, 0))
+    else:
+        raise ValueError(f"Expected a 2D (x, y) or 3D (x, y, z) spatial map, got shape {array.shape}.")
+
+
+def to_brim(
+    spectral_object: core.SpectralObject,
+    filepath: str,
+    *,
+    sample: Optional[str] = None,
+    laser_wavelength_nm: Optional[float] = None,
+    metadata: Optional[dict] = None,
+    fit_result: Optional[np.ndarray] = None,
+    expected_peaks: Optional[int] = None,
+    fit_model: str = "DHO",
+    x_step_um: Optional[float] = None,
+    y_step_um: Optional[float] = None,
+    z_step_um: Optional[float] = None,
+    overwrite: bool = False,
+) -> None:
+    """
+    Export a spectral object (and, optionally, a peak-fit result) to the brim
+    format (https://github.com/brillouin-imaging/Brillouin-standard-file), a
+    Zarr-based format used by the brimfile
+    (https://github.com/brillouin-imaging/brimfile) Python library and the
+    napari/Fiji brim viewer plugins.
+
+    Requires the ``brimfile`` package (``pip install brimfile``; needs Python >= 3.11).
+
+    Parameters
+    ----------
+    spectral_object : SpectralObject
+        The (typically preprocessed) Brillouin data to export. Must be a
+        :class:`~brillouinanalyzer.Spectrum`, :class:`~brillouinanalyzer.SpectralImage`
+        or :class:`~brillouinanalyzer.SpectralVolume` (i.e. ``spectral_data`` with 1,
+        3 or 4 dimensions) - brim's PSD array is always 4D ``(z, y, x, spectral)``.
+    filepath : str
+        Destination path of the ``.brim.zarr`` store.
+    sample : str, optional
+        Sample description, stored as the "Experiment.Sample" metadata field.
+    laser_wavelength_nm : float, optional
+        Excitation laser wavelength, in nm, stored as the "Optics.Wavelength"
+        metadata field.
+    metadata : dict[str, dict], optional
+        Additional metadata, as ``{category: {attribute: value_or_(value, units)}}``,
+        where ``category`` is the name of a ``brimfile.Metadata.Type`` member (e.g.
+        ``"Brillouin"``, ``"Acquisition"``, ``"Spectrometer"``) and each attribute
+        name must match the brim metadata schema (call
+        ``brimfile.metadata.print_schema()`` to see it). Values without units (e.g.
+        plain strings) can be given directly; numeric values needing units must be
+        given as a ``(value, units)`` tuple.
+    fit_result : numpy.ndarray of shape (..., n_params), optional
+        The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
+        ``brillouinanalyzer.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
+        is expected to hold, per fitted peak, the triplet (I0, freqShift,
+        LineWidth), followed by a single shared (Background, Asymmetry) pair. Since
+        brillouinanalyzer's peak models fit one symmetric peak per mode, the same
+        values are written for both the "AntiStokes" and "Stokes" sides.
+    expected_peaks : int, optional
+        Number of fitted peaks in ``fit_result``. Required if ``fit_result`` is given.
+    fit_model : {"DHO", "Lorentzian", "Gaussian", "Voigt", "Custom", "Undefined"}, optional
+        The fit model to record for ``fit_result``, matching
+        ``brimfile.AnalysisResults.FitModel``. Default is ``"DHO"``.
+    x_step_um, y_step_um, z_step_um : float, optional
+        Real-world pixel spacing along x/y/z, in micrometers - brim's ``px_size_um``
+        is always in micrometers, unlike :func:`to_hdf5_bls`'s configurable unit.
+        If omitted, that axis' pixel size is left undefined.
+    overwrite : bool, optional
+        Overwrite ``filepath`` if it already exists, by default False.
+    """
+    import os
+    import shutil
+
+    brim = _open_brim()
+
+    if overwrite and os.path.exists(filepath):
+        if os.path.isdir(filepath):
+            shutil.rmtree(filepath)
+        else:
+            os.remove(filepath)
+
+    PSD = _spectral_data_to_zyx_psd(spectral_object)
+    frequency = np.asarray(spectral_object.spectral_axis)
+
+    f = brim.File.create(filepath)
+    try:
+        data_group = f.create_data_group(PSD, frequency, (z_step_um, y_step_um, x_step_um))
+
+        Item = brim.Metadata.Item
+        md = data_group.get_metadata()
+        if sample is not None:
+            md.add(brim.Metadata.Type.Experiment, {"Sample": Item(sample)})
+        if laser_wavelength_nm is not None:
+            md.add(brim.Metadata.Type.Optics, {"Wavelength": Item(laser_wavelength_nm, "nm")})
+        for category_name, attributes in (metadata or {}).items():
+            category = brim.Metadata.Type[category_name]
+            items = {
+                key: value if isinstance(value, brim.Metadata.Item)
+                else Item(*value) if isinstance(value, tuple)
+                else Item(value)
+                for key, value in attributes.items()
+            }
+            md.add(category, items)
+
+        if fit_result is not None:
+            fit_result = np.asarray(fit_result)
+            if expected_peaks is None:
+                raise ValueError("Provide 'expected_peaks' together with 'fit_result'.")
+
+            background = _spatial_map_to_zyx(fit_result[..., 3 * expected_peaks])
+            peak_data = [
+                {
+                    "amplitude": _spatial_map_to_zyx(fit_result[..., 3 * i]), "amplitude_units": "a.u.",
+                    "shift": _spatial_map_to_zyx(fit_result[..., 3 * i + 1]), "shift_units": "GHz",
+                    "width": _spatial_map_to_zyx(fit_result[..., 3 * i + 2]), "width_units": "GHz",
+                    "offset": background, "offset_units": "a.u.",
+                }
+                for i in range(expected_peaks)
+            ]
+            peak_data = peak_data if expected_peaks > 1 else peak_data[0]
+
+            # brillouinanalyzer's peak models fit one symmetric (I0, freqShift, LineWidth)
+            # triplet per mode, describing both the AntiStokes and Stokes peaks equally.
+            data_group.create_analysis_results_group(
+                peak_data, peak_data, fit_model=brim.AnalysisResults.FitModel[fit_model],
+            )
+    finally:
+        f.close()
+
+
+def from_brim(filepath: str, *, index: int = 0) -> core.SpectralObject:
+    """
+    Read a measurement stored in the brim format
+    (https://github.com/brillouin-imaging/Brillouin-standard-file) back into a
+    brillouinanalyzer spectral object, ready for further processing (preprocessing
+    pipelines, fitting, ...).
+
+    Requires the ``brimfile`` package (``pip install brimfile``; needs Python >= 3.11).
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the ``.brim.zarr`` store.
+    index : int, optional
+        Index of the data group to read, if the file contains more than one - use
+        :func:`list_brim_measurements` to see the available options. Default is 0
+        (the first/only one).
+
+    Returns
+    -------
+    SpectralObject
+        A :class:`~brillouinanalyzer.Spectrum`/:class:`~brillouinanalyzer.SpectralImage`/
+        :class:`~brillouinanalyzer.SpectralVolume` instance (chosen automatically
+        based on the dimensionality of the stored data; a single spectrum stored in
+        a 1x1-pixel data group comes back as a 1x1 ``SpectralImage``, since brim
+        doesn't distinguish the two cases), with the data group's metadata attached
+        as a ``metadata`` dict of the form ``{category: {attribute: (value, units)}}``.
+    """
+    brim = _open_brim()
+
+    f = brim.File(filepath)
+    try:
+        data_group = f.get_data(index)
+        PSD, frequency, _psd_units, _frequency_units = data_group.get_PSD_as_spatial_map(broadcast_frequency=False)
+
+        spectral_object = core._create_data(_zyx_psd_to_spectral_data(np.asarray(PSD)), np.asarray(frequency))
+
+        try:
+            raw_metadata = data_group.get_metadata().all_to_dict()
+        except ValueError:
+            # Works around a bug in brimfile <= 1.7.0: reading the metadata of a
+            # file that never had any metadata written to it tries to lazily
+            # initialise it, which fails because the file is open read-only here.
+            raw_metadata = {}
+
+        spectral_object.metadata = {
+            category: {
+                attribute: (item.value, item.units) for attribute, item in attributes.items()
+            }
+            for category, attributes in raw_metadata.items()
+        }
+
+        return spectral_object
+    finally:
+        f.close()
+
+
+def list_brim_measurements(filepath: str) -> list:
+    """
+    List the data groups contained in a brim file.
+
+    Useful to find the ``index`` to pass to :func:`from_brim` when a file contains
+    more than one measurement.
+
+    Parameters
+    ----------
+    filepath : str
+        Path to the ``.brim.zarr`` store.
+
+    Returns
+    -------
+    list[dict]
+        The data groups found (each with ``'name'``, ``'index'`` and
+        ``'custom_name'`` keys).
+    """
+    brim = _open_brim()
+    f = brim.File(filepath)
+    try:
+        return f.list_data_groups(retrieve_custom_name=True)
+    finally:
+        f.close()

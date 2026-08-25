@@ -23,6 +23,8 @@ setup(
     ],
     extras_require={
         'hdf5_bls': ['HDF5_BLS'],
+        # 'brim' export/import (export.to_brim/from_brim) needs Python >= 3.11
+        'brim': ['brimfile'],
     },
     author='Timm Landes',
     author_email='timm.landes@hot.uni-hannover.de',

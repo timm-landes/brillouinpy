@@ -15,8 +15,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A step-by-step, illustrated Tutorial (`docs/tutorial.md`), also mirrored on the
   project's GitLab Wiki, walking through the `examples/` scripts with generated
   figures (`docs/generate_tutorial_images.py`).
+- `utils.read_meta` and `utils.brillouin_spectral_axis_from_meta`, which read the
+  interferometer scan parameters (mirror spacing, scan amplitude, laser
+  wavelength) for `brillouin_spectral_axis` from a measurement's `META.json`
+  automatically, transparently handling both the current (nested) and legacy
+  (flat) metadata schema found across existing datasets.
 - `LICENSE` (BSD 3-Clause) and `NOTICE.md`/`THIRD_PARTY_LICENSES/` documenting the
   RamanSPy- and VCA-derived portions of the codebase.
+- `export.to_brim`/`export.from_brim`/`export.list_brim_measurements`, for
+  reading/writing the [brim](https://github.com/brillouin-imaging/Brillouin-standard-file)
+  format (a Zarr-based standard for Brillouin microscopy data, also readable by
+  the napari/Fiji brim viewer plugins), via the optional `brimfile` package
+  (`pip install brillouinanalyzer[brim]`; needs Python >= 3.11).
 
 ### Fixed
 - `analysis.unmix.NFINDR` called a non-existent `pysptools.eea.nfindr.NFINDR` API

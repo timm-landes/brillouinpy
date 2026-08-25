@@ -44,21 +44,39 @@ import brillouinanalyzer as bp
 brillouin_data = bp.utils.load_spectral_image(project_path, 'Brillouin')
 
 # The frequency-shift axis isn't stored in the raw files - it's derived from the
-# tandem Fabry-Perot interferometer's scan parameters.
-spectral_axis = bp.utils.brillouin_spectral_axis(
-    mirror_spacing=6e-3,     # [m]
-    scan_amplitude=480e-9,   # [m]
-    no_of_channels=brillouin_data.shape[-1],
+# tandem Fabry-Perot interferometer's scan parameters. If the measurement has a
+# 'META.json' (directly in 'project_path' or in its 'data' subfolder), those
+# parameters can be read from it automatically:
+spectral_axis = bp.utils.brillouin_spectral_axis_from_meta(
+    project_path, no_of_channels=brillouin_data.shape[-1],
 )
 
 brillouin_image = bp.SpectralImage(brillouin_data, spectral_axis)
 ```
 
+`brillouin_spectral_axis_from_meta` transparently handles the different
+`META.json` schema versions found across existing datasets (a current, nested
+`Brillouin`/`Laser` section, and an older flat one) - see
+`utils._brillouin_scan_parameters_from_meta` if you need to know exactly which
+keys it looks for. It raises `FileNotFoundError` if no `META.json` exists for the
+measurement, and `KeyError` if the one found doesn't contain a required field
+(e.g. some older flat-schema files are missing the scan amplitude entirely) - in
+either case, fall back to calling `brillouin_spectral_axis` directly with values
+entered by hand:
+
+```python
+spectral_axis = bp.utils.brillouin_spectral_axis(
+    mirror_spacing=6e-3,     # [m]
+    scan_amplitude=480e-9,   # [m]
+    no_of_channels=brillouin_data.shape[-1],
+)
+```
+
 `mirror_spacing` and `scan_amplitude` are properties of *your* interferometer setup,
-not of the sample - get them from your instrument's calibration, not from the values
-shown here. Getting them wrong stretches or compresses the whole frequency axis, so
-if your fitted frequency shifts look consistently off by a constant factor, this is
-the first place to check.
+not of the sample - get them from your instrument's calibration (via `META.json` or
+by hand), not from the values shown here. Getting them wrong stretches or
+compresses the whole frequency axis, so if your fitted frequency shifts look
+consistently off by a constant factor, this is the first place to check.
 
 The resulting `SpectralImage` (see also `Spectrum`, `SpectralVolume` and the common
 base class `SpectralContainer` in the API reference) is what every other step in
