@@ -1,3 +1,11 @@
+"""
+The PreprocessingStep class below is adapted from RamanSPy
+(https://github.com/barahona-research-group/RamanSPy), Copyright (c) 2023
+Dimitar Georgiev, licensed under the BSD 3-Clause License (see LICENSE and
+THIRD_PARTY_LICENSES/RamanSPy-BSD-3-Clause.txt in the repository root). Notable
+changes: masked-array/NaN handling in ``_process_object`` (RamanSPy's Raman data
+doesn't need it).
+"""
 from typing import Union, Callable
 import copy
 from typing import final, List

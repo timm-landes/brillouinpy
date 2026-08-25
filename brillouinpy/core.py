@@ -3,6 +3,13 @@
 Created on Tue Feb 18 15:19:25 2025
 
 @author: Timm
+
+The SpectralContainer/Spectrum/SpectralImage/SpectralVolume class hierarchy below
+is adapted from RamanSPy (https://github.com/barahona-research-group/RamanSPy),
+Copyright (c) 2023 Dimitar Georgiev, licensed under the BSD 3-Clause License (see
+LICENSE and THIRD_PARTY_LICENSES/RamanSPy-BSD-3-Clause.txt in the repository
+root). Notable changes: masked-array/NaN support throughout (RamanSPy's Raman
+data doesn't need it), and Brillouin-specific docstring/unit updates.
 """
 
 from __future__ import annotations  # default if Python >= 3.10

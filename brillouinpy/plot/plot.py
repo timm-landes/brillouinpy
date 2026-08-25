@@ -1,3 +1,11 @@
+"""
+Parts of this file (notably the overall structure of ``spectra``/``mean_spectra``
+and the ``@scalable`` decorator pattern used by ``image``/``volume``) are adapted
+from RamanSPy (https://github.com/barahona-research-group/RamanSPy), Copyright
+(c) 2023 Dimitar Georgiev, licensed under the BSD 3-Clause License (see LICENSE
+and THIRD_PARTY_LICENSES/RamanSPy-BSD-3-Clause.txt in the repository root).
+``peaks``, ``peak_dist`` and the Brillouin-specific plotting logic are original.
+"""
 from __future__ import annotations  # default if Python >= 3.10
 import copy
 import functools

@@ -1,3 +1,9 @@
+"""
+This file is adapted, near-verbatim, from RamanSPy
+(https://github.com/barahona-research-group/RamanSPy), Copyright (c) 2023
+Dimitar Georgiev, licensed under the BSD 3-Clause License (see LICENSE and
+THIRD_PARTY_LICENSES/RamanSPy-BSD-3-Clause.txt in the repository root).
+"""
 from numbers import Number
 import numpy as np
 from scipy.signal import savgol_filter

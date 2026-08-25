@@ -7,6 +7,11 @@ from . import PreprocessingStep
 from ..core import Spectrum
 
 
+# BackgroundSubtractor and Cropper below are adapted, near-verbatim, from
+# RamanSPy (https://github.com/barahona-research-group/RamanSPy), Copyright (c)
+# 2023 Dimitar Georgiev, licensed under the BSD 3-Clause License (see LICENSE and
+# THIRD_PARTY_LICENSES/RamanSPy-BSD-3-Clause.txt in the repository root).
+# IRF_Remover and Deconvoluter_IRF further below are original to this package.
 class BackgroundSubtractor(PreprocessingStep):
     """
     Subtract a fixed reference background.

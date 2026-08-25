@@ -14,13 +14,18 @@ import warnings
 import scipy.optimize
 
 
-def is_aligned(raman_objects):
+# is_aligned() below is adapted, near-verbatim, from RamanSPy
+# (https://github.com/barahona-research-group/RamanSPy), Copyright (c) 2023
+# Dimitar Georgiev, licensed under the BSD 3-Clause License (see LICENSE and
+# THIRD_PARTY_LICENSES/RamanSPy-BSD-3-Clause.txt in the repository root). The
+# rest of this file is original.
+def is_aligned(spectral_objects):
     """
     Checks whether a collection of spectral objects all share the same spectral axis.
 
     Parameters
     ----------
-    raman_objects : list of SpectralObject
+    spectral_objects : list of SpectralObject
         The spectral objects to compare.
 
     Returns
@@ -29,7 +34,7 @@ def is_aligned(raman_objects):
         ``True`` if all objects have an identical ``spectral_axis``, ``False`` otherwise.
     """
     unique_shift_axes = [
-        np.array(unique) for unique in set(tuple(raman_object.spectral_axis) for raman_object in raman_objects)]
+        np.array(unique) for unique in set(tuple(spectral_object.spectral_axis) for spectral_object in spectral_objects)]
 
     return len(unique_shift_axes) == 1
 

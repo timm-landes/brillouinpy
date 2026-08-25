@@ -1,3 +1,12 @@
+"""
+The AnalysisStep class below is adapted from RamanSPy
+(https://github.com/barahona-research-group/RamanSPy), Copyright (c) 2023
+Dimitar Georgiev, licensed under the BSD 3-Clause License (see LICENSE and
+THIRD_PARTY_LICENSES/RamanSPy-BSD-3-Clause.txt in the repository root). Notable
+change: spectral channels containing a NaN/masked value in any pixel are dropped
+before the analysis method runs, and the resulting components are re-embedded
+into the full channel range (RamanSPy's Raman data doesn't need this).
+"""
 from typing import List, Callable, Union, Tuple
 import numpy as np
 from numpy.typing import NDArray

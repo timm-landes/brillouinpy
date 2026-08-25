@@ -1,3 +1,9 @@
+"""
+This file is adapted, verbatim, from RamanSPy
+(https://github.com/barahona-research-group/RamanSPy), Copyright (c) 2023
+Dimitar Georgiev, licensed under the BSD 3-Clause License (see LICENSE and
+THIRD_PARTY_LICENSES/RamanSPy-BSD-3-Clause.txt in the repository root).
+"""
 import numpy as np
 import sklearn.cluster as cluster
 
