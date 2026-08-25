@@ -176,4 +176,24 @@ if __name__ == '__main__':
         plt.title(f'PC{i + 1} loading')
     savefig('08_pca.png')
 
+    # -----------------------------------------------------------------------
+    # 9. Clustering (k-means)
+    # -----------------------------------------------------------------------
+    kmeans = bp.analysis.cluster.KMeans(n_clusters=2, random_state=0)
+    memberships, centers = kmeans.apply(mix_preprocessed)
+    cluster_map = np.argmax(np.stack(memberships, axis=-1), axis=-1)
+
+    plt.figure(figsize=(10, 4), layout='constrained')
+    plt.subplot(121)
+    im = plt.imshow(cluster_map, cmap='viridis')
+    plt.colorbar(im, ticks=range(len(centers)), label='Cluster')
+    plt.title('Cluster assignment')
+    plt.subplot(122)
+    bp.plot.spectra(
+        centers, mix_preprocessed.spectral_axis, plot_type='single',
+        label=[f'Cluster {i + 1} centre' for i in range(len(centers))], yscale='linear',
+    )
+    plt.title('Cluster-centre spectra')
+    savefig('09_kmeans.png')
+
     print('Done.')
