@@ -26,13 +26,14 @@ setup(
     },
     author='Timm Landes',
     author_email='timm.landes@hot.uni-hannover.de',
-    description='Geänderte Version von RamanSPy um die Brillouin-Daten damit zu analysieren',
+    description='Brillouin light scattering data analysis, architecturally inspired by RamanSPy (see NOTICE.md)',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',  # Format der Langbeschreibung
     url='https://gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer',  # URL zu Ihrem Projekt
+    license='BSD-3-Clause',
     classifiers=[  # Optional: Klassifizierung Ihres Pakets
         'Programming Language :: Python :: 3',
-        'License :: OSI Approved :: MIT License',  # Beispiel für eine Lizenz
+        'License :: OSI Approved :: BSD License',
         'Operating System :: OS Independent',
     ],
     python_requires='>=3.8',  # Minimale Python-Version, die unterstützt wird
