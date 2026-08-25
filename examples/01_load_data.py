@@ -54,6 +54,21 @@ if __name__ == '__main__':
         brillouin_image = bp.SpectralImage(brillouin_data, spectral_axis)
         print(f"Loaded real data from '{project_path}': shape {brillouin_image.shape}")
 
+        # 'META.json' can hold more than just the scan parameters used above - e.g.
+        # the sample name, operator, and acquisition date. 'read_meta' gives you the
+        # raw dict for anything else you want to pull out; attaching it to the
+        # object keeps that information alongside the data for later reference
+        # (e.g. when exporting via 'export.to_hdf5_bls'/'export.to_brim').
+        try:
+            brillouin_image.metadata = bp.utils.read_meta(project_path)
+            # 'Sample' lives at the top level in the older flat META.json schema, or
+            # under 'General' in the current nested one - check both.
+            meta = brillouin_image.metadata
+            sample = meta.get('Sample') or meta.get('General', {}).get('Sample', 'n/a')
+            print(f"Sample: {sample}")
+        except FileNotFoundError:
+            pass
+
     except (FileNotFoundError, NotADirectoryError):
         # No data at 'project_path' on this machine - fall back to a synthetic
         # dataset so the rest of the example still has something to show.

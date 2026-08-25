@@ -72,6 +72,22 @@ spectral_axis = bp.utils.brillouin_spectral_axis(
 )
 ```
 
+`META.json` usually holds more than just the scan parameters - sample name,
+operator, acquisition date, and so on. `utils.read_meta(project_path)` gives you
+that raw dict directly, for anything beyond what
+`brillouin_spectral_axis_from_meta` already extracts:
+
+```python
+brillouin_image.metadata = bp.utils.read_meta(project_path)
+```
+
+Attaching it to `.metadata` keeps it alongside the data for later reference (e.g.
+`export.to_hdf5_bls`/`export.to_brim`, see step 5, both accept a `sample`
+argument you could pull from here). Where the value actually lives depends on
+the schema version - e.g. `meta['Sample']` (flat) vs. `meta['General']['Sample']`
+(nested) - the same distinction `brillouin_spectral_axis_from_meta` handles for
+the scan parameters.
+
 `mirror_spacing` and `scan_amplitude` are properties of *your* interferometer setup,
 not of the sample - get them from your instrument's calibration (via `META.json` or
 by hand), not from the values shown here. Getting them wrong stretches or
