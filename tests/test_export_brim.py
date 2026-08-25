@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -64,6 +66,27 @@ def test_to_brim_raises_without_overwrite(tmp_path, image):
         export.to_brim(image, filepath, overwrite=False)
 
     export.to_brim(image, filepath, overwrite=True)  # should not raise
+
+
+def test_to_brim_as_zip_writes_a_single_file(tmp_path, image):
+    filepath = str(tmp_path / "image.brim.zip")
+
+    export.to_brim(image, filepath, as_zip=True, laser_wavelength_nm=532.1)
+
+    assert Path(filepath).is_file()
+    assert not Path(filepath).is_dir()
+
+    reloaded = export.from_brim(filepath)
+    assert reloaded.shape == image.shape
+    assert np.allclose(
+        np.ma.filled(reloaded.spectral_data, np.nan),
+        np.ma.filled(image.spectral_data, np.nan),
+        equal_nan=True,
+    )
+    assert reloaded.metadata["Optics"]["Wavelength"] == (532.1, "nm")
+
+    # overwrite=True on an existing zip should also not raise
+    export.to_brim(image, filepath, as_zip=True, overwrite=True)
 
 
 def test_to_brim_with_single_peak_fit_result(tmp_path, image):

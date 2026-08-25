@@ -27,11 +27,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   format (a Zarr-based standard for Brillouin microscopy data, also readable by
   the napari/Fiji brim viewer plugins), via the optional `brimfile` package
   (`pip install brillouinanalyzer[brim]`; needs Python >= 3.11).
+- `export.to_brim(..., as_zip=True)`, to write a single `.brim.zip` archive
+  instead of a `.brim.zarr` directory.
 
 ### Fixed
 - `analysis.unmix.NFINDR` called a non-existent `pysptools.eea.nfindr.NFINDR` API
   and passed data in the wrong shape; it now uses `eea.NFINDR().extract(...)` with
   a correctly shaped input cube.
+- `export.to_brim` now writes the root `Subtype` attribute explicitly (as
+  `'none'`) - `brimfile`'s own `File.create()`/`create_data_group()` never write
+  it unless one of the `brimfile.subtypes.*` helpers is used, and while
+  `brimfile`'s own reader tolerates that, at least one downstream viewer
+  (BrimView, as of `brimfile` 1.7.0) doesn't and fails to open the file with
+  `ValueError: Invalid subtype: None`.
+- `export.to_brim` no longer writes a `null` pixel size for a single z-slice
+  (e.g. a plain `SpectralImage`, where the z-axis is a placeholder to begin
+  with) when `z_step_um` isn't given, since that also tripped up BrimView.
 
 ### Changed
 - `setup.py`'s license metadata corrected from a placeholder `MIT` classifier to

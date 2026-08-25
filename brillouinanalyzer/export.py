@@ -380,6 +380,7 @@ def to_brim(
     x_step_um: Optional[float] = None,
     y_step_um: Optional[float] = None,
     z_step_um: Optional[float] = None,
+    as_zip: bool = False,
     overwrite: bool = False,
 ) -> None:
     """
@@ -399,7 +400,15 @@ def to_brim(
         or :class:`~brillouinanalyzer.SpectralVolume` (i.e. ``spectral_data`` with 1,
         3 or 4 dimensions) - brim's PSD array is always 4D ``(z, y, x, spectral)``.
     filepath : str
-        Destination path of the ``.brim.zarr`` store.
+        Destination path of the brim store. By convention, ``.brim.zarr`` for a
+        directory store (the default), or ``.brim.zip`` when ``as_zip=True``.
+    as_zip : bool, optional
+        If ``True``, write a single ``.brim.zip`` archive file instead of a
+        ``.brim.zarr`` directory (Zarr's usual, chunk-per-file layout). Both are
+        valid brim files and both are readable by :func:`from_brim`, brimfile
+        itself, and the brim viewer plugins/tools; a zip archive is easier to
+        move/share as one file, at the cost of needing to be (partially)
+        decompressed to read from. Default is ``False``.
     sample : str, optional
         Sample description, stored as the "Experiment.Sample" metadata field.
     laser_wavelength_nm : float, optional
@@ -446,9 +455,35 @@ def to_brim(
     PSD = _spectral_data_to_zyx_psd(spectral_object)
     frequency = np.asarray(spectral_object.spectral_axis)
 
-    f = brim.File.create(filepath)
+    if z_step_um is None and PSD.shape[0] == 1:
+        # A single z-slice (e.g. a plain SpectralImage) has no real z-extent, so
+        # this is a harmless placeholder rather than a physical claim - unlike
+        # x_step_um/y_step_um, which are left as None (and thus null in the file)
+        # if not given, since those axes are essentially always physically
+        # meaningful. Some brim readers (e.g. BrimView, as of writing) don't
+        # handle a null pixel size gracefully, so avoid writing one where we can.
+        z_step_um = 1.0
+
+    store_type = brim.StoreType.ZIP if as_zip else brim.StoreType.ZARR
+    f = brim.File.create(filepath, store_type=store_type)
     try:
         data_group = f.create_data_group(PSD, frequency, (z_step_um, y_step_um, x_step_um))
+
+        # brimfile's own File.create()/create_data_group() never write the root
+        # 'Subtype' attribute unless one of the brimfile.subtypes.* helpers (e.g.
+        # single_point_VIPA.add_rawdata) is used. brimfile's own reader (File.subtype)
+        # tolerates that absence and defaults to SubType.none, but at least one
+        # downstream viewer (BrimView, as of brimfile 1.7.0) does not, and fails
+        # with "Invalid subtype: None" on a file that never touched that API. Write
+        # it explicitly, using brimfile's own (private but stable) helper for it,
+        # so the file matches what a file that went through the "normal" (subtype-
+        # aware) writing path would contain. Falls back to a no-op if that helper
+        # ever disappears in a future brimfile release.
+        try:
+            from brimfile.subtypes.utils import _check_or_create_subtype
+            _check_or_create_subtype(f._file, brim.subtypes.SubType.none)
+        except (ImportError, AttributeError):
+            pass
 
         Item = brim.Metadata.Item
         md = data_group.get_metadata()
