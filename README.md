@@ -3,9 +3,7 @@
 
 This module should help you to analyze Brillouin light scattering data efficiently. This is strongly, let's say "inspired" by the package [RamanSPy](https://github.com/barahona-research-group/RamanSPy). For the most steps it uses the same syntax, but I started to remove unnecessary functions and added useful ones for Brillouin imaging. For instance, Raman scattering data often requires a baseline correction. This however, is something we don't do in Brillouin. Usually the background in Brillouin light scattering experiments is very flat and only requires the removal of a constant background. But analysis of Brillouin data requires removal of the Rayleigh scattered light, or in our case removal of the reference beam.
 
-
-
-**Currently only for internal use within the Phytophotonics Division, as it contains many RamanSPy references that are not clearly marked! Please do not share this package with others without asking for permission first.**.
+This project is licensed under the BSD 3-Clause License (see [`LICENSE`](LICENSE)); see [`NOTICE.md`](NOTICE.md) for the third-party (RamanSPy, VCA) components it incorporates and their respective licenses.
 
 ## Documentation
 A step-by-step [Tutorial](docs/tutorial.md) walking through the `examples/` folder, and the full API reference (built from the docstrings in this package), are published via GitLab Pages. Find the link under **Deploy → Pages** in this project on GitLab once the `pages` pipeline job has run on `main`.
