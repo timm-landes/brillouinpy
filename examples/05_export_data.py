@@ -1,0 +1,76 @@
+# -*- coding: utf-8 -*-
+"""
+Example 4 - Exporting results
+==============================
+
+Shows how to export processed data and fit results to formats other tools can read:
+
+- Per-parameter 32-bit TIFF images (:func:`brillouinanalyzer.export.fit_to_tiff`),
+  e.g. for opening in ImageJ/Fiji.
+- The `HDF5_BLS <https://github.com/bio-brillouin/HDF5_BLS>`_ format
+  (:func:`brillouinanalyzer.export.to_hdf5_bls`/:func:`~brillouinanalyzer.export.from_hdf5_bls`),
+  for interoperability with other Brillouin analysis software. Requires the optional
+  ``HDF5_BLS`` package (``pip install HDF5_BLS``).
+
+Continues from ``02_preprocess_data.py`` and ``04_fit_spectra.py``: run those first
+to get ``pp_data/preprocessed_image.pkl`` and ``pp_data/fitted_parameters.npy``,
+otherwise this script falls back to synthetic data on its own.
+"""
+import os
+
+import numpy as np
+
+import brillouinanalyzer as bp
+from _synthetic_data import single_peak_image
+
+if __name__ == '__main__':
+    preprocessed_path = os.path.join('pp_data', 'preprocessed_image.pkl')
+    fit_path = os.path.join('pp_data', 'fitted_parameters.npy')
+
+    if os.path.exists(preprocessed_path):
+        preprocessed_image = bp.SpectralImage.load(preprocessed_path)
+    else:
+        preprocessed_image = single_peak_image()
+
+    if os.path.exists(fit_path):
+        fitted_parameters = np.load(fit_path)
+    else:
+        fitted_parameters, _ = bp.analysis.fitmodel.DHO(
+            expected_peaks=1, p0=[0.005, 8.5, 1, 0, 0], bounds=None,
+        ).apply(preprocessed_image)
+        fitted_parameters = np.ma.filled(fitted_parameters, np.nan)
+
+    os.makedirs('pp_data', exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # Export the fitted parameter maps as individual TIFF images
+    # ------------------------------------------------------------------
+    tiff_files = bp.export.fit_to_tiff(
+        fitted_parameters,
+        output_directory=os.path.join('pp_data', 'tiff'),
+        expected_peaks=1,   # must match the model used to produce 'fitted_parameters'
+        prefix='dho_fit',
+    )
+    print('Wrote TIFF files:', tiff_files)
+
+    # ------------------------------------------------------------------
+    # Export the preprocessed data (+ fit) to the HDF5_BLS format
+    # ------------------------------------------------------------------
+    try:
+        bp.export.to_hdf5_bls(
+            preprocessed_image,
+            os.path.join('pp_data', 'brillouin_data.h5'),
+            sample='Example sample',
+            fit_result=fitted_parameters,
+            expected_peaks=1,
+            x_step=0.5, y_step=0.5, spatial_unit='um',
+            overwrite=True,
+        )
+        print('Wrote pp_data/brillouin_data.h5')
+
+        # Reading it back returns a ready-to-use spectral object
+        reloaded = bp.export.from_hdf5_bls(os.path.join('pp_data', 'brillouin_data.h5'))
+        print(f"Reloaded from HDF5_BLS: shape {reloaded.shape}, metadata {reloaded.metadata}")
+
+    except ImportError as exc:
+        print(f"Skipping HDF5_BLS export ({exc}).")
