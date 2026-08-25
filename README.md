@@ -151,5 +151,4 @@ You then can open a new console (Spyder 6) and select the environment or change 
 
 
 ## Changelog
-- 0.1: Initial upload
-- 0.1.1: Added support for missing data points. Now the pipeline gives the user a warning, when points are missing but doesn't stop executing. The missing values are treated as None.
+See [`CHANGELOG.md`](CHANGELOG.md).
