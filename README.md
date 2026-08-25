@@ -8,7 +8,7 @@ This module should help you to analyze Brillouin light scattering data efficient
 **Currently only for internal use within the Phytophotonics Division, as it contains many RamanSPy references that are not clearly marked! Please do not share this package with others without asking for permission first.**.
 
 ## Documentation
-The full API reference (built from the docstrings in this package) is published via GitLab Pages. Find the link under **Deploy → Pages** in this project on GitLab once the `pages` pipeline job has run on `main`.
+A step-by-step [Tutorial](docs/tutorial.md) walking through the `examples/` folder, and the full API reference (built from the docstrings in this package), are published via GitLab Pages. Find the link under **Deploy → Pages** in this project on GitLab once the `pages` pipeline job has run on `main`.
 
 To build it locally instead:
 ```bash
@@ -82,7 +82,7 @@ pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyze
    ```
 
 ## Example
-I attached some examples in the [`example`-folder](examples/) of this project. You can access those, copy them, alter them, or clone them. This shows how capable BrillouinAnalyzer is regarding ML approaches.
+I attached some examples in the [`example`-folder](examples/) of this project. You can access those, copy them, alter them, or clone them. This shows how capable BrillouinAnalyzer is regarding ML approaches. For a guided, illustrated walkthrough of those examples, see the [Tutorial](docs/tutorial.md).
 
 Subsequently, you'll find a short example code. Example data can be found in [here](https://seafile.projekt.uni-hannover.de/d/ae7aff2e3bf14f119ed5/). The necessary password is `brillouin_test_data`.
 ```python
