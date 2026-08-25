@@ -21,12 +21,7 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(REPO_ROOT, 'examples'))
 OUT_DIR = os.path.join(REPO_ROOT, 'docs', '_static', 'tutorial')
-os.makedirs(OUT_DIR, exist_ok=True)
-
-import brillouinanalyzer as bp
-from _synthetic_data import single_peak_image, image_with_irf, two_material_image
 
 
 def savefig(name):
@@ -37,6 +32,12 @@ def savefig(name):
 
 
 if __name__ == '__main__':
+    sys.path.insert(0, os.path.join(REPO_ROOT, 'examples'))
+    os.makedirs(OUT_DIR, exist_ok=True)
+
+    import brillouinanalyzer as bp
+    from _synthetic_data import single_peak_image, image_with_irf, two_material_image
+
     # -----------------------------------------------------------------------
     # 1. Loading data
     # -----------------------------------------------------------------------
