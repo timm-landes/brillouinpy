@@ -1,6 +1,6 @@
 Utilities
 =========
 
-.. automodule:: brillouinanalyzer.utils
+.. automodule:: brillouinpy.utils
    :members:
    :show-inheritance:

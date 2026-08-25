@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pytest
 
-from brillouinanalyzer import utils
+from brillouinpy import utils
 
 NESTED_META = {
     "Brillouin": {

@@ -1,6 +1,6 @@
 Core data structures
 =====================
 
-.. automodule:: brillouinanalyzer.core
+.. automodule:: brillouinpy.core
    :members:
    :show-inheritance:

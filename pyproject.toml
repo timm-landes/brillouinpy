@@ -12,4 +12,4 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 # utils.py: pre-existing dead code / undefined names in Raman-specific helpers, left untouched intentionally.
-"brillouinanalyzer/utils.py" = ["F821", "F841", "W293"]
+"brillouinpy/utils.py" = ["F821", "F841", "W293"]

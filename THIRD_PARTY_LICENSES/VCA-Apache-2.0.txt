@@ -1,5 +1,5 @@
 The Vertex Component Analysis (VCA) implementation in
-brillouinanalyzer/analysis/unmix.py (the `_vca` function) is adapted from:
+brillouinpy/analysis/unmix.py (the `_vca` function) is adapted from:
 
     https://github.com/Laadr/VCA
     Copyright 2018 Adrien Lagrange

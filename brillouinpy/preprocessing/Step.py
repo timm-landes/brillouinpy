@@ -29,7 +29,7 @@ class PreprocessingStep:
 
     .. note:: One only needs the :class:`PreprocessingStep` class directly when devising custom preprocessing methods.
 
-              The built-in preprocessing methods (see :mod:`brillouinanalyzer.preprocessing.denoise`,
+              The built-in preprocessing methods (see :mod:`brillouinpy.preprocessing.denoise`,
               :mod:`~.despike`, :mod:`~.misc` and :mod:`~.normalise`) can be used directly instead.
 
     Example
@@ -37,7 +37,7 @@ class PreprocessingStep:
 
     .. code::
 
-        from brillouinanalyzer import preprocessing
+        from brillouinpy import preprocessing
 
         # Defining some preprocessing function of the correct type
         def preprocessing_func(intensity_data, spectral_axis, **kwargs):
@@ -96,7 +96,7 @@ class PreprocessingStep:
         """
         Applies the defined preprocessing method on the Brillouin spectroscopic objects provided.
 
-        The single point-of-contact method of :class:`brillouinanalyzer.preprocessing.PreprocessingStep` instances.
+        The single point-of-contact method of :class:`brillouinpy.preprocessing.PreprocessingStep` instances.
 
         Method is applied on each data container instance provided individually.
 
@@ -113,7 +113,7 @@ class PreprocessingStep:
             The preprocessed objects, where SpectralObject := Union[SpectralContainer, Spectrum, SpectralImage, SpectralVolume].
 
 
-        .. note:: When more than one class:`brillouinanalyzer.SpectralContainer` is passed, preprocessing methods are applied individually for each instance passed.
+        .. note:: When more than one class:`brillouinpy.SpectralContainer` is passed, preprocessing methods are applied individually for each instance passed.
 
 
         Example

@@ -5,8 +5,8 @@ import pytest
 
 pytest.importorskip("brimfile")
 
-from brillouinanalyzer import export
-from brillouinanalyzer.core import SpectralImage, SpectralVolume, Spectrum
+from brillouinpy import export
+from brillouinpy.core import SpectralImage, SpectralVolume, Spectrum
 
 
 def _dho(x, amplitude, freq_shift, linewidth, background=0.0, asymmetry=0.0):

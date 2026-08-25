@@ -8,9 +8,11 @@ Created on Tue Feb 25 16:08:15 2025
 from setuptools import setup, find_packages
 
 setup(
-    name='BrillouinAnalyzer',
+    name='BrillouinPy',
     version='0.1.1',
-    packages=find_packages(),  # Automatisches Finden von Paketen im Projektverzeichnis
+    # Finds both 'brillouinpy' (the real package) and 'brillouinanalyzer' (a thin
+    # backwards-compatibility shim for the package's former name) automatically.
+    packages=find_packages(),
     install_requires=[  # Liste von Abhängigkeiten Ihres Pakets
          'numpy',
          'scipy',
@@ -28,7 +30,7 @@ setup(
     },
     author='Timm Landes',
     author_email='timm.landes@hot.uni-hannover.de',
-    description='Brillouin light scattering data analysis, architecturally inspired by RamanSPy (see NOTICE.md)',
+    description='Brillouin light scattering data analysis (formerly BrillouinAnalyzer), architecturally inspired by RamanSPy (see NOTICE.md)',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',  # Format der Langbeschreibung
     url='https://gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer',  # URL zu Ihrem Projekt

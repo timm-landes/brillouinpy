@@ -2,17 +2,17 @@
 """
 Synthetic Brillouin data generator shared by the examples in this folder.
 
-The real workflow starts from :func:`brillouinanalyzer.utils.prepare_brillouin_data`
+The real workflow starts from :func:`brillouinpy.utils.prepare_brillouin_data`
 (see ``01_load_data.py``), which needs a folder of ``.DAT``/``.csv`` measurement
 files on disk. So that every example script in this folder can be run as-is,
 without any measurement data at hand, this module fabricates a small
-:class:`brillouinanalyzer.SpectralImage` from a handful of Damped Harmonic
+:class:`brillouinpy.SpectralImage` from a handful of Damped Harmonic
 Oscillator (DHO) peaks placed at known positions - so you always know what the
 "correct" fit/unmixing result should look like.
 """
 import numpy as np
 
-import brillouinanalyzer as bp
+import brillouinpy as bp
 
 
 def _dho(x, amplitude, freq_shift, linewidth, background=0.0, asymmetry=0.0):
@@ -35,7 +35,7 @@ def _blob(nx, ny, cx, cy, radius):
 
 def single_peak_image(nx=15, ny=15, n_channels=200, freq_shift=8.5, linewidth=1.0, noise=5e-4, seed=0):
     """
-    A small :class:`~brillouinanalyzer.SpectralImage` where every pixel holds a single
+    A small :class:`~brillouinpy.SpectralImage` where every pixel holds a single
     (slightly noisy) DHO peak, useful for the preprocessing and fitting examples.
     """
     rng = np.random.default_rng(seed)
@@ -59,13 +59,13 @@ def single_peak_image(nx=15, ny=15, n_channels=200, freq_shift=8.5, linewidth=1.
 def image_with_irf(nx=15, ny=15, n_channels=250, freq_shift=8.5, linewidth=1.0,
                     irf_width=2, noise=2e-4, seed=2):
     """
-    A :class:`~brillouinanalyzer.SpectralImage` holding a genuine Brillouin (DHO) peak
+    A :class:`~brillouinpy.SpectralImage` holding a genuine Brillouin (DHO) peak
     plus a much stronger, narrow Instrument Response Function (IRF)/Rayleigh peak at
     the centre of the spectral axis (matching real Brillouin spectra, where the
     elastically scattered light sits at zero frequency shift), flanked on both sides
     by exact-zero detector channels - useful for the IRF-removal example.
 
-    :func:`brillouinanalyzer.preprocessing.misc._find_instrumental_response` (used by
+    :func:`brillouinpy.preprocessing.misc._find_instrumental_response` (used by
     ``IRF_Remover``/``Deconvoluter_IRF``) locates the IRF by starting at the spectrum's
     global maximum and scanning outwards for the first exact-zero channel on each side,
     which is why this generator plants real zeros there rather than just a low value.
@@ -106,7 +106,7 @@ def image_with_irf(nx=15, ny=15, n_channels=250, freq_shift=8.5, linewidth=1.0,
 
 def two_material_image(nx=20, ny=20, n_channels=250, noise=3e-4, seed=1):
     """
-    A :class:`~brillouinanalyzer.SpectralImage` mixing two "materials" (each a single DHO
+    A :class:`~brillouinpy.SpectralImage` mixing two "materials" (each a single DHO
     peak at a different frequency shift) with a smooth spatial abundance gradient, useful
     for the unmixing/decomposition examples.
 

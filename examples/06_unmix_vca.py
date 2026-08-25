@@ -3,15 +3,15 @@
 Example 5 - Spectral unmixing with VCA
 =========================================
 
-Shows how to use :class:`brillouinanalyzer.analysis.unmix.VCA` (Vertex Component
+Shows how to use :class:`brillouinpy.analysis.unmix.VCA` (Vertex Component
 Analysis) to automatically find the "purest" spectra (endmembers) in a spectral
 image, and how much of each is present at every pixel (abundance maps) - useful to
 separate spatially-mixed materials without having to fit individual peaks.
 
-Other endmember-finding algorithms in :mod:`brillouinanalyzer.analysis.unmix` follow
-the exact same interface, e.g. :class:`~brillouinanalyzer.analysis.unmix.NFINDR`
+Other endmember-finding algorithms in :mod:`brillouinpy.analysis.unmix` follow
+the exact same interface, e.g. :class:`~brillouinpy.analysis.unmix.NFINDR`
 (N-FINDR). VCA is used here because, unlike NFINDR/PPI/FIPPI, it's implemented
-natively in brillouinanalyzer rather than delegating to the `pysptools
+natively in brillouinpy rather than delegating to the `pysptools
 <https://pysptools.sourceforge.io/>`_ package - so it doesn't depend on pysptools
 staying compatible with newer scipy versions (as of pysptools 0.15.0/scipy >= 1.13,
 NFINDR/PPI/FIPPI raise ``AttributeError: module 'scipy.linalg' has no attribute
@@ -25,7 +25,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 
-import brillouinanalyzer as bp
+import brillouinpy as bp
 from _synthetic_data import two_material_image
 
 if __name__ == '__main__':

@@ -3,10 +3,10 @@
 Example 3 - Fitting Brillouin spectra
 ======================================
 
-Shows how to fit every spectrum in a :class:`brillouinanalyzer.SpectralImage` with a
-peak model - :class:`~brillouinanalyzer.analysis.fitmodel.DHO` (Damped Harmonic
+Shows how to fit every spectrum in a :class:`brillouinpy.SpectralImage` with a
+peak model - :class:`~brillouinpy.analysis.fitmodel.DHO` (Damped Harmonic
 Oscillator, the physically correct lineshape for Brillouin peaks) or
-:class:`~brillouinanalyzer.analysis.fitmodel.Lorentzian` - and how to read the
+:class:`~brillouinpy.analysis.fitmodel.Lorentzian` - and how to read the
 resulting per-pixel parameter maps.
 
 Note: fitting runs on a process pool and is CPU-bound; for a small dataset like the
@@ -22,7 +22,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-import brillouinanalyzer as bp
+import brillouinpy as bp
 from _synthetic_data import single_peak_image
 
 if __name__ == '__main__':

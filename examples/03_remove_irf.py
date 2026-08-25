@@ -6,10 +6,10 @@ Example 3 - Removing the Instrument Response Function (IRF)
 Real Brillouin spectra typically contain a strong, narrow Instrument Response
 Function (IRF)/Rayleigh line in addition to the much weaker Brillouin peak(s) of
 interest. Shows how to use
-:class:`brillouinanalyzer.preprocessing.misc.IRF_Remover` to detect and blank out
+:class:`brillouinpy.preprocessing.misc.IRF_Remover` to detect and blank out
 that IRF region.
 
-:class:`~brillouinanalyzer.preprocessing.misc.IRF_Remover` locates the IRF by
+:class:`~brillouinpy.preprocessing.misc.IRF_Remover` locates the IRF by
 starting at the spectrum's global maximum (i.e. it assumes the IRF is the strongest
 feature) and scanning outwards for the first exact-zero intensity channel on each
 side - which real detector data has around a saturated/blanked IRF region. This
@@ -19,10 +19,10 @@ around the IRF (e.g. by plotting a raw, unprocessed spectrum first).
 
 For a more involved alternative that sharpens the remaining spectrum via
 Richardson-Lucy deconvolution before removing the IRF, see
-:class:`~brillouinanalyzer.preprocessing.misc.Deconvoluter_IRF` - it requires the
+:class:`~brillouinpy.preprocessing.misc.Deconvoluter_IRF` - it requires the
 full ``(x, y, z, t, spectral)`` shape returned by
-:func:`brillouinanalyzer.utils.prepare_brillouin_data`, not the 3D ``(x, y,
-spectral)`` shape used by :class:`~brillouinanalyzer.SpectralImage` here.
+:func:`brillouinpy.utils.prepare_brillouin_data`, not the 3D ``(x, y,
+spectral)`` shape used by :class:`~brillouinpy.SpectralImage` here.
 
 Typically, IRF removal happens early in a preprocessing pipeline, before steps
 (like normalisation) that would otherwise be skewed by the IRF's much larger
@@ -30,7 +30,7 @@ intensity - see ``02_preprocess_data.py`` for how to combine it with other steps
 """
 import matplotlib.pyplot as plt
 
-import brillouinanalyzer as bp
+import brillouinpy as bp
 from _synthetic_data import image_with_irf
 
 if __name__ == '__main__':

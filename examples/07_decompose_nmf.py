@@ -3,14 +3,14 @@
 Example 6 - Non-negative Matrix Factorisation (NMF)
 ======================================================
 
-Shows how to use :class:`brillouinanalyzer.analysis.decompose.NMF` to decompose a
+Shows how to use :class:`brillouinpy.analysis.decompose.NMF` to decompose a
 spectral image into a small number of non-negative "source" spectra plus
 per-pixel score maps of how much each source contributes - similar in spirit to
 the unmixing examples, but based on scikit-learn's NMF rather than an endmember
 finder.
 
 Data must be non-negative for NMF; use
-:class:`brillouinanalyzer.preprocessing.normalise.MinMax` first if that's not
+:class:`brillouinpy.preprocessing.normalise.MinMax` first if that's not
 already the case for your data.
 
 This example uses synthetic data mixing two materials so the "correct" answer
@@ -18,7 +18,7 @@ This example uses synthetic data mixing two materials so the "correct" answer
 """
 import matplotlib.pyplot as plt
 
-import brillouinanalyzer as bp
+import brillouinpy as bp
 from _synthetic_data import two_material_image
 
 if __name__ == '__main__':

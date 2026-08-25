@@ -1,6 +1,6 @@
 Export / Import
 ===============
 
-.. automodule:: brillouinanalyzer.export
+.. automodule:: brillouinpy.export
    :members:
    :show-inheritance:

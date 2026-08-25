@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from brillouinanalyzer.core import (
+from brillouinpy.core import (
     SpectralContainer,
     Spectrum,
     SpectralImage,

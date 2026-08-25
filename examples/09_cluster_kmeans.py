@@ -19,7 +19,7 @@ VCA/NMF/PCA examples.
 import matplotlib.pyplot as plt
 import numpy as np
 
-import brillouinanalyzer as bp
+import brillouinpy as bp
 from _synthetic_data import two_material_image
 
 if __name__ == '__main__':

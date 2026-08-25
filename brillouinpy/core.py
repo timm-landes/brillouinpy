@@ -46,7 +46,7 @@ class SpectralContainer:
     .. code::
 
         import numpy as np
-        from brillouinanalyzer import SpectralContainer
+        from brillouinpy import SpectralContainer
 
         spectral_data = np.random.rand(20, 1500)
         spectral_axis = np.linspace(-20, 20, 1500)  # frequency shift in GHz
@@ -160,7 +160,7 @@ class SpectralContainer:
         Only spatial indexing is supported (e.g. ``image[0]`` or ``volume[0, :, 2]``); a
         :class:`SpectralContainer` holding a single spectrum has no spatial dimension to
         index into and raises :class:`ValueError`. To select a slice of the spectral axis
-        instead, use the :class:`~brillouinanalyzer.preprocessing.misc.Cropper` preprocessing
+        instead, use the :class:`~brillouinpy.preprocessing.misc.Cropper` preprocessing
         step.
 
         Parameters
@@ -177,7 +177,7 @@ class SpectralContainer:
         """
         if self.shape == (1,):
             raise ValueError(
-                "Only spatial indexing is supported. To index spectrally, use the brillouinanalyzer.preprocessing.misc.Cropper class.")
+                "Only spatial indexing is supported. To index spectrally, use the brillouinpy.preprocessing.misc.Cropper class.")
 
         spectral_data_slice = self.spectral_data[key]
 
@@ -221,7 +221,7 @@ class Spectrum(SpectralContainer):
     .. code::
 
         import numpy as np
-        from brillouinanalyzer import Spectrum
+        from brillouinpy import Spectrum
 
         spectral_data = np.random.rand(1500)
         spectral_axis = np.linspace(-20, 20, 1500)  # frequency shift in GHz
@@ -236,7 +236,7 @@ class Spectrum(SpectralContainer):
     #     Parameters
     #     ----------
     #     **kwargs : keyword arguments, optional,
-    #         Check the :meth:`brillouinanalyzer.plot.spectra' method for a list of keyword parameters.
+    #         Check the :meth:`brillouinpy.plot.spectra' method for a list of keyword parameters.
     #     """
     #     return plot.spectra(self, **kwargs)
 
@@ -279,7 +279,7 @@ class SpectralImage(SpectralContainer):
     .. code::
 
         import numpy as np
-        from brillouinanalyzer import SpectralImage
+        from brillouinpy import SpectralImage
 
         spectral_data = np.random.rand(50, 50, 1500)
         spectral_axis = np.linspace(-20, 20, 1500)  # frequency shift in GHz
@@ -297,7 +297,7 @@ class SpectralImage(SpectralContainer):
     #     bands : Number or List[Number]
     #         The spectral bands to plot across.
     #     **kwargs : keyword arguments, optional,
-    #         Check the :meth:`brillouinanalyzer.plot.image' method for a list of keyword parameters.
+    #         Check the :meth:`brillouinpy.plot.image' method for a list of keyword parameters.
     #     """
     #     if isinstance(bands, Number):
     #         bands = [bands]
@@ -320,7 +320,7 @@ class SpectralVolume(SpectralContainer):
     .. code::
 
         import numpy as np
-        from brillouinanalyzer import SpectralVolume
+        from brillouinpy import SpectralVolume
 
         spectral_data = np.random.rand(50, 50, 10, 1500)
         spectral_axis = np.linspace(-20, 20, 1500)  # frequency shift in GHz
@@ -351,7 +351,7 @@ class SpectralVolume(SpectralContainer):
     #     bands : Number or List[Number]
     #         The spectral bands to plot across.
     #     **kwargs : keyword arguments, optional,
-    #         Check the :meth:`brillouinanalyzer.plot.volume' method for a list of keyword parameters.
+    #         Check the :meth:`brillouinpy.plot.volume' method for a list of keyword parameters.
     #     """
     #     if isinstance(bands, Number):
     #         bands = [bands]

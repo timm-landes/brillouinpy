@@ -3,7 +3,7 @@
 Example 7 - Principal Component Analysis (PCA)
 ==================================================
 
-Shows how to use :class:`brillouinanalyzer.analysis.decompose.PCA` to reduce a
+Shows how to use :class:`brillouinpy.analysis.decompose.PCA` to reduce a
 spectral image to its dominant modes of variation - useful as a quick way to spot
 spatial structure/heterogeneity in a dataset, or as a preprocessing step before
 clustering.
@@ -16,7 +16,7 @@ component is expected to capture the left-to-right abundance gradient between th
 """
 import matplotlib.pyplot as plt
 
-import brillouinanalyzer as bp
+import brillouinpy as bp
 from _synthetic_data import two_material_image
 
 if __name__ == '__main__':

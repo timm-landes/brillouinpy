@@ -5,14 +5,14 @@ Example 4 - Exporting results
 
 Shows how to export processed data and fit results to formats other tools can read:
 
-- Per-parameter 32-bit TIFF images (:func:`brillouinanalyzer.export.fit_to_tiff`),
+- Per-parameter 32-bit TIFF images (:func:`brillouinpy.export.fit_to_tiff`),
   e.g. for opening in ImageJ/Fiji.
 - The `HDF5_BLS <https://github.com/bio-brillouin/HDF5_BLS>`_ format
-  (:func:`brillouinanalyzer.export.to_hdf5_bls`/:func:`~brillouinanalyzer.export.from_hdf5_bls`),
+  (:func:`brillouinpy.export.to_hdf5_bls`/:func:`~brillouinpy.export.from_hdf5_bls`),
   for interoperability with other Brillouin analysis software. Requires the optional
   ``HDF5_BLS`` package (``pip install HDF5_BLS``).
 - The `brim <https://github.com/brillouin-imaging/Brillouin-standard-file>`_ format
-  (:func:`brillouinanalyzer.export.to_brim`/:func:`~brillouinanalyzer.export.from_brim`),
+  (:func:`brillouinpy.export.to_brim`/:func:`~brillouinpy.export.from_brim`),
   a Zarr-based standard for Brillouin microscopy data that's also readable by the
   `napari <https://github.com/brillouin-imaging/brillouin-imaging-napari>`_ and
   `Fiji <https://github.com/brillouin-imaging/brillouin-imaging-fiji>`_ brim viewer
@@ -28,7 +28,7 @@ import os
 
 import numpy as np
 
-import brillouinanalyzer as bp
+import brillouinpy as bp
 from _synthetic_data import single_peak_image
 
 if __name__ == '__main__':

@@ -75,7 +75,7 @@ def list_measurements(filepath: str) -> list:
 def from_hdf5_bls(filepath: str, measure_group: Optional[str] = None) -> core.SpectralObject:
     """
     Read a measurement stored in the HDF5_BLS format
-    (https://github.com/bio-brillouin/HDF5_BLS) back into a brillouinanalyzer
+    (https://github.com/bio-brillouin/HDF5_BLS) back into a brillouinpy
     spectral object, ready for further processing (preprocessing pipelines,
     fitting, ...).
 
@@ -95,8 +95,8 @@ def from_hdf5_bls(filepath: str, measure_group: Optional[str] = None) -> core.Sp
     Returns
     -------
     SpectralObject
-        A :class:`~brillouinanalyzer.Spectrum`/:class:`~brillouinanalyzer.SpectralImage`/
-        :class:`~brillouinanalyzer.SpectralVolume`/:class:`~brillouinanalyzer.SpectralContainer`
+        A :class:`~brillouinpy.Spectrum`/:class:`~brillouinpy.SpectralImage`/
+        :class:`~brillouinpy.SpectralVolume`/:class:`~brillouinpy.SpectralContainer`
         instance (chosen automatically based on the dimensionality of the stored
         data), with the group's attributes attached as a ``metadata`` dict.
     """
@@ -108,13 +108,13 @@ def from_hdf5_bls(filepath: str, measure_group: Optional[str] = None) -> core.Sp
                 raise ValueError(
                     "Could not determine which measurement group to read automatically "
                     f"(found: {candidates}). Pass 'measure_group' explicitly - "
-                    "use brillouinanalyzer.export.list_measurements(filepath) to see the options."
+                    "use brillouinpy.export.list_measurements(filepath) to see the options."
                 )
             measure_group = candidates[0]
         elif measure_group not in _find_measurement_groups(wrapper.get_structure()["Brillouin"]):
             raise ValueError(
                 f"'{measure_group}' is not a measurement group in '{filepath}'. "
-                "Use brillouinanalyzer.export.list_measurements(filepath) to see the available options."
+                "Use brillouinpy.export.list_measurements(filepath) to see the available options."
             )
 
         psd_names = wrapper.get_children_elements(measure_group, Brillouin_type="PSD")
@@ -171,7 +171,7 @@ def to_hdf5_bls(
         Additional free-form metadata stored as attributes on the Measure group.
     fit_result : numpy.ndarray of shape (..., n_params), optional
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
-        ``brillouinanalyzer.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
+        ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
         is expected to hold, per fitted peak, the triplet (I0, freqShift,
         LineWidth), followed by a single shared (Background, Asymmetry) pair.
     expected_peaks : int, optional
@@ -271,7 +271,7 @@ def fit_to_tiff(
     ----------
     fit_result : numpy.ndarray of shape (x, y, n_params)
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
-        ``brillouinanalyzer.analysis.fitmodel.DHO``/``Lorentzian``).
+        ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``).
     output_directory : str
         Directory the TIFF files are written to. Created if it doesn't exist.
     expected_peaks : int, optional
@@ -396,8 +396,8 @@ def to_brim(
     ----------
     spectral_object : SpectralObject
         The (typically preprocessed) Brillouin data to export. Must be a
-        :class:`~brillouinanalyzer.Spectrum`, :class:`~brillouinanalyzer.SpectralImage`
-        or :class:`~brillouinanalyzer.SpectralVolume` (i.e. ``spectral_data`` with 1,
+        :class:`~brillouinpy.Spectrum`, :class:`~brillouinpy.SpectralImage`
+        or :class:`~brillouinpy.SpectralVolume` (i.e. ``spectral_data`` with 1,
         3 or 4 dimensions) - brim's PSD array is always 4D ``(z, y, x, spectral)``.
     filepath : str
         Destination path of the brim store. By convention, ``.brim.zarr`` for a
@@ -424,10 +424,10 @@ def to_brim(
         given as a ``(value, units)`` tuple.
     fit_result : numpy.ndarray of shape (..., n_params), optional
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
-        ``brillouinanalyzer.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
+        ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
         is expected to hold, per fitted peak, the triplet (I0, freqShift,
         LineWidth), followed by a single shared (Background, Asymmetry) pair. Since
-        brillouinanalyzer's peak models fit one symmetric peak per mode, the same
+        brillouinpy's peak models fit one symmetric peak per mode, the same
         values are written for both the "AntiStokes" and "Stokes" sides.
     expected_peaks : int, optional
         Number of fitted peaks in ``fit_result``. Required if ``fit_result`` is given.
@@ -518,7 +518,7 @@ def to_brim(
             ]
             peak_data = peak_data if expected_peaks > 1 else peak_data[0]
 
-            # brillouinanalyzer's peak models fit one symmetric (I0, freqShift, LineWidth)
+            # brillouinpy's peak models fit one symmetric (I0, freqShift, LineWidth)
             # triplet per mode, describing both the AntiStokes and Stokes peaks equally.
             data_group.create_analysis_results_group(
                 peak_data, peak_data, fit_model=brim.AnalysisResults.FitModel[fit_model],
@@ -531,7 +531,7 @@ def from_brim(filepath: str, *, index: int = 0) -> core.SpectralObject:
     """
     Read a measurement stored in the brim format
     (https://github.com/brillouin-imaging/Brillouin-standard-file) back into a
-    brillouinanalyzer spectral object, ready for further processing (preprocessing
+    brillouinpy spectral object, ready for further processing (preprocessing
     pipelines, fitting, ...).
 
     Requires the ``brimfile`` package (``pip install brimfile``; needs Python >= 3.11).
@@ -548,8 +548,8 @@ def from_brim(filepath: str, *, index: int = 0) -> core.SpectralObject:
     Returns
     -------
     SpectralObject
-        A :class:`~brillouinanalyzer.Spectrum`/:class:`~brillouinanalyzer.SpectralImage`/
-        :class:`~brillouinanalyzer.SpectralVolume` instance (chosen automatically
+        A :class:`~brillouinpy.Spectrum`/:class:`~brillouinpy.SpectralImage`/
+        :class:`~brillouinpy.SpectralVolume` instance (chosen automatically
         based on the dimensionality of the stored data; a single spectrum stored in
         a 1x1-pixel data group comes back as a 1x1 ``SpectralImage``, since brim
         doesn't distinguish the two cases), with the data group's metadata attached

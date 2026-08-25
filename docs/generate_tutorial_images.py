@@ -35,7 +35,7 @@ if __name__ == '__main__':
     sys.path.insert(0, os.path.join(REPO_ROOT, 'examples'))
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    import brillouinanalyzer as bp
+    import brillouinpy as bp
     from _synthetic_data import single_peak_image, image_with_irf, two_material_image
 
     # -----------------------------------------------------------------------

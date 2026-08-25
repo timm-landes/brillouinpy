@@ -3,8 +3,8 @@
 Example 2 - Preprocessing Brillouin data
 =========================================
 
-Shows how to build and apply a :class:`brillouinanalyzer.preprocessing.Pipeline`
-of :class:`~brillouinanalyzer.preprocessing.Step.PreprocessingStep` instances -
+Shows how to build and apply a :class:`brillouinpy.preprocessing.Pipeline`
+of :class:`~brillouinpy.preprocessing.Step.PreprocessingStep` instances -
 despiking, denoising, instrument-response removal, cropping and normalisation.
 
 Continues from ``01_load_data.py``: run that example first (or just execute this
@@ -14,7 +14,7 @@ import os
 
 import matplotlib.pyplot as plt
 
-import brillouinanalyzer as bp
+import brillouinpy as bp
 from _synthetic_data import single_peak_image
 
 if __name__ == '__main__':

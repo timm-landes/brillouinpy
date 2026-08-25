@@ -18,7 +18,7 @@ class Pipeline:
 
     .. code::
 
-        from brillouinanalyzer import preprocessing
+        from brillouinpy import preprocessing
 
         preprocessing_pipeline = preprocessing.Pipeline([
             preprocessing.PreprocessingStep(some_custom_preprocessing_func, *args, **kwargs),

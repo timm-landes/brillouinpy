@@ -37,7 +37,7 @@ Everything starts from a folder of raw measurement files (`.DAT` for Brillouin,
 each spectrum, e.g. `Bri_0_0_0_0.DAT`.
 
 ```python
-import brillouinanalyzer as bp
+import brillouinpy as bp
 
 # A single (x, y, spectral) layer. Use utils.prepare_brillouin_data(...) instead
 # for a full (x, y, z, t, spectral) volume with multiple z-layers/timepoints.
@@ -264,7 +264,7 @@ out such outlier pixels rather than propagating them into further analysis.
 
 ## 5. Exporting results - `05_export_data.py`
 
-Once you have preprocessed data and/or a fit result, `brillouinanalyzer.export`
+Once you have preprocessed data and/or a fit result, `brillouinpy.export`
 gets it into formats other tools can read:
 
 ```python
@@ -297,7 +297,7 @@ figure or for further processing in ImageJ/Fiji (e.g. thresholding, ROI analysis
 Use the HDF5_BLS or brim export when you need to hand the data - spectra *and* fit
 result together, with metadata - to someone using different Brillouin analysis
 software, or to keep an interoperable long-term archive of a measurement rather
-than a `brillouinanalyzer`-specific pickle file. Between the two, brim is the
+than a `brillouinpy`-specific pickle file. Between the two, brim is the
 newer, more actively developed effort at a field-wide standard (with viewer
 plugins for napari and Fiji, and the no-install BrimView web viewer), while
 HDF5_BLS has its own, separate tooling ecosystem - which one to prefer depends on
@@ -330,7 +330,7 @@ peak positions.
 
 `analysis.unmix` also provides `NFINDR`, `PPI` and `FIPPI` with the exact same
 interface. VCA is used in the example because it's implemented natively in
-`brillouinanalyzer`, whereas the other three delegate to the
+`brillouinpy`, whereas the other three delegate to the
 [pysptools](https://pysptools.sourceforge.io/) package - as of pysptools 0.15.0
 together with scipy >= 1.13, that dependency calls a private scipy API that has
 since been removed, so those three currently fail with `AttributeError: module

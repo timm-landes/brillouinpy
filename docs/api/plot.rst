@@ -1,6 +1,6 @@
 Plotting
 ========
 
-.. automodule:: brillouinanalyzer.plot
+.. automodule:: brillouinpy.plot
    :members:
    :show-inheritance:

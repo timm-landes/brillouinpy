@@ -1,40 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Feb 17 15:31:47 2025
+Deprecated compatibility shim: 'brillouinanalyzer' was renamed to 'brillouinpy'.
 
-@author: Timm
+Existing code that does ``import brillouinanalyzer as bp`` keeps working
+unchanged - this module re-exports everything from :mod:`brillouinpy`. Update
+your imports to ``import brillouinpy as bp`` when convenient; this shim may be
+removed in a future release.
 """
+import warnings
 
-# from .spectralcontainer import SpectralImageContainer
-# from .preprocessing import SpectralImageProcessor
-# from .analyzer import SpectralAnalyzer
-from .core import Spectrum, SpectralImage, SpectralVolume, SpectralContainer
-from . import utils
-from . import preprocessing
-from . import analysis
-from . import export
-__all__ = [
-    "utils",
-    "Spectrum",
-    "SpectralImage",
-    "SpectralVolume",
-    "SpectralContainer",
-    "plot",
-    "preprocessing",
-    "analysis",
-    "export",
-    # 'SpectralImageContainer',
-    # 'SpectralImageProcessor',
-    # 'SpectralAnalyzer',
-]
+warnings.warn(
+    "The 'brillouinanalyzer' package has been renamed to 'brillouinpy'. "
+    "Please update your imports to 'import brillouinpy as bp' (or "
+    "'from brillouinpy import ...'). This compatibility shim may be removed "
+    "in a future release.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-
-def __getattr__(name):
-    # Lazily import 'plot' (pulls in matplotlib) so that e.g. multiprocessing
-    # fit workers, which only need 'analysis.fitmodel', don't pay for it.
-    if name == "plot":
-        import importlib
-        module = importlib.import_module(".plot", __name__)
-        globals()["plot"] = module
-        return module
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+from brillouinpy import *  # noqa: E402,F401,F403
+from brillouinpy import __getattr__  # noqa: E402,F401

@@ -3,8 +3,8 @@
 Example 1 - Loading Brillouin data
 ===================================
 
-Shows the two ways to get a :class:`brillouinanalyzer.SpectralImage` (or
-:class:`~brillouinanalyzer.SpectralVolume`) to work with:
+Shows the two ways to get a :class:`brillouinpy.SpectralImage` (or
+:class:`~brillouinpy.SpectralVolume`) to work with:
 
 1. Loading a folder of measurement files from disk, with the interferometer scan
    parameters needed for the frequency axis read automatically from the
@@ -16,7 +16,7 @@ set below, it falls back to a small synthetic dataset so the example still runs.
 """
 import matplotlib.pyplot as plt
 
-import brillouinanalyzer as bp
+import brillouinpy as bp
 from _synthetic_data import single_peak_image
 
 if __name__ == '__main__':

@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Renamed the package from `BrillouinAnalyzer` to `BrillouinPy`** (import name
+  `brillouinpy`). `brillouinanalyzer` remains installable as a thin backwards-
+  compatibility shim - `import brillouinanalyzer as bp` still works, but now
+  emits a `DeprecationWarning` and re-exports everything from `brillouinpy`.
+  Update your imports to `import brillouinpy as bp` when convenient; the shim
+  may be removed in a future release. The GitLab project itself (and its URL)
+  are unaffected by this change for now.
+
 ### Added
 - `examples/` restructured into nine focused, runnable scripts covering the full
   workflow: loading, preprocessing, IRF removal, fitting, export, spectral

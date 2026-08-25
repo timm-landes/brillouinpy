@@ -45,7 +45,7 @@ class NMF(AnalysisStep):
     """
     Non-negative matrix factorisation (NMF).
 
-    Data must be non-negative. If negative values are present, one can use :class:`brillouinanalyzer.preprocessing.normalise.MinMax` to scale the data.
+    Data must be non-negative. If negative values are present, one can use :class:`brillouinpy.preprocessing.normalise.MinMax` to scale the data.
 
     Parameters
     ----------

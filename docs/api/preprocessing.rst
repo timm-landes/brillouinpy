@@ -1,30 +1,30 @@
 Preprocessing
 =============
 
-.. automodule:: brillouinanalyzer.preprocessing.Step
+.. automodule:: brillouinpy.preprocessing.Step
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.preprocessing.Pipeline
+.. automodule:: brillouinpy.preprocessing.Pipeline
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.preprocessing.denoise
+.. automodule:: brillouinpy.preprocessing.denoise
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.preprocessing.despike
+.. automodule:: brillouinpy.preprocessing.despike
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.preprocessing.misc
+.. automodule:: brillouinpy.preprocessing.misc
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.preprocessing.normalise
+.. automodule:: brillouinpy.preprocessing.normalise
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.preprocessing.protocols
+.. automodule:: brillouinpy.preprocessing.protocols
    :members:
    :show-inheritance:

@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 
-from brillouinanalyzer.analysis.fitmodel import (
+from brillouinpy.analysis.fitmodel import (
     _DHO_1,
     _DHO_2,
     _DHO_3,
     _Lorentzian_1,
     DHO,
 )
-from brillouinanalyzer.core import Spectrum
+from brillouinpy.core import Spectrum
 
 
 def test_dho1_peaks_near_freq_shift():

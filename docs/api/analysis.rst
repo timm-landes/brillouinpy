@@ -1,26 +1,26 @@
 Analysis
 ========
 
-.. automodule:: brillouinanalyzer.analysis.Step
+.. automodule:: brillouinpy.analysis.Step
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.analysis.FitStep
+.. automodule:: brillouinpy.analysis.FitStep
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.analysis.fitmodel
+.. automodule:: brillouinpy.analysis.fitmodel
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.analysis.decompose
+.. automodule:: brillouinpy.analysis.decompose
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.analysis.cluster
+.. automodule:: brillouinpy.analysis.cluster
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinanalyzer.analysis.unmix
+.. automodule:: brillouinpy.analysis.unmix
    :members:
    :show-inheritance:

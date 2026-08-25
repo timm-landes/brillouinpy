@@ -94,7 +94,7 @@ def peaks(spectrum: Spectrum,
 
     .. code::
 
-        import brillouinanalyzer as bp
+        import brillouinpy as bp
 
         # plots peaks within a single spectrum
         bp.plot.peaks(spectrum, **kwargs)
@@ -178,7 +178,7 @@ def spectra(
 
     .. code::
 
-        import brillouinanalyzer as bp
+        import brillouinpy as bp
 
         # plots a single spectrum
         bp.plot.spectra(spectrum)
@@ -281,7 +281,7 @@ def mean_spectra(
 
     .. code::
 
-        import brillouinanalyzer as bp
+        import brillouinpy as bp
 
         # plots the distributions of 2 groups of spectra
         bp.plot.mean_spectra([spectrum_1, spectrum_2, spectrum_3], [spectrum_4, spectrum_5])
@@ -399,7 +399,7 @@ def image(
 
     .. code::
 
-        import brillouinanalyzer as bp
+        import brillouinpy as bp
 
         # plot single image slice
         ax = bp.plot.image(Brillouin_image.band(1500))
@@ -515,7 +515,7 @@ def volume(
 
     .. code::
 
-        import brillouinanalyzer as bp
+        import brillouinpy as bp
 
         # plot single volume slice
         ax = bp.plot.volume(Brillouin_volume.band(1500))
@@ -640,7 +640,7 @@ def peak_dist(
     .. code::
 
         import matplotlib.pyplot as plt
-        import brillouinanalyzer as bp
+        import brillouinpy as bp
 
         # plots the peak distributions at 1500cm^-1 of 2 groups of spectra
         ax = bp.plot.peak_dist([spectrum_1, spectrum_2, spectrum_3], [spectrum_4, spectrum_5], band=1500, labels=["Group A", "Group B"])

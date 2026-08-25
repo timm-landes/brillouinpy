@@ -70,7 +70,7 @@ class Deconvoluter_IRF(PreprocessingStep):
     detected IRF as the point-spread function to sharpen the rest of the spectrum via
     Richardson-Lucy deconvolution, and only then blanks out the IRF channels themselves
     (set to ``numpy.nan``) plus the requested offset around them. Downstream steps must be
-    able to handle ``numpy.nan`` values (e.g. :class:`~brillouinanalyzer.analysis.Step.AnalysisStep`
+    able to handle ``numpy.nan`` values (e.g. :class:`~brillouinpy.analysis.Step.AnalysisStep`
     drops NaN-containing channels automatically).
 
     Parameters
