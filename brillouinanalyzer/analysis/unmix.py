@@ -236,5 +236,8 @@ def _vca(data, n_endmembers, *, snr_input=0):
 
 
 def _nfindr(spectral_data, num_of_endmembers):
-    endmembers, _, _, _ = eea.nfindr.NFINDR(spectral_data, num_of_endmembers)
-    return endmembers
+    # pysptools expects a (h, w, bands) HSI cube; 'spectral_data' arrives already
+    # flattened to (n_pixels, bands), so present it as a cube with a dummy width of 1
+    # (pysptools reshapes it straight back to (n_pixels, bands) internally anyway).
+    cube = spectral_data[:, np.newaxis, :]
+    return eea.NFINDR().extract(cube, num_of_endmembers)
