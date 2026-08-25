@@ -38,7 +38,7 @@ You have already installed git. So you can directly type in the Anaconda prompt.
 However, this installation has the big advantage that it's easier to keep your installation up-to-date. 
 
 ```bash
-pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer.git
+pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinpy.git
 ```
 					
 ### Install BrillouinPy from a local folder
@@ -51,7 +51,7 @@ pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyze
    ```
 4. Clone the Repository into this folder:
    ```bash
-   git clone https://gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer.git
+   git clone https://gitlab.uni-hannover.de/phytophotonics/brillouinpy.git
    ```
 6. Installation of BrillouinPy:
    ```bash
@@ -66,7 +66,7 @@ pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyze
 1. To update the installation of BrillouinPy open the anaconda prompt and start the conda environment `conda activate <mynewenv>`.
 2. When installed from the git repository type
    ```bash
-   pip install --upgrade git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinanalyzer.git.
+   pip install --upgrade git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinpy.git.
    ```
 3. When installed from a local folder navigate to the folder
    ```bash
