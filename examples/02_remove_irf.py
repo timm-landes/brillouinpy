@@ -49,7 +49,10 @@ if __name__ == '__main__':
     # detected IRF region (e.g. to also remove some stray Rayleigh-scattered light
     # bleeding past the IRF's zero-baseline edges) - real data with more stray light
     # may need a much larger value here (e.g. 65) than this synthetic example does.
-    deconvoluter = bp.preprocessing.misc.Deconvoluter_IRF(offset=3, iterations=4, padding=None)
+    # 'padding' reflect-pads the spectrum before deconvolution to avoid edge artefacts
+    # (a spurious up/down swing near the first/last few channels) - set it if you see
+    # those; a value of None/0 disables it.
+    deconvoluter = bp.preprocessing.misc.Deconvoluter_IRF(offset=3, iterations=4, padding=20)
     cleaned_image = deconvoluter.apply(brillouin_image)
 
     # Compare a single raw spectrum against the IRF-removed result

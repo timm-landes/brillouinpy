@@ -48,6 +48,22 @@ if __name__ == '__main__':
         bp.preprocessing.normalise.MaxIntensity(pixelwise=True),
     ]).apply(brillouin_image)
 
+    # Instead of guessing n_endmembers, check how much variance each count explains -
+    # variance_explained() works with any decompose/unmix/cluster step via the same
+    # apply() -> (projections, components) interface, so it's not VCA-specific.
+    variances = bp.analysis.variance_explained(
+        preprocessed_image,
+        lambda n: bp.analysis.unmix.VCA(n_endmembers=n, abundance_method='ucls'),
+        param_values=range(1, 5),
+    )
+    print(f"Variance explained by n_endmembers: {variances}")
+    # -> a large jump from n_endmembers=1 to 2, then barely any further improvement -
+    # that "elbow" is what indicates 2 is the right count, not the absolute level (which
+    # stays well under 1.0 here because most channels are flat baseline: measurement
+    # noise there dominates the total variance, capping the achievable value even for
+    # a perfect model - the same reason PCA's explained_variance_ratio_ rarely sums
+    # to 1.0 either).
+
     # n_endmembers is the number of distinct materials you expect to find.
     # abundance_method picks the algorithm used to derive the abundance maps from the
     # endmembers found ('ucls', 'nnls' or 'fcls' - see the class docstring).

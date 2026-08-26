@@ -91,7 +91,14 @@ class Deconvoluter_IRF(PreprocessingStep):
     iterations : int or None
         The number of Richardson-Lucy deconvolution iterations to run.
     padding : int or None
-        Currently unused by the underlying algorithm; accepted for forward compatibility.
+        Number of channels to reflect-pad the spectrum with on each side before running
+        the deconvolution, then crop back off afterwards. Richardson-Lucy deconvolution
+        otherwise treats the array edges as a hard boundary, which can produce artefacts
+        (a spurious up/down swing) near the first/last few channels; padding with a
+        reflected copy of the spectrum gives the algorithm room to work without that
+        boundary, at the cost of a bit of extra computation. ``None`` or ``0`` disables
+        padding. A value comparable to a few times the IRF's width is a reasonable start;
+        it must be smaller than the spectrum's length.
     """
 
     def __init__(self, *, offset: Number or None, iterations: Number or None, padding: Number or None): # type: ignore
@@ -143,7 +150,7 @@ def _find_instrumental_response(pixel_spectrum):
 
     return start, end
 
-def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, padding=100):
+def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, padding=None):
     '''
     Deconvolute the intensity data with the Instrumental Response Function (IRF) using the Richardson-Lucy algorithm.
     Additionally, the IRF gets removed from the spectral data.
@@ -153,19 +160,30 @@ def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, paddin
     corrected_intensity_data = np.copy(np.asarray(intensity_data))
     spectral_response = np.zeros(intensity_data.shape)
     spatial_shape = intensity_data.shape[:-1]
+    n_channels = intensity_data.shape[-1]
+    pad = padding or 0
 
     for idx in np.ndindex(spatial_shape):
         pixel_spectrum = intensity_data[idx + (slice(None),)]
         start, end = _find_instrumental_response(pixel_spectrum)
         spectral_response[idx + (slice(start, end),)] = pixel_spectrum[start:end]
 
+        image = corrected_intensity_data[idx + (slice(None),)]
+        psf = spectral_response[idx + (slice(None),)]
+        if pad:
+            # Richardson-Lucy treats the array edges as a hard boundary, which produces
+            # a spurious up/down swing near the first/last few channels; padding with a
+            # reflected copy gives it room to work before cropping back to the original
+            # range. The PSF is zero-padded to match, so the IRF's position within the
+            # padded array stays aligned with the (also padded) spectrum.
+            image = np.pad(image, pad, mode='reflect')
+            psf = np.pad(psf, pad, mode='constant')
+
         # Apply Richardson-Lucy deconvolution
-        corrected_intensity_data[idx + (slice(None),)] = restoration.richardson_lucy(
-            corrected_intensity_data[idx + (slice(None),)],
-            spectral_response[idx + (slice(None),)],
-            num_iter=iterations, clip=False,
-            filter_epsilon=None
+        deconvolved = restoration.richardson_lucy(
+            image, psf, num_iter=iterations, clip=False, filter_epsilon=None
         )
+        corrected_intensity_data[idx + (slice(None),)] = deconvolved[pad:pad + n_channels] if pad else deconvolved
         # Remove the IRF and additional offset
         corrected_intensity_data[
             idx + (slice(max(0, start - offset), min(intensity_data.shape[-1], end + offset)),)

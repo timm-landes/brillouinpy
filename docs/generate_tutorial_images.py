@@ -50,7 +50,7 @@ if __name__ == '__main__':
     # 2. IRF removal
     # -----------------------------------------------------------------------
     irf_image, irf_index = image_with_irf()
-    cleaned_image = bp.preprocessing.misc.Deconvoluter_IRF(offset=3, iterations=4, padding=None).apply(irf_image)
+    cleaned_image = bp.preprocessing.misc.Deconvoluter_IRF(offset=3, iterations=4, padding=20).apply(irf_image)
 
     fig = plt.figure(figsize=(9, 4), layout='constrained')
     plt.subplot(121)
@@ -108,6 +108,18 @@ if __name__ == '__main__':
     mix_preprocessed = bp.preprocessing.Pipeline([
         bp.preprocessing.normalise.MaxIntensity(pixelwise=True),
     ]).apply(mix_image)
+
+    variances = bp.analysis.variance_explained(
+        mix_preprocessed,
+        lambda n: bp.analysis.unmix.VCA(n_endmembers=n, abundance_method='ucls'),
+        param_values=range(1, 5),
+    )
+    plt.figure(figsize=(5, 4))
+    plt.plot(list(variances.keys()), list(variances.values()), marker='o')
+    plt.xlabel('n_endmembers')
+    plt.ylabel('Variance explained')
+    plt.title('Choosing n_endmembers')
+    savefig('05a_variance_explained.png')
 
     unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls')
     abundance_maps, endmembers = unmixer.apply(mix_preprocessed)

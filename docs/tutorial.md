@@ -145,7 +145,7 @@ it as the point-spread function to sharpen the rest of the spectrum via
 Richardson-Lucy deconvolution, and only then blanks that region out (set to `NaN`):
 
 ```python
-deconvoluter = bp.preprocessing.misc.Deconvoluter_IRF(offset=3, iterations=4, padding=None)
+deconvoluter = bp.preprocessing.misc.Deconvoluter_IRF(offset=3, iterations=4, padding=20)
 cleaned_image = deconvoluter.apply(brillouin_image)
 ```
 
@@ -154,6 +154,11 @@ to also catch stray Rayleigh-scattered light bleeding past the IRF's zero-baseli
 edges - real data with more stray light may need a much larger value here (e.g.
 `65`) than this synthetic example does. `iterations` controls how many
 Richardson-Lucy iterations run; it isn't something to change without reason.
+`padding` reflect-pads the spectrum by that many channels on each side before
+deconvolution, then crops back to the original length afterwards - Richardson-Lucy
+otherwise treats the array edges as a hard boundary, which can produce a spurious
+up/down swing near the first/last few channels; a value comparable to a few times
+the IRF's width is a reasonable start. `None`/`0` disables it.
 Because this relies on finding genuine zero-intensity channels, always check a raw,
 unprocessed spectrum first (as above) to confirm your data has a comparable zero
 baseline around the IRF before relying on this step - if the scan never finds a
@@ -285,7 +290,53 @@ spectra (**endmembers**) that best explain the whole spectral image, plus a
 per-pixel **abundance map** of how much of each is present - useful to separate
 spatially mixed materials without assuming a peak model up front, e.g. when the
 number/shape of peaks per material isn't known ahead of time or varies across the
-sample:
+sample.
+
+### Choosing how many endmembers/components/clusters
+
+Step 4's variance spectrum already gives a first, model-free estimate of the count
+to use - `analysis.variance_explained` complements it with a second, quantitative
+check that works directly against whichever method you're about to run:
+
+```python
+variances = bp.analysis.variance_explained(
+    preprocessed_image,
+    lambda n: bp.analysis.unmix.VCA(n_endmembers=n, abundance_method='ucls'),
+    param_values=range(1, 5),
+)
+```
+
+```{image} _static/tutorial/05a_variance_explained.png
+:alt: Line plot of variance explained versus n_endmembers, showing a sharp jump from n=1 to n=2 followed by an almost flat line for n=3 and n=4 - a clear elbow at 2.
+:width: 480px
+:align: center
+```
+
+For each count in `param_values`, this fits the given method, reconstructs the data
+as `projections @ components`, and returns the fraction of variance that
+reconstruction explains (`{1: ..., 2: ..., ...}`) - plot it and look for the
+"elbow" where adding another endmember/component/cluster stops meaningfully
+improving the fit, rather than guessing `n_endmembers` blind. Here that's a sharp
+jump from `n_endmembers=1` to `2`, then almost no further gain at `3` or `4` -
+confirming 2 is the right count for this two-material dataset. Note that the
+*absolute* level doesn't have to approach `1.0` to be a useful signal, especially
+for spectral data: the metric weighs every channel equally, but a typical spectrum
+is mostly flat baseline with only a couple of narrow peaks actually carrying
+structure that varies with the endmembers/components - so measurement noise on
+that (large) baseline dominates the total variance, capping the achievable value
+well below `1.0` even for a perfect model. It's the shape of the curve (the
+elbow), not its height, that tells you how many to use - the same reasoning
+`sklearn.decomposition.PCA.explained_variance_ratio_` is built on.
+
+Since `analysis.decompose.PCA`/`NMF`, every `analysis.unmix` method and
+`analysis.cluster.KMeans` all share the same `apply() -> (projections, components)`
+interface, the exact same `variance_explained` call works unchanged for any of
+them - just swap the `lambda` for e.g.
+`lambda n: bp.analysis.decompose.NMF(n_components=n, init='nndsvda')` or
+`lambda n: bp.analysis.cluster.KMeans(n_clusters=n, random_state=0)` ahead of steps
+6-8.
+
+### Finding the endmembers
 
 ```python
 unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls')
