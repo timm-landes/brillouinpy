@@ -7,6 +7,7 @@ from brillouinpy.analysis.fitmodel import (
     _DHO_3,
     _Lorentzian_1,
     DHO,
+    estimate_p0,
 )
 from brillouinpy.core import Spectrum
 
@@ -80,3 +81,53 @@ def test_dho_fit_recovers_known_parameters():
     assert popt[1] == pytest.approx(true_params["freqShift"], rel=0.05)
     assert popt[2] == pytest.approx(true_params["LineWidth"], rel=0.05)
     assert popt[3] == pytest.approx(true_params["Background"], abs=0.1)
+
+
+def test_estimate_p0_single_peak():
+    # Restricted to the positive half: the DHO model is symmetric about Asymmetry and would
+    # otherwise also peak at -freqShift (see test_dho1_peaks_near_freq_shift).
+    true_params = dict(I0=5.0, freqShift=6.0, LineWidth=0.4, Background=1.0, Asymmetry=0.0)
+    axis = np.linspace(0, 20, 400)
+    intensity = _DHO_1(axis, **true_params)
+
+    spectrum = Spectrum(intensity, axis)
+    p0 = estimate_p0(spectrum, expected_peaks=1)
+
+    assert len(p0) == 5
+    assert p0[1] == pytest.approx(true_params["freqShift"], abs=0.2)
+    assert p0[3] == pytest.approx(true_params["Background"], abs=0.5)
+
+
+def test_estimate_p0_two_peaks_recover_positions():
+    true_params = dict(I0=1.0, freqShift=5.0, LineWidth=0.3, I02=2.0, freqShift2=12.0, LineWidth2=0.5,
+                        Background=0.5, Asymmetry=0.0)
+    axis = np.linspace(0, 20, 800)
+    intensity = _DHO_2(axis, **true_params)
+
+    spectrum = Spectrum(intensity, axis)
+    p0 = estimate_p0(spectrum, expected_peaks=2)
+
+    assert len(p0) == 8
+    # Peaks are returned ordered by ascending frequency shift.
+    assert p0[1] == pytest.approx(true_params["freqShift"], abs=0.2)
+    assert p0[4] == pytest.approx(true_params["freqShift2"], abs=0.2)
+
+
+def test_estimate_p0_falls_back_when_peaks_overlap():
+    # A single, unresolved broad peak: expecting 2 peaks must not raise.
+    axis = np.linspace(0, 20, 400)
+    intensity = _DHO_1(axis, I0=5.0, freqShift=10.0, LineWidth=3.0, Background=1.0, Asymmetry=0.0)
+
+    spectrum = Spectrum(intensity, axis)
+    p0 = estimate_p0(spectrum, expected_peaks=2)
+
+    assert len(p0) == 8
+    assert all(np.isfinite(p0))
+
+
+def test_estimate_p0_rejects_invalid_expected_peaks():
+    axis = np.linspace(-20, 20, 100)
+    spectrum = Spectrum(np.ones_like(axis), axis)
+
+    with pytest.raises(ValueError):
+        estimate_p0(spectrum, expected_peaks=4)

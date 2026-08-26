@@ -78,6 +78,11 @@ class Deconvoluter_IRF(PreprocessingStep):
     able to handle ``numpy.nan`` values (e.g. :class:`~brillouinpy.analysis.Step.AnalysisStep`
     drops NaN-containing channels automatically).
 
+    Works on any spectral object (``Spectrum``, ``SpectralImage``, ``SpectralVolume``, or the
+    raw ``(x, y, z, t, spectral)`` shape returned by
+    :func:`brillouinpy.utils.prepare_brillouin_data`) - it loops over whatever spatial
+    dimensions are present.
+
     Parameters
     ----------
     offset : number of spectral channels which gets removed
@@ -142,31 +147,28 @@ def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, paddin
     '''
     Deconvolute the intensity data with the Instrumental Response Function (IRF) using the Richardson-Lucy algorithm.
     Additionally, the IRF gets removed from the spectral data.
-    Assuming the data is 2D (x, y, spectral) or 3D (x, y, z, spectral) or 4D (x, y, z, t, spectral).
+    Works on any spatial dimensionality (0D - a single Spectrum - through the 4D (x, y, z, t,
+    spectral) shape returned by prepare_brillouin_data).
     '''
     corrected_intensity_data = np.copy(np.asarray(intensity_data))
     spectral_response = np.zeros(intensity_data.shape)
+    spatial_shape = intensity_data.shape[:-1]
 
-    for x in range(corrected_intensity_data.shape[0]):
-        for y in range(corrected_intensity_data.shape[1]):
-            for z in range(corrected_intensity_data.shape[2]):
-                for t in range(corrected_intensity_data.shape[3]):
-                    start, end = _find_instrumental_response(intensity_data[x, y, z, t, :])
-                    spectral_response[x, y, z, t, start:end] = intensity_data[x, y, z, t, start:end]
+    for idx in np.ndindex(spatial_shape):
+        pixel_spectrum = intensity_data[idx + (slice(None),)]
+        start, end = _find_instrumental_response(pixel_spectrum)
+        spectral_response[idx + (slice(start, end),)] = pixel_spectrum[start:end]
 
-                    # Apply Richardson-Lucy deconvolution
-                    corrected_intensity_data[x, y, z, t, :] = restoration.richardson_lucy(
-                        corrected_intensity_data[x, y, z, t, :],
-                        spectral_response[x, y, z, t, :],
-                        num_iter=iterations, clip=False,
-                        filter_epsilon=None
-                    )
-                    # Remove the IRF and additional offset
-                    corrected_intensity_data[x,
-                                             y,
-                                             z,
-                                             t,
-                                             max(0, start-offset):min(intensity_data.shape[-1], end+offset)
-                                             ] = np.nan
+        # Apply Richardson-Lucy deconvolution
+        corrected_intensity_data[idx + (slice(None),)] = restoration.richardson_lucy(
+            corrected_intensity_data[idx + (slice(None),)],
+            spectral_response[idx + (slice(None),)],
+            num_iter=iterations, clip=False,
+            filter_epsilon=None
+        )
+        # Remove the IRF and additional offset
+        corrected_intensity_data[
+            idx + (slice(max(0, start - offset), min(intensity_data.shape[-1], end + offset)),)
+        ] = np.nan
 
     return corrected_intensity_data, spectral_axis

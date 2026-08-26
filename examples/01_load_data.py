@@ -14,6 +14,8 @@ Shows the two ways to get a :class:`brillouinpy.SpectralImage` (or
 Run this script directly (``python 01_load_data.py``) - if no real project path is
 set below, it falls back to a small synthetic dataset so the example still runs.
 """
+import os
+
 import matplotlib.pyplot as plt
 
 import brillouinpy as bp
@@ -78,9 +80,13 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------
     # Option B: load a spectral object saved earlier via '.save(...)'
     # ------------------------------------------------------------------
-    # brillouin_image.save('brillouin_image.pkl', directory='pp_data')
     # brillouin_image = bp.SpectralImage.load('pp_data/brillouin_image.pkl')
 
     # A quick look at what was loaded
     bp.plot.mean_spectra(brillouin_image, title='Loaded Brillouin data', yscale='log')
     plt.show()
+
+    # Persist for '02_remove_irf.py' onwards, so they pick up this (real or
+    # synthetic) data instead of generating their own synthetic fallback.
+    os.makedirs('pp_data', exist_ok=True)
+    brillouin_image.save('brillouin_image.pkl', directory='pp_data')

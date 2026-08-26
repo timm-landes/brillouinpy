@@ -2,8 +2,10 @@
 
 This tutorial walks through the runnable scripts in the `examples/` folder of the
 repository, in order, building up a complete Brillouin imaging analysis workflow:
-**load → preprocess → remove the IRF → classical analysis → unmix/decompose/cluster
-→ fit → export**. Exploring the data first - starting with the mean/variance
+**load → remove the IRF → preprocess → classical analysis → unmix/decompose/cluster
+→ fit → export**. IRF removal happens right after loading and before the rest of
+preprocessing, since normalisation/denoising would otherwise be skewed by the IRF's
+much larger intensity. Exploring the data first - starting with the mean/variance
 spectra and, from there, unmixing/decomposition/clustering - pays off once you
 reach fitting: it tells you how many Brillouin modes (`expected_peaks`) are
 actually present and gives you a rough `p0` to start the fit from, rather than
@@ -121,7 +123,58 @@ and read back with `SpectralImage.load(path)` - handy for checkpointing between 
 preprocessing-heavy steps and the analysis steps, so you don't have to re-run
 expensive steps (like fitting, see step 9) while iterating on a plot.
 
-## 2. Building a preprocessing pipeline - `02_preprocess_data.py`
+## 2. Removing the Instrument Response Function - `02_remove_irf.py`
+
+Real Brillouin spectra contain a strong, narrow Instrument Response Function
+(IRF)/Rayleigh line - the elastically scattered light, sitting at zero frequency
+shift - in addition to the much weaker Brillouin peak(s) of interest. This should
+happen right after loading, before the rest of preprocessing (step 3): a
+`MaxIntensity` normalisation run beforehand would just rescale everything relative
+to the IRF's peak height rather than the signal you actually care about.
+
+```{image} _static/tutorial/02_irf_removal.png
+:alt: Two single-spectrum plots side by side. Left, a raw spectrum dominated by a tall, narrow central IRF peak dwarfing the much smaller Brillouin doublet either side of it. Right, the same spectrum after IRF removal, showing a flat NaN gap where the IRF was and the Brillouin doublet now clearly visible.
+:width: 720px
+:align: center
+```
+
+`preprocessing.misc.Deconvoluter_IRF` finds the IRF by starting at the spectrum's
+global maximum and scanning outwards for the first exact-zero-intensity channel on
+each side (the real detector baseline around a saturated/blanked IRF region), uses
+it as the point-spread function to sharpen the rest of the spectrum via
+Richardson-Lucy deconvolution, and only then blanks that region out (set to `NaN`):
+
+```python
+deconvoluter = bp.preprocessing.misc.Deconvoluter_IRF(offset=3, iterations=4, padding=None)
+cleaned_image = deconvoluter.apply(brillouin_image)
+```
+
+`offset` extends the blanked region by that many extra channels on each side, e.g.
+to also catch stray Rayleigh-scattered light bleeding past the IRF's zero-baseline
+edges - real data with more stray light may need a much larger value here (e.g.
+`65`) than this synthetic example does. `iterations` controls how many
+Richardson-Lucy iterations run; it isn't something to change without reason.
+Because this relies on finding genuine zero-intensity channels, always check a raw,
+unprocessed spectrum first (as above) to confirm your data has a comparable zero
+baseline around the IRF before relying on this step - if the scan never finds a
+zero channel, it silently falls back to the start/end of the whole spectrum, which
+would blank out everything.
+
+The removed region is set to `NaN` rather than being cropped out of the spectral
+axis, so `cleaned_image` keeps the exact same shape as `brillouin_image` -
+downstream steps see a gap, not a shorter spectrum. Downstream steps must be
+prepared to handle the `NaN`s it leaves behind - the built-in fitting and analysis
+steps already do (they drop NaN-containing spectral channels automatically), but a
+custom preprocessing step you write yourself would need to handle them explicitly.
+It works on any spectral object - `Spectrum`, `SpectralImage`, `SpectralVolume`, or
+the raw `(x, y, z, t, spectral)` shape returned by `utils.prepare_brillouin_data` -
+looping over whatever spatial dimensions are present.
+
+For a simpler alternative that just crops the IRF away (blanked to `0` rather than
+`NaN`) without the deconvolution step, see `preprocessing.misc.IRF_Remover` - same
+interface, just `IRF_Remover(offset=3)`.
+
+## 3. Building a preprocessing pipeline - `03_preprocess_data.py`
 
 Preprocessing steps are small, composable objects (subclasses of
 `preprocessing.Step.PreprocessingStep`) chained together in a
@@ -134,7 +187,7 @@ pipeline = bp.preprocessing.Pipeline([
     bp.preprocessing.normalise.MaxIntensity(pixelwise=True),
 ])
 
-preprocessed_image = pipeline.apply(brillouin_image)
+preprocessed_image = pipeline.apply(cleaned_image)
 ```
 
 A pipeline can be applied as a whole, or any single step can be applied on its own
@@ -142,7 +195,7 @@ via `step.apply(spectral_object)` - useful while tuning parameters interactively
 e.g. to check how aggressive a given `threshold`/`window_length` is on a single
 pixel before committing to it for the whole dataset.
 
-```{image} _static/tutorial/02_preprocessing.png
+```{image} _static/tutorial/03_preprocessing.png
 :alt: Two mean-spectrum plots side by side, raw data on a log axis on the left, despiked/denoised/normalised data on a linear axis on the right, both showing a symmetric Stokes/anti-Stokes doublet; the right plot is visibly smoother.
 :width: 720px
 :align: center
@@ -154,7 +207,7 @@ The building blocks available are:
 |---|---|---|
 | `preprocessing.despike` | `WhitakerHayes` | Cosmic-ray spike removal |
 | `preprocessing.denoise` | `SavGol`, `Gaussian`, `Whittaker`, `Kernel` | Smoothing |
-| `preprocessing.misc` | `Cropper`, `BackgroundSubtractor`, `IRF_Remover`, `Deconvoluter_IRF` | Spectral-region and IRF handling (IRF removal covered in the next step) |
+| `preprocessing.misc` | `Cropper`, `BackgroundSubtractor`, `IRF_Remover`, `Deconvoluter_IRF` | Spectral-region and IRF handling (IRF removal covered in the previous step) |
 | `preprocessing.normalise` | `Vector`, `MinMax`, `MaxIntensity`, `AUC` | Intensity normalisation |
 
 A few things worth knowing about the order steps run in:
@@ -164,7 +217,7 @@ A few things worth knowing about the order steps run in:
   denoising runs, it gets blurred into a wider, still-visible bump instead of being
   removed - the spike survives, it's just uglier afterwards. Despiking first
   removes it outright before it can contaminate its neighbours.
-- **IRF removal before normalisation** (see step 3) - the IRF/Rayleigh line is
+- **IRF removal before normalisation** (see step 2) - the IRF/Rayleigh line is
   typically far more intense than the Brillouin peaks, so a `MaxIntensity`
   normalisation run beforehand would just rescale everything relative to the IRF's
   peak height rather than the signal you actually care about.
@@ -174,51 +227,6 @@ A few things worth knowing about the order steps run in:
   scaled together by a single global factor (use this if those intensity
   differences carry real information, e.g. local reflectivity, that you want to
   preserve for comparison across pixels).
-
-## 3. Removing the Instrument Response Function - `03_remove_irf.py`
-
-Real Brillouin spectra contain a strong, narrow Instrument Response Function
-(IRF)/Rayleigh line - the elastically scattered light, sitting at zero frequency
-shift - in addition to the much weaker Brillouin peak(s) of interest:
-
-```{image} _static/tutorial/03_irf_removal.png
-:alt: Two single-spectrum plots side by side. Left, a raw spectrum dominated by a tall, narrow central IRF peak dwarfing the much smaller Brillouin doublet either side of it. Right, the same spectrum after IRF removal, showing a flat exact-zero gap where the IRF was and the Brillouin doublet now clearly visible.
-:width: 720px
-:align: center
-```
-
-`preprocessing.misc.IRF_Remover` finds it by starting at the spectrum's global
-maximum and scanning outwards for the first exact-zero-intensity channel on each
-side (the real detector baseline around a saturated/blanked IRF region), then
-blanks that whole region out:
-
-```python
-irf_remover = bp.preprocessing.misc.IRF_Remover(offset=3)
-cleaned_image = irf_remover.apply(brillouin_image)
-```
-
-`offset` extends the blanked region by that many extra channels on each side, e.g.
-to also catch stray Rayleigh-scattered light bleeding past the IRF's zero-baseline
-edges. Because this relies on finding genuine zero-intensity channels, always check
-a raw, unprocessed spectrum first (as above) to confirm your data has a comparable
-zero baseline around the IRF before relying on this step - if the scan never finds a
-zero channel, it silently falls back to the start/end of the whole spectrum, which
-would blank out everything.
-
-The removed region is set to zero (or, for `Deconvoluter_IRF` below, to `NaN`)
-rather than being cropped out of the spectral axis, so `cleaned_image` keeps the
-exact same shape as `brillouin_image` - downstream steps see a gap, not a shorter
-spectrum.
-
-For a more involved alternative that sharpens the remaining spectrum via
-Richardson-Lucy deconvolution before removing the IRF, see
-`preprocessing.misc.Deconvoluter_IRF` - note that it needs the full `(x, y, z, t,
-spectral)` shape returned by `utils.prepare_brillouin_data`, not the 3D `(x, y,
-spectral)` shape used by `SpectralImage` in the rest of this tutorial. Downstream
-steps must be prepared to handle the `NaN`s it leaves behind - the built-in fitting
-and analysis steps already do (they drop NaN-containing spectral channels
-automatically), but a custom preprocessing step you write yourself would need to
-handle them explicitly.
 
 ## 4. Classical data analysis - `04_classical_analysis.py`
 

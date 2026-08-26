@@ -57,7 +57,7 @@ def single_peak_image(nx=15, ny=15, n_channels=200, freq_shift=8.5, linewidth=1.
 
 
 def image_with_irf(nx=15, ny=15, n_channels=250, freq_shift=8.5, linewidth=1.0,
-                    irf_width=2, noise=2e-4, seed=2):
+                    irf_width=2, noise=1e-5, seed=2):
     """
     A :class:`~brillouinpy.SpectralImage` holding a genuine Brillouin (DHO) peak
     plus a much stronger, narrow Instrument Response Function (IRF)/Rayleigh peak at
@@ -69,6 +69,11 @@ def image_with_irf(nx=15, ny=15, n_channels=250, freq_shift=8.5, linewidth=1.0,
     ``IRF_Remover``/``Deconvoluter_IRF``) locates the IRF by starting at the spectrum's
     global maximum and scanning outwards for the first exact-zero channel on each side,
     which is why this generator plants real zeros there rather than just a low value.
+
+    ``noise`` is kept low by default because Richardson-Lucy deconvolution (used by
+    ``Deconvoluter_IRF``) amplifies high-frequency noise; at more realistic noise levels
+    the deconvolved result rings visibly across the whole spectrum, which is misleading
+    as a first illustration of what a well-behaved deconvolution looks like.
 
     Returns
     -------

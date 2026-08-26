@@ -13,12 +13,13 @@ Note: fitting runs on a process pool and is CPU-bound; for a small dataset like 
 one used here, most of the wall time is the one-off cost of spawning worker
 processes, not the fits themselves.
 
-Continues from ``02_preprocess_data.py``: run that example first to get
+Continues from ``03_preprocess_data.py``: run that example first to get
 ``pp_data/preprocessed_image.pkl``, otherwise this script falls back to synthetic
-data on its own. ``expected_peaks`` and a rough ``p0`` can be read off the
-variance-spectrum peaks found in ``04_classical_analysis.py``, or the
-endmembers/components/cluster centres from ``05_unmix_vca.py`` through
-``08_cluster_kmeans.py``.
+data on its own. ``expected_peaks`` can be read off the variance-spectrum peaks
+found in ``04_classical_analysis.py``, or the endmembers/components/cluster
+centres from ``05_unmix_vca.py`` through ``08_cluster_kmeans.py``; a matching
+``p0`` can then be estimated automatically with
+:func:`~brillouinpy.analysis.fitmodel.estimate_p0` instead of guessing it by hand.
 """
 import os
 
@@ -33,25 +34,29 @@ if __name__ == '__main__':
     if os.path.exists(pp_data_path):
         preprocessed_image = bp.SpectralImage.load(pp_data_path)
     else:
-        preprocessed_image = single_peak_image()
+        preprocessed_image = single_peak_image(nx = 50, ny = 50)
 
-    # Fit a single-peak DHO model to every spectrum.
     # p0 must have length (expected_peaks * 3) + 2: for each peak
     # [Amplitude, Frequency shift (GHz), FWHM (GHz)], followed by [Background, Asymmetry].
+    # Instead of guessing it by hand, estimate_p0() derives it from peak detection on the
+    # mean spectrum - much faster convergence than the flat [1, 1, ...] fallback curve_fit
+    # would otherwise start from.
+    p0 = bp.analysis.fitmodel.estimate_p0(preprocessed_image, expected_peaks=1)
+    print(f"Estimated p0: {p0}")
+
+    # Fit a single-peak DHO model to every spectrum.
     dho_fit = bp.analysis.fitmodel.DHO(
         expected_peaks=1,
-        p0=[0.005, 8.5, 1, 0, 0],
+        p0=p0,
         bounds=None,  # give bounds if you get unreasonable results or strongly overlapping peaks
     )
     fitted_parameters, covariances = dho_fit.apply(preprocessed_image)
     # fitted_parameters has shape (x, y, 5): [Amplitude, FreqShift, LineWidth, Background, Asymmetry]
 
-    # A 2-peak fit works the same way, just with a matching p0/bounds length:
-    # dho_fit_2peaks = bp.analysis.fitmodel.DHO(
-    #     expected_peaks=2,
-    #     p0=[0.005, 6.0, 1, 0.005, 11.0, 1, 0, 0],
-    #     bounds=None,
-    # )
+    # A 2-peak fit works the same way, just with expected_peaks=2 (estimate_p0 then
+    # returns a matching 8-element p0):
+    # p0_2peaks = bp.analysis.fitmodel.estimate_p0(preprocessed_image, expected_peaks=2)
+    # dho_fit_2peaks = bp.analysis.fitmodel.DHO(expected_peaks=2, p0=p0_2peaks, bounds=None)
     # fitted_parameters, covariances = dho_fit_2peaks.apply(preprocessed_image)
 
     # A Lorentzian model can be used the same way instead:

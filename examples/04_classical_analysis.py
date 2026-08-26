@@ -20,7 +20,7 @@ the mean spectrum has merged into one indistinguishable peak. This gives a fast,
 model-free estimate of how many endmembers/components/modes to look for in the
 steps that follow (``05_unmix_vca.py`` through ``09_fit_spectra.py``).
 
-Continues from ``03_remove_irf.py`` conceptually (nothing to load - this operates
+Continues from ``03_preprocess_data.py`` conceptually (nothing to load - this operates
 directly on preprocessed data). Unlike the earlier examples, this one uses
 ``two_material_image()`` rather than ``single_peak_image()``, with its two
 materials' frequency shifts moved much closer together than that function's

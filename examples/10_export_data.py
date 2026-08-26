@@ -20,7 +20,7 @@ Shows how to export processed data and fit results to formats other tools can re
   (no installation needed). Requires the optional ``brimfile`` package
   (``pip install brimfile``; needs Python >= 3.11).
 
-Continues from ``02_preprocess_data.py`` and ``09_fit_spectra.py``: run those first
+Continues from ``03_preprocess_data.py`` and ``09_fit_spectra.py``: run those first
 to get ``pp_data/preprocessed_image.pkl`` and ``pp_data/fitted_parameters.npy``,
 otherwise this script falls back to synthetic data on its own.
 """

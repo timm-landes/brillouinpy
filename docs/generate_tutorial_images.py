@@ -47,7 +47,20 @@ if __name__ == '__main__':
     savefig('01_loaded_data.png')
 
     # -----------------------------------------------------------------------
-    # 2. Preprocessing pipeline
+    # 2. IRF removal
+    # -----------------------------------------------------------------------
+    irf_image, irf_index = image_with_irf()
+    cleaned_image = bp.preprocessing.misc.Deconvoluter_IRF(offset=3, iterations=4, padding=None).apply(irf_image)
+
+    fig = plt.figure(figsize=(9, 4), layout='constrained')
+    plt.subplot(121)
+    bp.plot.spectra(irf_image[0, 0], title='Raw spectrum (with IRF)', yscale='linear')
+    plt.subplot(122)
+    bp.plot.spectra(cleaned_image[0, 0], title='IRF removed (deconvolved)', yscale='linear')
+    savefig('02_irf_removal.png')
+
+    # -----------------------------------------------------------------------
+    # 3. Preprocessing pipeline
     # -----------------------------------------------------------------------
     pipeline = bp.preprocessing.Pipeline([
         bp.preprocessing.despike.WhitakerHayes(kernel_size=3, threshold=8),
@@ -61,20 +74,7 @@ if __name__ == '__main__':
     bp.plot.mean_spectra(raw_image, title='Raw', yscale='log')
     plt.subplot(122)
     bp.plot.mean_spectra(preprocessed_image, title='Despiked + denoised + normalised', yscale='linear')
-    savefig('02_preprocessing.png')
-
-    # -----------------------------------------------------------------------
-    # 3. IRF removal
-    # -----------------------------------------------------------------------
-    irf_image, irf_index = image_with_irf()
-    cleaned_image = bp.preprocessing.misc.IRF_Remover(offset=3).apply(irf_image)
-
-    fig = plt.figure(figsize=(9, 4), layout='constrained')
-    plt.subplot(121)
-    bp.plot.spectra(irf_image[0, 0], title='Raw spectrum (with IRF)', yscale='linear')
-    plt.subplot(122)
-    bp.plot.spectra(cleaned_image[0, 0], title='IRF removed', yscale='linear')
-    savefig('03_irf_removal.png')
+    savefig('03_preprocessing.png')
 
     # -----------------------------------------------------------------------
     # 4. Classical data analysis (mean & variance)

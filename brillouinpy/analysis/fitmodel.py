@@ -6,6 +6,7 @@ Created on Thu Feb 20 13:14:03 2025
 """
 import numpy as np
 from scipy.optimize import curve_fit
+from scipy.signal import find_peaks, peak_prominences, peak_widths
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 import os
@@ -94,6 +95,92 @@ def _fit_concurrent_DHO3(intensity_data, spectral_axis, expected_peaks, p0=None,
         shm.unlink()
 
     return fit_results, cov_results
+
+def estimate_p0(spectral_object, expected_peaks):
+    """
+    Estimates an initial parameter guess (``p0``) for :class:`DHO`/:class:`Lorentzian` fits.
+
+    Runs peak detection once on the mean spectrum of ``spectral_object`` and derives, for each
+    expected peak, an amplitude/frequency-shift/linewidth guess from the detected peak's
+    height/position/FWHM, plus a shared background and asymmetry guess. Returned in the
+    parameter order the fit models expect: ``[I0, freqShift, LineWidth, ...,  Background,
+    Asymmetry]``.
+
+    If fewer than ``expected_peaks`` distinct peaks are found (e.g. an overlapping doublet
+    showing up as a single broad peak), the remaining slots fall back to evenly spaced
+    positions with a width derived from the spectral range, so the estimate degrades
+    gracefully instead of raising.
+
+    Parameters
+    ----------
+    spectral_object : core.SpectralObject
+        The data to estimate a p0 for. Its mean spectrum (:attr:`core.SpectralContainer.mean`)
+        is used. ``expected_peaks`` is typically known ahead of time, e.g. from the number of
+        components found via NMF/VCA.
+    expected_peaks : int
+        The number of peaks to estimate parameters for (1, 2, or 3).
+
+    Returns
+    -------
+    list[float]
+        The estimated p0, ready to pass into :class:`DHO`/:class:`Lorentzian`.
+    """
+    if expected_peaks not in (1, 2, 3):
+        raise ValueError(f"expected_peaks must be 1, 2 or 3, got {expected_peaks}.")
+
+    mean_spectrum = spectral_object.mean
+    axis = mean_spectrum.spectral_axis
+    intensity = np.ma.filled(mean_spectrum.spectral_data, np.nan).astype(float)
+
+    if np.all(np.isnan(intensity)):
+        raise ValueError("Cannot estimate p0: mean spectrum is entirely masked/NaN.")
+
+    background = float(np.nanpercentile(intensity, 5))
+    intensity = np.where(np.isnan(intensity), background, intensity)
+    spacing = float(np.mean(np.diff(axis)))
+
+    candidate_peaks, _ = find_peaks(intensity)
+    if len(candidate_peaks) > 0:
+        prominences = peak_prominences(intensity, candidate_peaks)[0]
+        candidate_peaks = candidate_peaks[np.argsort(prominences)[::-1]]
+
+    detected_peaks = list(candidate_peaks[:expected_peaks])
+    detected_widths = dict(zip(
+        detected_peaks,
+        peak_widths(intensity, detected_peaks, rel_height=0.5)[0] if detected_peaks else [],
+    ))
+
+    # Pad with evenly spaced fallback positions if too few distinct peaks were detected.
+    padded_peaks = []
+    if len(detected_peaks) < expected_peaks:
+        min_spacing = max(len(intensity) // (2 * expected_peaks), 1)
+        remaining = sorted(
+            (i for i in range(len(intensity)) if i not in detected_peaks),
+            key=lambda i: intensity[i], reverse=True,
+        )
+        for i in remaining:
+            if len(detected_peaks) + len(padded_peaks) >= expected_peaks:
+                break
+            if all(abs(i - p) > min_spacing for p in detected_peaks + padded_peaks):
+                padded_peaks.append(i)
+        while len(detected_peaks) + len(padded_peaks) < expected_peaks:
+            slot = len(detected_peaks) + len(padded_peaks)
+            padded_peaks.append(int(len(intensity) * (slot + 0.5) / expected_peaks))
+
+    fallback_width_samples = len(intensity) / (4 * expected_peaks)
+
+    p0 = []
+    for peak_idx in sorted(detected_peaks + padded_peaks):
+        width_samples = detected_widths.get(peak_idx, fallback_width_samples)
+        I0 = float(max(intensity[peak_idx] - background, spacing))
+        freqShift = float(axis[peak_idx])
+        LineWidth = float(max(width_samples * spacing, spacing))
+        p0.extend([I0, freqShift, LineWidth])
+
+    p0.extend([background, 0.0])  # Background, Asymmetry
+
+    return p0
+
 
 class DHO(FitStep):
     """

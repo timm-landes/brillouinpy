@@ -455,7 +455,14 @@ def load_spectral_image(project_path, spectral_data_type):
             # Point remains masked
             continue
 
-    return spectral_data_array
+    if spectral_data_array.shape[2] != 1 or spectral_data_array.shape[3] != 1:
+        raise ValueError(
+            f"Found {spectral_data_array.shape[2]} z-layer(s) and {spectral_data_array.shape[3]} "
+            "timepoint(s); load_spectral_image only supports a single z-layer/timepoint. Use "
+            "prepare_brillouin_data instead."
+        )
+
+    return spectral_data_array[:, :, 0, 0, :]
 
 
 def load_spectral_image_brio2(project_path, spectral_data_type):
@@ -538,7 +545,14 @@ def load_spectral_image_brio2(project_path, spectral_data_type):
             # Point remains masked
             continue
 
-    return spectral_data_array
+    if spectral_data_array.shape[2] != 1 or spectral_data_array.shape[3] != 1:
+        raise ValueError(
+            f"Found {spectral_data_array.shape[2]} z-layer(s) and {spectral_data_array.shape[3]} "
+            "timepoint(s); load_spectral_image_brio2 only supports a single z-layer/timepoint. "
+            "Use prepare_brillouin_data instead."
+        )
+
+    return spectral_data_array[:, :, 0, 0, :]
 
 
 def import_DAT_File(file):

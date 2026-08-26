@@ -1,14 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Example 2 - Preprocessing Brillouin data
+Example 3 - Preprocessing Brillouin data
 =========================================
 
 Shows how to build and apply a :class:`brillouinpy.preprocessing.Pipeline`
 of :class:`~brillouinpy.preprocessing.Step.PreprocessingStep` instances -
-despiking, denoising, instrument-response removal, cropping and normalisation.
+despiking, denoising, cropping and normalisation.
 
-Continues from ``01_load_data.py``: run that example first (or just execute this
-one, it falls back to synthetic data on its own).
+Continues from ``02_remove_irf.py``: run that example first to get
+``pp_data/irf_removed_image.pkl``, otherwise this script falls back to
+``pp_data/brillouin_image.pkl`` (from ``01_load_data.py``) or synthetic data on
+its own. IRF removal deliberately happens before this step (see
+``02_remove_irf.py``), since normalisation/denoising here would otherwise be
+skewed by the IRF's much larger intensity.
 """
 import os
 
@@ -18,7 +22,14 @@ import brillouinpy as bp
 from _synthetic_data import single_peak_image
 
 if __name__ == '__main__':
-    brillouin_image = single_peak_image()
+    irf_removed_path = os.path.join('pp_data', 'irf_removed_image.pkl')
+    brillouin_image_path = os.path.join('pp_data', 'brillouin_image.pkl')
+    if os.path.exists(irf_removed_path):
+        brillouin_image = bp.SpectralImage.load(irf_removed_path)
+    elif os.path.exists(brillouin_image_path):
+        brillouin_image = bp.SpectralImage.load(brillouin_image_path)
+    else:
+        brillouin_image = single_peak_image()
 
     # Define the processing pipeline. Steps are applied in the order given.
     pipeline = bp.preprocessing.Pipeline([
@@ -34,20 +45,6 @@ if __name__ == '__main__':
         # Normalise every spectrum's intensity to its own maximum
         bp.preprocessing.normalise.MaxIntensity(pixelwise=True),
     ])
-
-    # Instrument Response Function (IRF)/Rayleigh-line removal - only shown here as a
-    # snippet, not run on the synthetic data above, since it needs a real zero-baseline
-    # IRF region to detect:
-    #
-    #   # Just crop the IRF channels away, given data loaded via 'load_spectral_image'
-    #   # (x, y, spectral) shape:
-    #   pipeline.append(bp.preprocessing.misc.IRF_Remover(offset=10))
-    #
-    #   # Or deconvolve it out via Richardson-Lucy before removing it (see
-    #   # '_deconvolute_irf' internals) - this variant needs the full (x, y, z, t,
-    #   # spectral) shape returned by 'prepare_brillouin_data', not the 3D
-    #   # (x, y, spectral) shape from 'load_spectral_image':
-    #   pipeline.append(bp.preprocessing.misc.Deconvoluter_IRF(offset=65, iterations=4, padding=None))
 
     preprocessed_image = pipeline.apply(brillouin_image)
 

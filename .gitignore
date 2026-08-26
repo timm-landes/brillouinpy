@@ -10,6 +10,9 @@ MANIFEST
 # also end up at the repo root depending on the working directory it's run from)
 pp_data/
 
+# Local/untracked scratch scripts (e.g. examples/run_pipeline_local.py)
+examples/*_local.py
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
