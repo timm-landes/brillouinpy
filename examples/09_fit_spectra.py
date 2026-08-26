@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Example 3 - Fitting Brillouin spectra
+Example 9 - Fitting Brillouin spectra
 ======================================
 
 Shows how to fit every spectrum in a :class:`brillouinpy.SpectralImage` with a
@@ -15,7 +15,10 @@ processes, not the fits themselves.
 
 Continues from ``02_preprocess_data.py``: run that example first to get
 ``pp_data/preprocessed_image.pkl``, otherwise this script falls back to synthetic
-data on its own.
+data on its own. ``expected_peaks`` and a rough ``p0`` can be read off the
+variance-spectrum peaks found in ``04_classical_analysis.py``, or the
+endmembers/components/cluster centres from ``05_unmix_vca.py`` through
+``08_cluster_kmeans.py``.
 """
 import os
 

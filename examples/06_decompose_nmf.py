@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Example 6 - Non-negative Matrix Factorisation (NMF)
-======================================================
+=====================================================
 
 Shows how to use :class:`brillouinpy.analysis.decompose.NMF` to decompose a
 spectral image into a small number of non-negative "source" spectra plus

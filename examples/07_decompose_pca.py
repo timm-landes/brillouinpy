@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Example 7 - Principal Component Analysis (PCA)
-==================================================
+=================================================
 
 Shows how to use :class:`brillouinpy.analysis.decompose.PCA` to reduce a
 spectral image to its dominant modes of variation - useful as a quick way to spot

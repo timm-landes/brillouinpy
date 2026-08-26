@@ -77,49 +77,29 @@ if __name__ == '__main__':
     savefig('03_irf_removal.png')
 
     # -----------------------------------------------------------------------
-    # 4. Fitting
-    # -----------------------------------------------------------------------
-    dho_fit = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=[0.005, 8.5, 1, 0, 0], bounds=None)
-    fitted_parameters, _ = dho_fit.apply(preprocessed_image)
-
-    mean_amplitude, mean_shift, mean_linewidth, mean_bg, mean_asym = (
-        fitted_parameters[..., i].mean() for i in range(5)
-    )
-    plt.figure(figsize=(5, 4))
-    bp.plot.mean_spectra(preprocessed_image, title='Fit vs. data', yscale='linear')
-    plt.plot(
-        preprocessed_image.spectral_axis,
-        bp.analysis.fitmodel._DHO_1(
-            preprocessed_image.spectral_axis, mean_amplitude, mean_shift, mean_linewidth, mean_bg, mean_asym
-        ),
-        label='Mean DHO fit', color='red',
-    )
-    plt.legend()
-    savefig('04_fit_overlay.png')
-
-    plt.figure(figsize=(12, 4), layout='constrained')
-    plt.subplot(131)
-    plt.imshow(fitted_parameters[:, :, 0])
-    plt.colorbar(label='Amplitude (a.u.)')
-    plt.title('Amplitude')
-    plt.subplot(132)
-    plt.imshow(fitted_parameters[:, :, 1])
-    plt.colorbar(label='Frequency shift (GHz)')
-    plt.title('Frequency shift')
-    plt.subplot(133)
-    plt.imshow(fitted_parameters[:, :, 2])
-    plt.colorbar(label='Linewidth (GHz)')
-    plt.title('Linewidth')
-    savefig('04_fit_maps.png')
-
-    # -----------------------------------------------------------------------
-    # 6. Unmixing (VCA)
+    # 4. Classical data analysis (mean & variance)
     # -----------------------------------------------------------------------
     mix_image, true_abundances, true_spectra = two_material_image()
     mix_preprocessed = bp.preprocessing.Pipeline([
         bp.preprocessing.normalise.MaxIntensity(pixelwise=True),
     ]).apply(mix_image)
 
+    mean_spectrum = mix_preprocessed.mean
+    variance_spectrum = mix_preprocessed.variance
+
+    fig = plt.figure(figsize=(9, 4), layout='constrained')
+    plt.subplot(121)
+    bp.plot.spectra(mean_spectrum, title='Mean spectrum', yscale='linear')
+    plt.subplot(122)
+    bp.plot.peaks(
+        variance_spectrum, title='Variance spectrum', yscale='linear',
+        prominence=variance_spectrum.spectral_data.max() * 0.1,
+    )
+    savefig('04_classical_analysis.png')
+
+    # -----------------------------------------------------------------------
+    # 5. Unmixing (VCA)
+    # -----------------------------------------------------------------------
     unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls')
     abundance_maps, endmembers = unmixer.apply(mix_preprocessed)
 
@@ -135,10 +115,10 @@ if __name__ == '__main__':
     for i, abundance_map in enumerate(abundance_maps):
         ax.imshow(abundance_map, cmap=LinearSegmentedColormap.from_list('', [white, cmap[i]]))
     ax.set_title('Abundance maps')
-    savefig('06_vca_unmixing.png')
+    savefig('05_vca_unmixing.png')
 
     # -----------------------------------------------------------------------
-    # 7. NMF
+    # 6. NMF
     # -----------------------------------------------------------------------
     nmf_preprocessed = bp.preprocessing.Pipeline([
         bp.preprocessing.normalise.MinMax(pixelwise=True),
@@ -156,10 +136,10 @@ if __name__ == '__main__':
         plt.xlabel('Brillouin shift (GHz)')
         plt.ylabel('Intensity (a.u.)')
         plt.title(f'Component {i + 1} spectrum')
-    savefig('07_nmf.png')
+    savefig('06_nmf.png')
 
     # -----------------------------------------------------------------------
-    # 8. PCA
+    # 7. PCA
     # -----------------------------------------------------------------------
     pca = bp.analysis.decompose.PCA(n_components=3, random_state=0)
     scores, components = pca.apply(mix_preprocessed)
@@ -174,10 +154,10 @@ if __name__ == '__main__':
         plt.xlabel('Brillouin shift (GHz)')
         plt.ylabel('Loading (a.u.)')
         plt.title(f'PC{i + 1} loading')
-    savefig('08_pca.png')
+    savefig('07_pca.png')
 
     # -----------------------------------------------------------------------
-    # 9. Clustering (k-means)
+    # 8. Clustering (k-means)
     # -----------------------------------------------------------------------
     kmeans = bp.analysis.cluster.KMeans(n_clusters=2, random_state=0)
     memberships, centers = kmeans.apply(mix_preprocessed)
@@ -194,6 +174,42 @@ if __name__ == '__main__':
         label=[f'Cluster {i + 1} centre' for i in range(len(centers))], yscale='linear',
     )
     plt.title('Cluster-centre spectra')
-    savefig('09_kmeans.png')
+    savefig('08_kmeans.png')
+
+    # -----------------------------------------------------------------------
+    # 9. Fitting
+    # -----------------------------------------------------------------------
+    dho_fit = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=[0.005, 8.5, 1, 0, 0], bounds=None)
+    fitted_parameters, _ = dho_fit.apply(preprocessed_image)
+
+    mean_amplitude, mean_shift, mean_linewidth, mean_bg, mean_asym = (
+        fitted_parameters[..., i].mean() for i in range(5)
+    )
+    plt.figure(figsize=(5, 4))
+    bp.plot.mean_spectra(preprocessed_image, title='Fit vs. data', yscale='linear')
+    plt.plot(
+        preprocessed_image.spectral_axis,
+        bp.analysis.fitmodel._DHO_1(
+            preprocessed_image.spectral_axis, mean_amplitude, mean_shift, mean_linewidth, mean_bg, mean_asym
+        ),
+        label='Mean DHO fit', color='red',
+    )
+    plt.legend()
+    savefig('09_fit_overlay.png')
+
+    plt.figure(figsize=(12, 4), layout='constrained')
+    plt.subplot(131)
+    plt.imshow(fitted_parameters[:, :, 0])
+    plt.colorbar(label='Amplitude (a.u.)')
+    plt.title('Amplitude')
+    plt.subplot(132)
+    plt.imshow(fitted_parameters[:, :, 1])
+    plt.colorbar(label='Frequency shift (GHz)')
+    plt.title('Frequency shift')
+    plt.subplot(133)
+    plt.imshow(fitted_parameters[:, :, 2])
+    plt.colorbar(label='Linewidth (GHz)')
+    plt.title('Linewidth')
+    savefig('09_fit_maps.png')
 
     print('Done.')

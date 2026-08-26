@@ -2,7 +2,12 @@
 
 This tutorial walks through the runnable scripts in the `examples/` folder of the
 repository, in order, building up a complete Brillouin imaging analysis workflow:
-**load → preprocess → remove the IRF → fit → export → unmix/decompose/cluster**.
+**load → preprocess → remove the IRF → classical analysis → unmix/decompose/cluster
+→ fit → export**. Exploring the data first - starting with the mean/variance
+spectra and, from there, unmixing/decomposition/clustering - pays off once you
+reach fitting: it tells you how many Brillouin modes (`expected_peaks`) are
+actually present and gives you a rough `p0` to start the fit from, rather than
+guessing both of those blind.
 
 Each script is self-contained and can be run on its own (`python 01_load_data.py`,
 etc., from inside the `examples/` folder). If no real measurement data is found at
@@ -21,7 +26,7 @@ order, though reading them in the order below tells the more coherent story.
 :class: tip
 
 The synthetic spectra used throughout this tutorial are built from the same Damped
-Harmonic Oscillator (DHO) lineshape the package fits with (see step 4). Because the
+Harmonic Oscillator (DHO) lineshape the package fits with (see step 9). Because the
 DHO lineshape is symmetric in frequency, a single simulated "Brillouin mode" at a
 frequency shift of e.g. 8.5 GHz always shows up as **two** peaks, at +8.5 GHz and
 -8.5 GHz - exactly like the real Stokes and anti-Stokes peaks in a measured
@@ -82,7 +87,7 @@ brillouin_image.metadata = bp.utils.read_meta(project_path)
 ```
 
 Attaching it to `.metadata` keeps it alongside the data for later reference (e.g.
-`export.to_hdf5_bls`/`export.to_brim`, see step 5, both accept a `sample`
+`export.to_hdf5_bls`/`export.to_brim`, see step 10, both accept a `sample`
 argument you could pull from here). Where the value actually lives depends on
 the schema version - e.g. `meta['Sample']` (flat) vs. `meta['General']['Sample']`
 (nested) - the same distinction `brillouin_spectral_axis_from_meta` handles for
@@ -114,7 +119,7 @@ background between them is.
 `SpectralImage` can be persisted at any point with `.save(filename, directory=...)`
 and read back with `SpectralImage.load(path)` - handy for checkpointing between the
 preprocessing-heavy steps and the analysis steps, so you don't have to re-run
-expensive steps (like fitting, see step 4) while iterating on a plot.
+expensive steps (like fitting, see step 9) while iterating on a plot.
 
 ## 2. Building a preprocessing pipeline - `02_preprocess_data.py`
 
@@ -215,12 +220,182 @@ and analysis steps already do (they drop NaN-containing spectral channels
 automatically), but a custom preprocessing step you write yourself would need to
 handle them explicitly.
 
-## 4. Fitting spectra - `04_fit_spectra.py`
+## 4. Classical data analysis - `04_classical_analysis.py`
+
+Before reaching for a peak-fitting model or a decomposition/clustering method, it's
+worth building a "classical" statistical picture of the dataset first: the **mean
+spectrum** (where are the peaks?) and the **variance spectrum** (which of those
+peaks actually change from pixel to pixel, rather than being a constant background
+feature or a shared noise floor?). Both are available directly off any spectral
+object:
+
+```python
+mean_spectrum = preprocessed_image.mean
+variance_spectrum = preprocessed_image.variance
+```
+
+This matters most for data holding more than one Brillouin doublet - the mean
+spectrum alone doesn't tell you how many independent modes are mixed in. This step
+therefore switches to the same two-material synthetic dataset used from here through
+step 8 (`two_material_image()`, not the single-peak data from steps 1-3), so there's
+actually more than one doublet to tell apart:
+
+```{image} _static/tutorial/04_classical_analysis.png
+:alt: Left, the mean spectrum showing two overlapping symmetric doublets. Right, the variance spectrum over the same range, showing four sharp peaks marked at -11, -6, 6 and 11 GHz, exactly at the two doublets' Stokes/anti-Stokes positions, with a much flatter floor between and around them than the mean spectrum has.
+:width: 720px
+:align: center
+```
+
+Both doublets are visible in the mean spectrum, but the variance spectrum makes them
+unambiguous: `bp.plot.peaks` (built on `scipy.signal.find_peaks`) marks four sharp
+variance peaks, exactly at the two doublets' Stokes/anti-Stokes positions, with a
+much flatter floor everywhere else - because those are the only spectral regions
+whose intensity actually varies from pixel to pixel across the image (the abundance
+of each material changes spatially; the noise floor between peaks does not, in a
+structured way). Real Brillouin peaks come in +/- pairs, so half the variance-peak
+count gives the number of independent modes ('doublets') worth analysing further:
+
+```python
+n_doublets = len(found_peaks) // 2   # 4 peaks -> 2 doublets, here
+```
+
+That number feeds directly into `n_endmembers`/`n_components`/`n_clusters` for the
+unmixing/decomposition/clustering steps that follow, and into `expected_peaks` for
+fitting in step 9 - a first, model-free estimate instead of guessing blind. A rough
+`p0` for the fit can be read off the mean spectrum the same way: the approximate
+peak positions and widths are usually visible by eye once you know how many to look
+for.
+
+## 5. Spectral unmixing - `05_unmix_vca.py`
+
+Instead of fitting individual peaks, unmixing finds a small number of "pure"
+spectra (**endmembers**) that best explain the whole spectral image, plus a
+per-pixel **abundance map** of how much of each is present - useful to separate
+spatially mixed materials without assuming a peak model up front, e.g. when the
+number/shape of peaks per material isn't known ahead of time or varies across the
+sample:
+
+```python
+unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls')
+abundance_maps, endmembers = unmixer.apply(preprocessed_image)
+```
+
+```{image} _static/tutorial/05_vca_unmixing.png
+:alt: Left, two endmember spectra found by VCA, each a clean symmetric doublet at a different frequency shift. Right, the corresponding abundance map, showing a smooth vertical gradient from one endmember's colour at the top to the other's at the bottom.
+:width: 720px
+:align: center
+```
+
+On this synthetic dataset - two materials mixed with a smooth top-to-bottom spatial
+gradient - VCA recovers both underlying spectra cleanly and the abundance map
+correctly reproduces that gradient, without ever being told the mixing ratio or the
+peak positions.
+
+`analysis.unmix` also provides `NFINDR`, `PPI` and `FIPPI` with the exact same
+interface. VCA is used in the example because it's implemented natively in
+`brillouinpy`, whereas the other three delegate to the
+[pysptools](https://pysptools.sourceforge.io/) package - as of pysptools 0.15.0
+together with scipy >= 1.13, that dependency calls a private scipy API that has
+since been removed, so those three currently fail with `AttributeError: module
+'scipy.linalg' has no attribute '_flinalg'`. If your environment has an
+older/compatible scipy, they remain a drop-in alternative to VCA. `abundance_method`
+picks how the abundance maps are derived once the endmembers are known: `'ucls'`
+(unconstrained least squares) is fastest, `'nnls'` additionally forces abundances to
+be non-negative, and `'fcls'` further constrains them to sum to 1 per pixel (the
+physically strictest choice, and the slowest).
+
+## 6 & 7. Decomposition with NMF and PCA - `06_decompose_nmf.py`, `07_decompose_pca.py`
+
+`analysis.decompose` wraps scikit-learn's decomposition methods behind the same
+`apply(spectral_object) -> (scores, components)` interface as the fitting and
+unmixing steps above:
+
+```python
+nmf = bp.analysis.decompose.NMF(n_components=2, init='nndsvda', max_iter=500)
+scores, components = nmf.apply(preprocessed_image)   # scores: per-pixel maps, components: source spectra
+
+pca = bp.analysis.decompose.PCA(n_components=3)
+scores, components = pca.apply(preprocessed_image)   # scores: per-pixel maps, components: loading vectors
+```
+
+**NMF** requires non-negative data (use `preprocessing.normalise.MinMax` beforehand
+if needed) and, like unmixing, decomposes the data into non-negative source spectra
+that can often be interpreted as "pure" materials directly:
+
+```{image} _static/tutorial/06_nmf.png
+:alt: Two rows: top row, two score maps each showing the same top-to-bottom gradient as the VCA abundance maps, one increasing downward and the other upward. Bottom row, the two corresponding NMF component spectra, each a symmetric doublet at a different frequency shift, resembling the two mixed materials.
+:width: 900px
+:align: center
+```
+
+The two NMF components closely mirror the two VCA endmembers from step 5 - on this
+dataset, unmixing and NMF converge on essentially the same answer via different
+algorithms, which is a useful cross-check when unsure which method suits your data.
+
+**PCA** instead describes variation *around the mean spectrum* - its components can
+be negative and aren't directly interpretable as material spectra, but it's a fast
+way to spot spatial structure/heterogeneity in a dataset, e.g. before clustering
+(`analysis.cluster`):
+
+```{image} _static/tutorial/07_pca.png
+:alt: Three columns: score maps and loading spectra for PC1 through PC3. PC1's score map shows a clear top-to-bottom gradient and its loading a derivative-like doublet shape. PC2 and PC3's score maps look like unstructured noise, and their loadings are progressively noisier with no clear peak shape.
+:width: 900px
+:align: center
+```
+
+Requesting `n_components=3` here, even though the data only has two real underlying
+materials, illustrates a common PCA reading exercise: PC1's score map clearly
+recovers the same spatial gradient as VCA/NMF, and its loading spectrum has the
+derivative-like shape typical of "the difference between the two mixed spectra".
+PC2 and PC3, by contrast, have score maps that look like unstructured noise and
+loadings with no clear peak shape - past the first (real) component, PCA is just
+fitting noise. In practice, this is exactly how you'd use PCA to decide how many
+components are worth keeping for further analysis: keep the ones with structured
+score maps and interpretable loadings, discard the ones that look like noise.
+
+## 8. Clustering - `08_cluster_kmeans.py`
+
+`analysis.cluster.KMeans` takes a different approach again: instead of the *soft*,
+continuous membership maps produced by unmixing/decomposition above, it assigns
+every pixel to exactly one of `n_clusters` groups based on spectral similarity - a
+hard partition rather than a mixture. Useful as a quick, model-free way to segment a
+spectral image, e.g. as a first pass before deciding how many
+endmembers/components a more detailed unmixing/decomposition analysis should look
+for.
+
+```python
+kmeans = bp.analysis.cluster.KMeans(n_clusters=2, random_state=0)
+memberships, centers = kmeans.apply(preprocessed_image)
+# memberships: list of n_clusters (x, y) one-hot maps
+# centers: list of n_clusters cluster-centre spectra
+
+# Collapse the one-hot maps into a single (x, y) label map for display
+cluster_map = np.argmax(np.stack(memberships, axis=-1), axis=-1)
+```
+
+```{image} _static/tutorial/08_kmeans.png
+:alt: Left, a two-colour cluster assignment map showing a clean, roughly horizontal boundary splitting the image into a top and bottom region, matching the synthetic gradient. Right, the two cluster-centre spectra, each a symmetric doublet at a different frequency shift, closely resembling the two mixed materials' spectra.
+:width: 720px
+:align: center
+```
+
+On this synthetic dataset, `n_clusters=2` k-means recovers essentially the same
+top-to-bottom split as VCA/NMF/PCA above, and its cluster-centre spectra closely
+resemble the two underlying materials - a useful cross-check that all four methods
+agree on this dataset's structure. Unlike unmixing/NMF, however, k-means gives each
+pixel a single hard label rather than a mixing fraction, so it's a better fit when
+you expect genuinely distinct regions (e.g. different tissue types) rather than a
+continuous gradient of mixed composition like the one simulated here.
+
+## 9. Fitting spectra - `09_fit_spectra.py`
 
 `analysis.fitmodel.DHO` fits a Damped Harmonic Oscillator lineshape - the
 physically correct model for a Brillouin peak, describing the material's acoustic
 phonon mode as a damped oscillator driven by thermal fluctuations - to every
-spectrum in a spectral object, in parallel across a process pool:
+spectrum in a spectral object, in parallel across a process pool. This step goes
+back to the single-mode data from steps 1-3, so `expected_peaks=1` here - for the
+two-doublet data explored in steps 4-8, `expected_peaks=2` would be the right
+setting instead (see below):
 
 ```python
 dho_fit = bp.analysis.fitmodel.DHO(
@@ -232,7 +407,7 @@ fitted_parameters, covariances = dho_fit.apply(preprocessed_image)
 # fitted_parameters has shape (x, y, 5)
 ```
 
-```{image} _static/tutorial/04_fit_overlay.png
+```{image} _static/tutorial/09_fit_overlay.png
 :alt: The preprocessed mean spectrum (purple) with the mean DHO fit result overlaid as a red line, closely tracking both peaks of the Stokes/anti-Stokes doublet.
 :width: 480px
 :align: center
@@ -240,19 +415,19 @@ fitted_parameters, covariances = dho_fit.apply(preprocessed_image)
 
 Note that `expected_peaks` counts *modes* (i.e. symmetric peak pairs), not
 individual peaks in the plot - `expected_peaks=1` is correct for the single-mode
-data used throughout this tutorial, even though it visibly produces two peaks (see
-the note at the top of this page). For `expected_peaks > 1` (e.g. two overlapping
-materials each contributing their own mode), `p0`/`bounds` grow to length
-`expected_peaks * 3 + 2` (one `[Amplitude, FreqShift, FWHM]` triplet per mode,
-followed by the shared `[Background, Asymmetry]`).
+data used here, even though it visibly produces two peaks (see the note at the top
+of this page). For `expected_peaks > 1` (e.g. two overlapping materials each
+contributing their own mode, like the data from step 4 onward), `p0`/`bounds` grow
+to length `expected_peaks * 3 + 2` (one `[Amplitude, FreqShift, FWHM]` triplet per
+mode, followed by the shared `[Background, Asymmetry]`) - one triplet per doublet
+found in step 4's variance spectrum, roughly centred on the peak positions read off
+its mean spectrum.
 
 A good `p0` (initial guess) matters: `scipy.optimize.curve_fit` (used internally)
 is a local optimiser, so a wildly wrong starting frequency shift or linewidth can
 make it converge on a spurious local minimum, or fail outright and get discarded as
 a `RuntimeError` (`analysis.fitmodel` prints a warning per failed pixel and returns
-`NaN` there). Estimating `p0` from the mean spectrum plotted in step 1/2 - the
-approximate peak position and width are usually visible by eye - is a good starting
-point. `bounds` can additionally constrain the search space (e.g. to keep the
+`NaN` there). `bounds` can additionally constrain the search space (e.g. to keep the
 frequency shift within a physically plausible range) once you have a rough idea of
 where the fit should land.
 
@@ -262,7 +437,7 @@ process pool, fitting scripts must guard their entry point with `if __name__ ==
 '__main__':` (as all the example scripts do) - required on Windows in particular,
 where child processes re-import the launching script from scratch.
 
-```{image} _static/tutorial/04_fit_maps.png
+```{image} _static/tutorial/09_fit_maps.png
 :alt: Three side-by-side heatmaps of the fitted amplitude, frequency shift and linewidth per pixel. Amplitude and linewidth show mild pixel-to-pixel noise around a consistent value; frequency shift is mostly uniform around 8.5 GHz with a handful of clear outlier pixels where the fit converged on the wrong value.
 :width: 900px
 :align: center
@@ -278,7 +453,7 @@ returned `covariances`, an estimate of the fit's parameter uncertainty per pixel
 is worth doing before trusting a fit result at face value, e.g. to catch and mask
 out such outlier pixels rather than propagating them into further analysis.
 
-## 5. Exporting results - `05_export_data.py`
+## 10. Exporting results - `10_export_data.py`
 
 Once you have preprocessed data and/or a fit result, `brillouinpy.export`
 gets it into formats other tools can read:
@@ -319,132 +494,11 @@ plugins for napari and Fiji, and the no-install BrimView web viewer), while
 HDF5_BLS has its own, separate tooling ecosystem - which one to prefer depends on
 what your collaborators already use.
 
-## 6. Spectral unmixing - `06_unmix_vca.py`
-
-Instead of fitting individual peaks, unmixing finds a small number of "pure"
-spectra (**endmembers**) that best explain the whole spectral image, plus a
-per-pixel **abundance map** of how much of each is present - useful to separate
-spatially mixed materials without assuming a peak model up front, e.g. when the
-number/shape of peaks per material isn't known ahead of time or varies across the
-sample:
-
-```python
-unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls')
-abundance_maps, endmembers = unmixer.apply(preprocessed_image)
-```
-
-```{image} _static/tutorial/06_vca_unmixing.png
-:alt: Left, two endmember spectra found by VCA, each a clean symmetric doublet at a different frequency shift. Right, the corresponding abundance map, showing a smooth vertical gradient from one endmember's colour at the top to the other's at the bottom.
-:width: 720px
-:align: center
-```
-
-On this synthetic dataset - two materials mixed with a smooth top-to-bottom spatial
-gradient - VCA recovers both underlying spectra cleanly and the abundance map
-correctly reproduces that gradient, without ever being told the mixing ratio or the
-peak positions.
-
-`analysis.unmix` also provides `NFINDR`, `PPI` and `FIPPI` with the exact same
-interface. VCA is used in the example because it's implemented natively in
-`brillouinpy`, whereas the other three delegate to the
-[pysptools](https://pysptools.sourceforge.io/) package - as of pysptools 0.15.0
-together with scipy >= 1.13, that dependency calls a private scipy API that has
-since been removed, so those three currently fail with `AttributeError: module
-'scipy.linalg' has no attribute '_flinalg'`. If your environment has an
-older/compatible scipy, they remain a drop-in alternative to VCA. `abundance_method`
-picks how the abundance maps are derived once the endmembers are known: `'ucls'`
-(unconstrained least squares) is fastest, `'nnls'` additionally forces abundances to
-be non-negative, and `'fcls'` further constrains them to sum to 1 per pixel (the
-physically strictest choice, and the slowest).
-
-## 7 & 8. Decomposition with NMF and PCA - `07_decompose_nmf.py`, `08_decompose_pca.py`
-
-`analysis.decompose` wraps scikit-learn's decomposition methods behind the same
-`apply(spectral_object) -> (scores, components)` interface as the fitting and
-unmixing steps above:
-
-```python
-nmf = bp.analysis.decompose.NMF(n_components=2, init='nndsvda', max_iter=500)
-scores, components = nmf.apply(preprocessed_image)   # scores: per-pixel maps, components: source spectra
-
-pca = bp.analysis.decompose.PCA(n_components=3)
-scores, components = pca.apply(preprocessed_image)   # scores: per-pixel maps, components: loading vectors
-```
-
-**NMF** requires non-negative data (use `preprocessing.normalise.MinMax` beforehand
-if needed) and, like unmixing, decomposes the data into non-negative source spectra
-that can often be interpreted as "pure" materials directly:
-
-```{image} _static/tutorial/07_nmf.png
-:alt: Two rows: top row, two score maps each showing the same top-to-bottom gradient as the VCA abundance maps, one increasing downward and the other upward. Bottom row, the two corresponding NMF component spectra, each a symmetric doublet at a different frequency shift, resembling the two mixed materials.
-:width: 900px
-:align: center
-```
-
-The two NMF components closely mirror the two VCA endmembers from step 6 - on this
-dataset, unmixing and NMF converge on essentially the same answer via different
-algorithms, which is a useful cross-check when unsure which method suits your data.
-
-**PCA** instead describes variation *around the mean spectrum* - its components can
-be negative and aren't directly interpretable as material spectra, but it's a fast
-way to spot spatial structure/heterogeneity in a dataset, e.g. before clustering
-(`analysis.cluster`):
-
-```{image} _static/tutorial/08_pca.png
-:alt: Three columns: score maps and loading spectra for PC1 through PC3. PC1's score map shows a clear top-to-bottom gradient and its loading a derivative-like doublet shape. PC2 and PC3's score maps look like unstructured noise, and their loadings are progressively noisier with no clear peak shape.
-:width: 900px
-:align: center
-```
-
-Requesting `n_components=3` here, even though the data only has two real underlying
-materials, illustrates a common PCA reading exercise: PC1's score map clearly
-recovers the same spatial gradient as VCA/NMF, and its loading spectrum has the
-derivative-like shape typical of "the difference between the two mixed spectra".
-PC2 and PC3, by contrast, have score maps that look like unstructured noise and
-loadings with no clear peak shape - past the first (real) component, PCA is just
-fitting noise. In practice, this is exactly how you'd use PCA to decide how many
-components are worth keeping for further analysis: keep the ones with structured
-score maps and interpretable loadings, discard the ones that look like noise.
-
-## 9. Clustering - `09_cluster_kmeans.py`
-
-`analysis.cluster.KMeans` takes a different approach again: instead of the *soft*,
-continuous membership maps produced by unmixing/decomposition above, it assigns
-every pixel to exactly one of `n_clusters` groups based on spectral similarity - a
-hard partition rather than a mixture. Useful as a quick, model-free way to segment a
-spectral image, e.g. as a first pass before deciding how many
-endmembers/components a more detailed unmixing/decomposition analysis should look
-for.
-
-```python
-kmeans = bp.analysis.cluster.KMeans(n_clusters=2, random_state=0)
-memberships, centers = kmeans.apply(preprocessed_image)
-# memberships: list of n_clusters (x, y) one-hot maps
-# centers: list of n_clusters cluster-centre spectra
-
-# Collapse the one-hot maps into a single (x, y) label map for display
-cluster_map = np.argmax(np.stack(memberships, axis=-1), axis=-1)
-```
-
-```{image} _static/tutorial/09_kmeans.png
-:alt: Left, a two-colour cluster assignment map showing a clean, roughly horizontal boundary splitting the image into a top and bottom region, matching the synthetic gradient. Right, the two cluster-centre spectra, each a symmetric doublet at a different frequency shift, closely resembling the two mixed materials' spectra.
-:width: 720px
-:align: center
-```
-
-On this synthetic dataset, `n_clusters=2` k-means recovers essentially the same
-top-to-bottom split as VCA/NMF/PCA above, and its cluster-centre spectra closely
-resemble the two underlying materials - a useful cross-check that all four methods
-agree on this dataset's structure. Unlike unmixing/NMF, however, k-means gives each
-pixel a single hard label rather than a mixing fraction, so it's a better fit when
-you expect genuinely distinct regions (e.g. different tissue types) rather than a
-continuous gradient of mixed composition like the one simulated here.
-
 ## Where to go from here
 
 - The full API reference (linked in the sidebar) documents every class and function
   used above, including parameters not shown in these excerpts.
-- All nine scripts live in `examples/`, ready to copy and adapt to your own data -
+- All ten scripts live in `examples/`, ready to copy and adapt to your own data -
   just point `project_path` (and the `mirror_spacing`/`scan_amplitude` interferometer
   parameters in `utils.brillouin_spectral_axis`) at your measurement.
 - The figures on this page were generated by `docs/generate_tutorial_images.py`; if

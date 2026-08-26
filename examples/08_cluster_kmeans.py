@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Example 9 - Clustering with k-means
+Example 8 - Clustering with k-means
 ======================================
 
 Shows how to use `analysis.cluster.KMeans` to assign every pixel in a spectral
 image to one of a fixed number of clusters based on spectral similarity - a hard
 (one-cluster-per-pixel) alternative to the soft membership maps produced by
-unmixing (`06_unmix_vca.py`) or decomposition (`07_decompose_nmf.py`,
-`08_decompose_pca.py`). Useful as a quick, model-free way to segment a spectral
+unmixing (`05_unmix_vca.py`) or decomposition (`06_decompose_nmf.py`,
+`07_decompose_pca.py`). Useful as a quick, model-free way to segment a spectral
 image into spatially/spectrally distinct regions, e.g. as a first pass before
 deciding how many endmembers/components a more detailed unmixing/decomposition
 analysis should look for.

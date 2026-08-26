@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Example 5 - Spectral unmixing with VCA
-=========================================
+========================================
 
 Shows how to use :class:`brillouinpy.analysis.unmix.VCA` (Vertex Component
 Analysis) to automatically find the "purest" spectra (endmembers) in a spectral
