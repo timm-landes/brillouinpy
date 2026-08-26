@@ -308,6 +308,18 @@ picks how the abundance maps are derived once the endmembers are known: `'ucls'`
 be non-negative, and `'fcls'` further constrains them to sum to 1 per pixel (the
 physically strictest choice, and the slowest).
 
+VCA assumes at least one (near-)pure pixel is present per endmember - i.e.
+somewhere in the image, each material dominates the pixel almost completely - and
+needs that to reliably recover the correct endmembers. The gradient built into
+`two_material_image()` reaches abundance 0/1 at its edges, so that assumption holds
+in this example; real data without any sufficiently pure pixels can make VCA's
+endmembers inaccurate. NMF (next section) makes no such assumption - it optimises
+all components simultaneously against the whole dataset - which is worth trying as
+a cross-check if you suspect your data lacks pure pixels (see Prats-Mateu et al.,
+["Multivariate unmixing approaches on Raman images of plant cell walls: new
+insights or overinterpretation of results?"](https://doi.org/10.1186/s13007-018-0320-9),
+Plant Methods 14:52, 2018).
+
 ## 6 & 7. Decomposition with NMF and PCA - `06_decompose_nmf.py`, `07_decompose_pca.py`
 
 `analysis.decompose` wraps scikit-learn's decomposition methods behind the same

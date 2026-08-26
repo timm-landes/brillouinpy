@@ -20,6 +20,19 @@ removed).
 
 This example uses synthetic data mixing two materials so the "correct" answer
 (2 endmembers, a smooth left-to-right abundance gradient) is known in advance.
+
+VCA assumes at least one (near-)pure pixel is present per endmember - i.e. that
+somewhere in the image, each material dominates the pixel almost completely - and
+needs that to reliably recover the correct endmembers. The gradient built into
+``two_material_image()`` reaches abundance 0/1 at its edges, so that assumption
+holds here; real data without any sufficiently pure pixels (e.g. every pixel a
+genuine, inseparable mixture) can make VCA's endmembers inaccurate. NMF
+(``06_decompose_nmf.py``) makes no such assumption - it optimises all components
+simultaneously against the whole dataset - which is worth trying as a cross-check
+if you suspect your data lacks pure pixels. See Prats-Mateu et al., "Multivariate
+unmixing approaches on Raman images of plant cell walls: new insights or
+overinterpretation of results?", Plant Methods 14:52 (2018),
+https://doi.org/10.1186/s13007-018-0320-9.
 """
 import numpy as np
 import matplotlib.pyplot as plt
