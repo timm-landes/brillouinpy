@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from brillouinpy.preprocessing.misc import Deconvoluter_IRF
 from brillouinpy.core import Spectrum, SpectralImage, SpectralContainer

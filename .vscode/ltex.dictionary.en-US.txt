@@ -1,3 +1,7 @@
 RamanSPy
 Raman
 VCA
+BrillouinPy
+conda
+Spyder
+spyder-kernels

@@ -8,7 +8,7 @@ This module should help you to analyze Brillouin light scattering data efficient
 This project is licensed under the BSD 3-Clause License (see [`LICENSE`](LICENSE)); see [`NOTICE.md`](NOTICE.md) for the third-party (RamanSPy, VCA) components it incorporates and their respective licenses.
 
 ## Documentation
-A step-by-step [Tutorial](docs/tutorial.md) walking through the `examples/` folder, and the full API reference (built from the docstrings in this package), are published via GitLab Pages. Find the link under **Deploy → Pages** in this project on GitLab once the `pages` pipeline job has run on `main`.
+A step-by-step [Tutorial](docs/tutorial.md) walking through the `examples/` folder, and the full API reference (built from the doc strings in this package), are published via GitLab Pages. Find the link under **Deploy → Pages** in this project on GitLab once the `pages` pipeline job has run on `main`.
 
 To build it locally instead:
 ```bash
@@ -22,18 +22,18 @@ This gives a short manual for installation of Anaconda and BrillouinPy. I highly
 
 ### Prerequisites
  1. Install Anaconda: [Link to Anaconda download website](https://www.anaconda.com/download/success).
- 2. Create a new conda environment `conda create --name <mynewenv>`. Make sure to replace `<mynewenv>` with a correct an perceptible name. You will later need to recall it.
+ 2. Create a new conda environment `conda create --name <mynewenv>`. Make sure to replace `<mynewenv>` with a correct a perceptible name. You will later need to recall it.
  3. Activate the environment via `conda activate <mynewenv>`.
  4. Install pip and git via `conda install pip`.
 
 Now you can choose one of the two next sections to install BrillouinPy depending on your needs. 
  1. Installation using the **Git-Repository**. This method is recommended if you do not work on the package itself. Here you will always find the latest version of BrillouinPy.
- 2. Installation from a **local directory**. This method is recommended if you want to work on the package code istelf. It will be possible to make changes to the code that can be applied directly.
+ 2. Installation from a **local directory**. This method is recommended if you want to work on the package code itself. It will be possible to make changes to the code that can be applied directly.
   
-Now just one remark: **Keep the installation of Conda as it is, unless you definitly need newer packages! :)** I bricked my conda several times updating conda.
+Now just one remark: **Keep the installation of Conda as it is, unless you definitely need newer packages! :)** I bricked my conda several times updating conda.
 
 ### Install BrillouinPy from the Git-Repository
-For this you'll need git. Intall it via `conda install pip` and need to set up a local SSH key in GitLab. A nice tutorial you can find [here (Link to Youtube)](https://www.youtube.com/watch?v=Vmt0V6a3ppE).
+For this you'll need git. Install it via `conda install pip` and need to set up a local SSH key in GitLab. A nice tutorial you can find [here (Link to YouTube)](https://www.youtube.com/watch?v=Vmt0V6a3ppE).
 You have already installed git. So you can directly type in the Anaconda prompt.
 However, this installation has the big advantage that it's easier to keep your installation up-to-date. 
 
