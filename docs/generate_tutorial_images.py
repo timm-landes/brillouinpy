@@ -79,13 +79,17 @@ if __name__ == '__main__':
     # -----------------------------------------------------------------------
     # 4. Classical data analysis (mean & variance)
     # -----------------------------------------------------------------------
-    mix_image, true_abundances, true_spectra = two_material_image()
-    mix_preprocessed = bp.preprocessing.Pipeline([
+    # Frequency shifts much closer together than the default (6.0/11.0 GHz, used
+    # for the unmixing/decomposition/clustering figures below) so the two doublets
+    # fully merge in the mean spectrum, demonstrating what the variance spectrum adds.
+    classical_image, _, _ = two_material_image(freq_shift_a=7.0, freq_shift_b=7.5)
+    classical_preprocessed = bp.preprocessing.Pipeline([
+        bp.preprocessing.denoise.SavGol(window_length=7, polyorder=2),
         bp.preprocessing.normalise.MaxIntensity(pixelwise=True),
-    ]).apply(mix_image)
+    ]).apply(classical_image)
 
-    mean_spectrum = mix_preprocessed.mean
-    variance_spectrum = mix_preprocessed.variance
+    mean_spectrum = classical_preprocessed.mean
+    variance_spectrum = classical_preprocessed.variance
 
     fig = plt.figure(figsize=(9, 4), layout='constrained')
     plt.subplot(121)
@@ -100,6 +104,11 @@ if __name__ == '__main__':
     # -----------------------------------------------------------------------
     # 5. Unmixing (VCA)
     # -----------------------------------------------------------------------
+    mix_image, true_abundances, true_spectra = two_material_image()
+    mix_preprocessed = bp.preprocessing.Pipeline([
+        bp.preprocessing.normalise.MaxIntensity(pixelwise=True),
+    ]).apply(mix_image)
+
     unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls')
     abundance_maps, endmembers = unmixer.apply(mix_preprocessed)
 

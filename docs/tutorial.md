@@ -234,25 +234,29 @@ mean_spectrum = preprocessed_image.mean
 variance_spectrum = preprocessed_image.variance
 ```
 
-This matters most for data holding more than one Brillouin doublet - the mean
-spectrum alone doesn't tell you how many independent modes are mixed in. This step
-therefore switches to the same two-material synthetic dataset used from here through
-step 8 (`two_material_image()`, not the single-peak data from steps 1-3), so there's
-actually more than one doublet to tell apart:
+This matters most for data holding more than one Brillouin doublet, especially when
+those doublets overlap closely enough to blend into what looks like a single peak -
+the mean spectrum alone can't tell you how many independent modes are actually mixed
+in. This step therefore uses a variant of the two-material synthetic dataset from
+steps 5-8 (`two_material_image()`) with its two materials' frequency shifts moved
+much closer together than that function's default (6.0/11.0 GHz), so the two
+doublets fully merge in the mean spectrum instead of sitting cleanly apart:
 
 ```{image} _static/tutorial/04_classical_analysis.png
-:alt: Left, the mean spectrum showing two overlapping symmetric doublets. Right, the variance spectrum over the same range, showing four sharp peaks marked at -11, -6, 6 and 11 GHz, exactly at the two doublets' Stokes/anti-Stokes positions, with a much flatter floor between and around them than the mean spectrum has.
+:alt: Left, the mean spectrum showing what looks like a single symmetric doublet. Right, the variance spectrum over the same range, showing two close, sharp peaks on each side (four total), each pair straddling the corresponding mean-spectrum peak, with a much flatter floor between and around them than the mean spectrum has.
 :width: 720px
 :align: center
 ```
 
-Both doublets are visible in the mean spectrum, but the variance spectrum makes them
-unambiguous: `bp.plot.peaks` (built on `scipy.signal.find_peaks`) marks four sharp
-variance peaks, exactly at the two doublets' Stokes/anti-Stokes positions, with a
-much flatter floor everywhere else - because those are the only spectral regions
-whose intensity actually varies from pixel to pixel across the image (the abundance
-of each material changes spatially; the noise floor between peaks does not, in a
-structured way). Real Brillouin peaks come in +/- pairs, so half the variance-peak
+The mean spectrum alone looks like a single, ordinary doublet - but the variance
+spectrum reveals two peaks hiding on each side: `bp.plot.peaks` (built on
+`scipy.signal.find_peaks`) marks four sharp variance peaks, straddling each mean
+peak, because that's where the intensity actually changes from pixel to pixel across
+the image (the local mix of the two materials shifts spatially; a genuine single
+peak's flat top would not vary that way). Denoising beforehand
+(`preprocessing.denoise.SavGol`) matters more here than in earlier steps, since the
+variance spectrum squares per-pixel noise and can otherwise turn it into spurious
+extra local maxima. Real Brillouin peaks come in +/- pairs, so half the variance-peak
 count gives the number of independent modes ('doublets') worth analysing further:
 
 ```python

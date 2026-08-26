@@ -9,17 +9,24 @@ mean spectrum (where are the peaks?) and the variance spectrum (which of those
 peaks actually change from pixel to pixel, rather than being a constant
 background feature or a shared noise floor?).
 
-This matters most for data holding more than one Brillouin doublet: the mean
-spectrum alone doesn't tell you how many independent modes are mixed into the
-dataset. The variance spectrum does - each spatially-varying doublet shows up as
-its own pair of variance peaks (Stokes/anti-Stokes), giving a fast, model-free
-estimate of how many endmembers/components/modes to look for in the steps that
-follow (``05_unmix_vca.py`` through ``09_fit_spectra.py``).
+This matters most for data holding more than one Brillouin doublet, especially
+when those doublets overlap closely enough to blend into what looks like a single
+peak: the mean spectrum alone can't tell you how many independent modes are
+actually mixed into the dataset. The variance spectrum can - each spatially-varying
+doublet still shows up as its own pair of variance peaks (Stokes/anti-Stokes),
+because that's where the intensity actually changes from pixel to pixel (as the
+local mix of the two materials changes), even where the *sum* of both doublets in
+the mean spectrum has merged into one indistinguishable peak. This gives a fast,
+model-free estimate of how many endmembers/components/modes to look for in the
+steps that follow (``05_unmix_vca.py`` through ``09_fit_spectra.py``).
 
 Continues from ``03_remove_irf.py`` conceptually (nothing to load - this operates
 directly on preprocessed data). Unlike the earlier examples, this one uses
-``two_material_image()`` rather than ``single_peak_image()``, since it has two
-spatially-varying Brillouin doublets to actually tell apart.
+``two_material_image()`` rather than ``single_peak_image()``, with its two
+materials' frequency shifts moved much closer together than that function's
+default (6.0/11.0 GHz) - close enough that the two doublets fully merge in the
+mean spectrum, rather than sitting cleanly apart as they do in the later
+unmixing/decomposition/clustering examples.
 """
 import matplotlib.pyplot as plt
 
@@ -27,9 +34,16 @@ import brillouinpy as bp
 from _synthetic_data import two_material_image
 
 if __name__ == '__main__':
-    brillouin_image, true_abundances, true_spectra = two_material_image()
+    # freq_shift_a/freq_shift_b much closer together than the two_material_image()
+    # default (6.0/11.0 GHz) - close enough that the two doublets fully merge in the
+    # mean spectrum, so the variance spectrum actually has something extra to show.
+    brillouin_image, true_abundances, true_spectra = two_material_image(freq_shift_a=7.0, freq_shift_b=7.5)
 
+    # Denoising matters more here than in earlier steps: the variance spectrum
+    # amplifies per-pixel noise (it's a squared quantity), which can otherwise
+    # produce spurious extra local maxima next to a real peak.
     preprocessed_image = bp.preprocessing.Pipeline([
+        bp.preprocessing.denoise.SavGol(window_length=7, polyorder=2),
         bp.preprocessing.normalise.MaxIntensity(pixelwise=True),
     ]).apply(brillouin_image)
 

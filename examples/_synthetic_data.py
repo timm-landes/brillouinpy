@@ -104,11 +104,17 @@ def image_with_irf(nx=15, ny=15, n_channels=250, freq_shift=8.5, linewidth=1.0,
     return bp.SpectralImage(spectral_data, spectral_axis), irf_index
 
 
-def two_material_image(nx=20, ny=20, n_channels=250, noise=3e-4, seed=1):
+def two_material_image(nx=20, ny=20, n_channels=250, noise=3e-4, seed=1,
+                        freq_shift_a=6.0, freq_shift_b=11.0):
     """
     A :class:`~brillouinpy.SpectralImage` mixing two "materials" (each a single DHO
     peak at a different frequency shift) with a smooth spatial abundance gradient, useful
     for the unmixing/decomposition examples.
+
+    ``freq_shift_a``/``freq_shift_b`` default to a well-separated pair (6.0/11.0 GHz);
+    move them closer together (e.g. for the classical-analysis example) to demonstrate
+    variance analysis resolving two doublets that overlap into what looks like a single
+    peak in the mean spectrum.
 
     Returns
     -------
@@ -126,8 +132,8 @@ def two_material_image(nx=20, ny=20, n_channels=250, noise=3e-4, seed=1):
         mirror_spacing=6e-3, scan_amplitude=480e-9, no_of_channels=n_channels
     )
 
-    material_a = _dho(spectral_axis, 5e-3, 6.0, 0.8)
-    material_b = _dho(spectral_axis, 5e-3, 11.0, 1.2)
+    material_a = _dho(spectral_axis, 5e-3, freq_shift_a, 0.8)
+    material_b = _dho(spectral_axis, 5e-3, freq_shift_b, 1.2)
 
     abundance_a = _gradient(nx, ny)
     abundance_b = 1 - abundance_a
