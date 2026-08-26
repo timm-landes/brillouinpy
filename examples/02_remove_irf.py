@@ -3,9 +3,9 @@
 Example 2 - Removing the Instrument Response Function (IRF)
 ===============================================================
 
-Real Brillouin spectra typically contain a strong, narrow Instrument Response
-Function (IRF)/Rayleigh line in addition to the much weaker Brillouin peak(s) of
-interest. Shows how to use
+Real Brillouin spectra from Tandem Fabry-Perot interferometers typically contain a 
+strong, narrow Instrument Response Function (IRF)/Rayleigh line in addition to the
+much weaker Brillouin peak(s) of interest. Shows how to use
 :class:`~brillouinpy.preprocessing.misc.Deconvoluter_IRF` to sharpen the spectrum
 via Richardson-Lucy deconvolution (using the detected IRF as the point-spread
 function) and then blank out the (now deconvolved) IRF region.
