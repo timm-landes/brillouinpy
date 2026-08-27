@@ -5,7 +5,7 @@ import pytest
 
 pytest.importorskip("brimfile")
 
-from brillouinpy import export
+from brillouinpy.io import export
 from brillouinpy.core import SpectralImage, SpectralVolume, Spectrum
 
 

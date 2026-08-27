@@ -80,7 +80,7 @@ class Deconvoluter_IRF(PreprocessingStep):
 
     Works on any spectral object (``Spectrum``, ``SpectralImage``, ``SpectralVolume``, or the
     raw ``(x, y, z, t, spectral)`` shape returned by
-    :func:`brillouinpy.utils.prepare_brillouin_data`) - it loops over whatever spatial
+    :func:`brillouinpy.io.tfp.prepare_brillouin_data`) - it loops over whatever spatial
     dimensions are present.
 
     Parameters

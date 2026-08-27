@@ -43,18 +43,26 @@ Everything starts from a folder of raw measurement files (`.DAT` for Brillouin,
 `.csv`/`.txt` for Raman) whose filenames encode the `(x, y, z, t)` coordinates of
 each spectrum, e.g. `Bri_0_0_0_0.DAT`.
 
+Loading itself lives under `brillouinpy.io`: `io.tfp` for this group's actively
+maintained tandem Fabry-Perot (TFP) loading path, `io.legacy` for older, superseded
+loaders (kept for reading old datasets), and `io.multimodal` for other modalities
+(currently Raman). `io.export` (also reachable as `io.<function>` for the most
+commonly used functions, as used below) covers the other direction: writing to and
+reading from external formats. See the "Writing your own loader" section near the
+end of this tutorial if your own setup uses a different raw-data layout.
+
 ```python
 import brillouinpy as bp
 
-# A single (x, y, spectral) layer. Use utils.prepare_brillouin_data(...) instead
+# A single (x, y, spectral) layer. Use io.tfp.prepare_brillouin_data(...) instead
 # for a full (x, y, z, t, spectral) volume with multiple z-layers/timepoints.
-brillouin_data = bp.utils.load_spectral_image(project_path, 'Brillouin')
+brillouin_data = bp.io.legacy.load_spectral_image(project_path, 'Brillouin')
 
 # The frequency-shift axis isn't stored in the raw files - it's derived from the
 # tandem Fabry-Perot interferometer's scan parameters. If the measurement has a
 # 'META.json' (directly in 'project_path' or in its 'data' subfolder), those
 # parameters can be read from it automatically:
-spectral_axis = bp.utils.brillouin_spectral_axis_from_meta(
+spectral_axis = bp.io.brillouin_spectral_axis_from_meta(
     project_path, no_of_channels=brillouin_data.shape[-1],
 )
 
@@ -64,7 +72,7 @@ brillouin_image = bp.SpectralImage(brillouin_data, spectral_axis)
 `brillouin_spectral_axis_from_meta` transparently handles the different
 `META.json` schema versions found across existing datasets (a current, nested
 `Brillouin`/`Laser` section, and an older flat one) - see
-`utils._brillouin_scan_parameters_from_meta` if you need to know exactly which
+`io.tfp._brillouin_scan_parameters_from_meta` if you need to know exactly which
 keys it looks for. It raises `FileNotFoundError` if no `META.json` exists for the
 measurement, and `KeyError` if the one found doesn't contain a required field
 (e.g. some older flat-schema files are missing the scan amplitude entirely) - in
@@ -80,16 +88,16 @@ spectral_axis = bp.utils.brillouin_spectral_axis(
 ```
 
 `META.json` usually holds more than just the scan parameters - sample name,
-operator, acquisition date, and so on. `utils.read_meta(project_path)` gives you
+operator, acquisition date, and so on. `io.read_meta(project_path)` gives you
 that raw dict directly, for anything beyond what
 `brillouin_spectral_axis_from_meta` already extracts:
 
 ```python
-brillouin_image.metadata = bp.utils.read_meta(project_path)
+brillouin_image.metadata = bp.io.read_meta(project_path)
 ```
 
 Attaching it to `.metadata` keeps it alongside the data for later reference (e.g.
-`export.to_hdf5_bls`/`export.to_brim`, see step 10, both accept a `sample`
+`io.to_hdf5_bls`/`io.to_brim`, see step 10, both accept a `sample`
 argument you could pull from here). Where the value actually lives depends on
 the schema version - e.g. `meta['Sample']` (flat) vs. `meta['General']['Sample']`
 (nested) - the same distinction `brillouin_spectral_axis_from_meta` handles for
@@ -172,7 +180,7 @@ prepared to handle the `NaN`s it leaves behind - the built-in fitting and analys
 steps already do (they drop NaN-containing spectral channels automatically), but a
 custom preprocessing step you write yourself would need to handle them explicitly.
 It works on any spectral object - `Spectrum`, `SpectralImage`, `SpectralVolume`, or
-the raw `(x, y, z, t, spectral)` shape returned by `utils.prepare_brillouin_data` -
+the raw `(x, y, z, t, spectral)` shape returned by `io.tfp.prepare_brillouin_data` -
 looping over whatever spatial dimensions are present.
 
 For a simpler alternative that just crops the IRF away (blanked to `0` rather than
@@ -530,32 +538,32 @@ out such outlier pixels rather than propagating them into further analysis.
 
 ## 10. Exporting results - `10_export_data.py`
 
-Once you have preprocessed data and/or a fit result, `brillouinpy.export`
+Once you have preprocessed data and/or a fit result, `brillouinpy.io.export`
 gets it into formats other tools can read:
 
 ```python
 # One 32-bit float TIFF per fitted parameter, e.g. for ImageJ/Fiji
-bp.export.fit_to_tiff(fitted_parameters, output_directory='pp_data/tiff', expected_peaks=1)
+bp.io.export.fit_to_tiff(fitted_parameters, output_directory='pp_data/tiff', expected_peaks=1)
 
 # The HDF5_BLS format (https://github.com/bio-brillouin/HDF5_BLS), for
 # interoperability with other Brillouin analysis software (requires the optional
 # 'HDF5_BLS' package: pip install HDF5_BLS)
-bp.export.to_hdf5_bls(
+bp.io.to_hdf5_bls(
     preprocessed_image, 'pp_data/brillouin_data.h5',
     fit_result=fitted_parameters, expected_peaks=1, overwrite=True,
 )
-reloaded = bp.export.from_hdf5_bls('pp_data/brillouin_data.h5')
+reloaded = bp.io.from_hdf5_bls('pp_data/brillouin_data.h5')
 
 # The brim format (https://github.com/brillouin-imaging/Brillouin-standard-file),
 # a Zarr-based standard also readable by the napari/Fiji brim viewer plugins and
 # by BrimView, no installation needed (requires the optional 'brimfile' package:
 # pip install brimfile; needs Python >= 3.11)
-bp.export.to_brim(
+bp.io.to_brim(
     preprocessed_image, 'pp_data/brillouin_data.brim.zarr',
     fit_result=fitted_parameters, expected_peaks=1,
     x_step_um=0.5, y_step_um=0.5, overwrite=True,
 )
-reloaded = bp.export.from_brim('pp_data/brillouin_data.brim.zarr')
+reloaded = bp.io.from_brim('pp_data/brillouin_data.brim.zarr')
 ```
 
 Use the TIFF export when you just need a given parameter map as an image for a
@@ -568,6 +576,74 @@ newer, more actively developed effort at a field-wide standard (with viewer
 plugins for napari and Fiji, and the no-install BrimView web viewer), while
 HDF5_BLS has its own, separate tooling ecosystem - which one to prefer depends on
 what your collaborators already use.
+
+## Writing your own loader
+
+Everything in `brillouinpy.io.tfp`/`io.legacy`/`io.multimodal` (step 1 above) is
+specific to this group's raw-data layout - filenames encoding `(x, y, z, t)`
+coordinates, a particular `META.json` schema, `.DAT`/`.csv`/`.txt` file formats.
+If your own setup writes data differently, you don't need to reshape it into that
+layout; you only need a function that produces the two things every
+`brillouinpy` object needs:
+
+1. an intensity array, shaped `(..., B)` - any number of leading spatial
+   dimensions (`x`, `x, y`, `x, y, z`, ...), then a trailing spectral axis of
+   length `B`; and
+2. a matching 1D spectral axis of length `B` (frequency shift, wavelength, or
+   whatever your spectral axis represents).
+
+Wrap those two into a `Spectrum`/`SpectralImage`/`SpectralVolume` (`brillouinpy`
+picks the right one for you via `core._create_data`, or you can construct one
+directly, e.g. `bp.SpectralImage(intensity_array, spectral_axis)`) and every
+preprocessing/analysis/export step in this tutorial works on it unchanged - none
+of them care how the data was loaded.
+
+A minimal skeleton, modelled on `io.tfp.prepare_brillouin_data`:
+
+```python
+import numpy as np
+import brillouinpy as bp
+
+
+def load_my_setup_data(project_path):
+    """
+    Replace the body below with whatever it takes to get from your raw files
+    to (intensity_array, spectral_axis). The rest of this function is generic.
+    """
+    # ... read your files, build the (x, y, ..., B)-shaped array and the
+    # length-B spectral axis however your setup requires ...
+    intensity_array = ...   # numpy.ndarray, shape (..., B)
+    spectral_axis = ...     # numpy.ndarray, shape (B,)
+
+    return bp.core._create_data(intensity_array, spectral_axis)
+
+
+my_data = load_my_setup_data(project_path)
+```
+
+A few things worth carrying over from `io.tfp.prepare_brillouin_data`/
+`io.multimodal.prepare_raman_data`, even though they're not strictly required:
+
+- **Missing points as a masked array, not a crash.** If some spectra fail to load
+  or are missing entirely (a common occurrence in large scans), initialise the
+  array with `numpy.ma.masked_all(shape)` and leave the corresponding entries
+  masked instead of raising - `brillouinpy`'s preprocessing/analysis steps are
+  masked-array/NaN-aware throughout (see step 2) specifically so a few missing
+  points don't take down an entire pipeline run.
+- **Warn, don't silently drop, on a mismatch.** `warnings.warn(...)` when the
+  number of files found doesn't match the expected number of points - it's much
+  easier to notice a printed warning while a `tqdm` progress bar is running than
+  to later wonder why an image has an odd blank region.
+- **Read your axis from metadata if you have it**, rather than hard-coding
+  instrument parameters into the loader itself (see `io.tfp.read_meta`/
+  `brillouin_spectral_axis_from_meta` for the pattern) - keeps the loader
+  reusable across measurements taken with different settings.
+
+Where you put the finished function is up to you: for a one-off analysis, a
+local script is fine; if you expect to reuse it, a module of your own (e.g.
+`my_lab_io.py`) that you `import` alongside `brillouinpy` works just as well as
+contributing it back to `brillouinpy.io` - the package doesn't need to know
+about your setup for any of this to work.
 
 ## Where to go from here
 

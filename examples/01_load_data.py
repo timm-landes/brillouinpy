@@ -32,14 +32,14 @@ if __name__ == '__main__':
     try:
         # 'load_spectral_image' returns a single (x, y, spectral) layer - use
         # 'prepare_brillouin_data' instead if you have multiple z-layers/timepoints.
-        brillouin_data = bp.utils.load_spectral_image(project_path, 'Brillouin')
+        brillouin_data = bp.io.legacy.load_spectral_image(project_path, 'Brillouin')
 
         # The Brillouin spectral (frequency-shift) axis is not stored in the raw data
         # files - it has to be computed from the interferometer's scan parameters.
         # If the measurement has a 'META.json' (directly in 'project_path' or in its
         # 'data' subfolder), those parameters can be read from it automatically:
         try:
-            spectral_axis = bp.utils.brillouin_spectral_axis_from_meta(
+            spectral_axis = bp.io.brillouin_spectral_axis_from_meta(
                 project_path, no_of_channels=brillouin_data.shape[-1],
             )
         except (FileNotFoundError, KeyError) as exc:
@@ -60,9 +60,9 @@ if __name__ == '__main__':
         # the sample name, operator, and acquisition date. 'read_meta' gives you the
         # raw dict for anything else you want to pull out; attaching it to the
         # object keeps that information alongside the data for later reference
-        # (e.g. when exporting via 'export.to_hdf5_bls'/'export.to_brim').
+        # (e.g. when exporting via 'io.to_hdf5_bls'/'io.to_brim').
         try:
-            brillouin_image.metadata = bp.utils.read_meta(project_path)
+            brillouin_image.metadata = bp.io.read_meta(project_path)
             # 'Sample' lives at the top level in the older flat META.json schema, or
             # under 'General' in the current nested one - check both.
             meta = brillouin_image.metadata

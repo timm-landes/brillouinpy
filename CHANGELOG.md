@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Reorganised acquisition-side loaders and export/interop functions under a new
+  `brillouinpy.io` subpackage**, split by purpose:
+  - `io.tfp` - this group's actively used tandem Fabry-Perot loading path
+    (`prepare_brillouin_data`, `read_meta`, `brillouin_spectral_axis_from_meta`,
+    `extract_coordinates`, `import_DAT_File`).
+  - `io.legacy` - superseded loaders kept for reading old datasets
+    (`load_spectral_image`, `load_spectral_image_brio2`).
+  - `io.multimodal` - loaders for modalities other than the group's primary setup
+    (`prepare_raman_data`).
+  - `io.export` (formerly the top-level `brillouinpy.export` module) - `brim`/
+    `HDF5_BLS` interoperability and TIFF export; the most commonly used functions
+    (`to_brim`, `from_brim`, `list_brim_measurements`, `to_hdf5_bls`,
+    `from_hdf5_bls`, `list_measurements`) are also re-exported directly on
+    `brillouinpy.io` for convenience.
+
+  `brillouinpy.utils` keeps only the generic, setup-independent functions
+  (`is_aligned`, `wavelength_to_wavenumber`/`wavenumber_to_wavelength`,
+  `raman_spectral_axis`, `fsr`, `brillouin_spectral_axis`, `TFP_IRF_Analysis`).
+  The old `brillouinpy.utils.*` names for the moved functions, and the
+  `brillouinpy.export` module itself, keep working unchanged for now - both emit
+  a `DeprecationWarning` pointing at the new location. These compatibility
+  shims may be removed in a future release; update your code to call
+  `brillouinpy.io.*` directly when convenient.
+- Removed a stray leftover `print(data)` debug statement from
+  `prepare_brillouin_data`'s CSV-loading branch (carried over unnoticed from
+  `load_spectral_image`; harmless but noisy).
+
+### Added
+- A new "Writing your own loader" section in the tutorial (`docs/tutorial.md`),
+  explaining the minimal `(intensity_array, spectral_axis)` contract a custom
+  loader needs to satisfy to work with the rest of the package, using
+  `io.tfp.prepare_brillouin_data` as a worked example.
+
 ## [0.2.0] - 2026-08-27
 
 First public release. The project is now developed openly on GitHub, with the

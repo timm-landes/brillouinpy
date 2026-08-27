@@ -2,7 +2,7 @@
 """
 Synthetic Brillouin data generator shared by the examples in this folder.
 
-The real workflow starts from :func:`brillouinpy.utils.prepare_brillouin_data`
+The real workflow starts from :func:`brillouinpy.io.tfp.prepare_brillouin_data`
 (see ``01_load_data.py``), which needs a folder of ``.DAT``/``.csv`` measurement
 files on disk. So that every example script in this folder can be run as-is,
 without any measurement data at hand, this module fabricates a small

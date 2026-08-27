@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from brillouinpy import utils
+from brillouinpy.io import tfp
 
 NESTED_META = {
     "Brillouin": {
@@ -42,13 +43,13 @@ def test_read_meta_finds_file_in_data_subfolder(tmp_path):
     (tmp_path / "data").mkdir()
     _write_meta(tmp_path / "data" / "META.json", NESTED_META)
 
-    assert utils.read_meta(str(tmp_path)) == NESTED_META
+    assert tfp.read_meta(str(tmp_path)) == NESTED_META
 
 
 def test_read_meta_finds_file_directly_in_project_path(tmp_path):
     _write_meta(tmp_path / "META.json", NESTED_META)
 
-    assert utils.read_meta(str(tmp_path)) == NESTED_META
+    assert tfp.read_meta(str(tmp_path)) == NESTED_META
 
 
 def test_read_meta_prefers_data_subfolder_over_project_root(tmp_path):
@@ -56,12 +57,12 @@ def test_read_meta_prefers_data_subfolder_over_project_root(tmp_path):
     _write_meta(tmp_path / "data" / "META.json", NESTED_META)
     _write_meta(tmp_path / "META.json", FLAT_META_WITH_AMPLITUDE)
 
-    assert utils.read_meta(str(tmp_path)) == NESTED_META
+    assert tfp.read_meta(str(tmp_path)) == NESTED_META
 
 
 def test_read_meta_raises_when_missing(tmp_path):
     with pytest.raises(FileNotFoundError):
-        utils.read_meta(str(tmp_path))
+        tfp.read_meta(str(tmp_path))
 
 
 @pytest.mark.parametrize(
@@ -74,7 +75,7 @@ def test_read_meta_raises_when_missing(tmp_path):
 def test_brillouin_scan_parameters_from_meta(
     meta, expected_mirror_spacing_m, expected_scan_amplitude_m, expected_wavelength_m
 ):
-    mirror_spacing, scan_amplitude, laser_wavelength = utils._brillouin_scan_parameters_from_meta(meta)
+    mirror_spacing, scan_amplitude, laser_wavelength = tfp._brillouin_scan_parameters_from_meta(meta)
 
     assert mirror_spacing == pytest.approx(expected_mirror_spacing_m)
     assert scan_amplitude == pytest.approx(expected_scan_amplitude_m)
@@ -83,20 +84,39 @@ def test_brillouin_scan_parameters_from_meta(
 
 def test_brillouin_scan_parameters_from_meta_flat_without_amplitude_raises():
     with pytest.raises(KeyError, match="FP_scan_amplitude"):
-        utils._brillouin_scan_parameters_from_meta(FLAT_META_WITHOUT_AMPLITUDE)
+        tfp._brillouin_scan_parameters_from_meta(FLAT_META_WITHOUT_AMPLITUDE)
 
 
 def test_brillouin_scan_parameters_from_meta_unrecognised_schema_raises():
     with pytest.raises(KeyError, match="Unrecognised META.json schema"):
-        utils._brillouin_scan_parameters_from_meta(UNRECOGNISED_META)
+        tfp._brillouin_scan_parameters_from_meta(UNRECOGNISED_META)
 
 
 def test_brillouin_spectral_axis_from_meta_matches_manual_call(tmp_path):
     _write_meta(tmp_path / "META.json", NESTED_META)
 
-    axis = utils.brillouin_spectral_axis_from_meta(str(tmp_path), no_of_channels=200)
+    axis = tfp.brillouin_spectral_axis_from_meta(str(tmp_path), no_of_channels=200)
     expected = utils.brillouin_spectral_axis(
         mirror_spacing=6e-3, scan_amplitude=480e-9, no_of_channels=200, laser_wavelength=532.1e-9
     )
 
+    assert np.allclose(axis, expected)
+
+
+def test_deprecated_utils_read_meta_still_works_and_warns(tmp_path):
+    _write_meta(tmp_path / "META.json", NESTED_META)
+
+    with pytest.deprecated_call():
+        result = utils.read_meta(str(tmp_path))
+
+    assert result == NESTED_META
+
+
+def test_deprecated_utils_brillouin_spectral_axis_from_meta_still_works_and_warns(tmp_path):
+    _write_meta(tmp_path / "META.json", NESTED_META)
+
+    with pytest.deprecated_call():
+        axis = utils.brillouin_spectral_axis_from_meta(str(tmp_path), no_of_channels=200)
+
+    expected = tfp.brillouin_spectral_axis_from_meta(str(tmp_path), no_of_channels=200)
     assert np.allclose(axis, expected)

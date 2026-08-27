@@ -92,7 +92,7 @@ if __name__ == '__main__':
     project_path = r'complete_path_to_your_project'
     
     # Load the Brillouin spectral data
-    brillouin_data = bp.utils.load_spectral_image(project_path, 'Brillouin')
+    brillouin_data = bp.io.legacy.load_spectral_image(project_path, 'Brillouin')
     # Calculate the frequency axis of the Brillouin data. Values need to match your setup!
     brillouin_frequency_scale = bp.utils.brillouin_spectral_axis(
         mirror_spacing = 3e-3, # [m]

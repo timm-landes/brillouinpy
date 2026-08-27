@@ -5,14 +5,14 @@ Example 10 - Exporting results
 
 Shows how to export processed data and fit results to formats other tools can read:
 
-- Per-parameter 32-bit TIFF images (:func:`brillouinpy.export.fit_to_tiff`),
+- Per-parameter 32-bit TIFF images (:func:`brillouinpy.io.export.fit_to_tiff`),
   e.g. for opening in ImageJ/Fiji.
 - The `HDF5_BLS <https://github.com/bio-brillouin/HDF5_BLS>`_ format
-  (:func:`brillouinpy.export.to_hdf5_bls`/:func:`~brillouinpy.export.from_hdf5_bls`),
+  (:func:`brillouinpy.io.to_hdf5_bls`/:func:`~brillouinpy.io.from_hdf5_bls`),
   for interoperability with other Brillouin analysis software. Requires the optional
   ``HDF5_BLS`` package (``pip install HDF5_BLS``).
 - The `brim <https://github.com/brillouin-imaging/Brillouin-standard-file>`_ format
-  (:func:`brillouinpy.export.to_brim`/:func:`~brillouinpy.export.from_brim`),
+  (:func:`brillouinpy.io.to_brim`/:func:`~brillouinpy.io.from_brim`),
   a Zarr-based standard for Brillouin microscopy data that's also readable by the
   `napari <https://github.com/brillouin-imaging/brillouin-imaging-napari>`_ and
   `Fiji <https://github.com/brillouin-imaging/brillouin-imaging-fiji>`_ brim viewer
@@ -53,7 +53,7 @@ if __name__ == '__main__':
     # ------------------------------------------------------------------
     # Export the fitted parameter maps as individual TIFF images
     # ------------------------------------------------------------------
-    tiff_files = bp.export.fit_to_tiff(
+    tiff_files = bp.io.export.fit_to_tiff(
         fitted_parameters,
         output_directory=os.path.join('pp_data', 'tiff'),
         expected_peaks=1,   # must match the model used to produce 'fitted_parameters'
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     # Export the preprocessed data (+ fit) to the HDF5_BLS format
     # ------------------------------------------------------------------
     try:
-        bp.export.to_hdf5_bls(
+        bp.io.to_hdf5_bls(
             preprocessed_image,
             os.path.join('pp_data', 'brillouin_data.h5'),
             sample='Example sample',
@@ -77,7 +77,7 @@ if __name__ == '__main__':
         print('Wrote pp_data/brillouin_data.h5')
 
         # Reading it back returns a ready-to-use spectral object
-        reloaded = bp.export.from_hdf5_bls(os.path.join('pp_data', 'brillouin_data.h5'))
+        reloaded = bp.io.from_hdf5_bls(os.path.join('pp_data', 'brillouin_data.h5'))
         print(f"Reloaded from HDF5_BLS: shape {reloaded.shape}, metadata {reloaded.metadata}")
 
     except ImportError as exc:
@@ -87,7 +87,7 @@ if __name__ == '__main__':
     # Export the preprocessed data (+ fit) to the brim format
     # ------------------------------------------------------------------
     try:
-        bp.export.to_brim(
+        bp.io.to_brim(
             preprocessed_image,
             os.path.join('pp_data', 'brillouin_data.brim.zarr'),
             sample='Example sample',
@@ -100,7 +100,7 @@ if __name__ == '__main__':
         print('Wrote pp_data/brillouin_data.brim.zarr')
 
         # Reading it back returns a ready-to-use spectral object
-        reloaded = bp.export.from_brim(os.path.join('pp_data', 'brillouin_data.brim.zarr'))
+        reloaded = bp.io.from_brim(os.path.join('pp_data', 'brillouin_data.brim.zarr'))
         print(f"Reloaded from brim: shape {reloaded.shape}, metadata {reloaded.metadata}")
 
     except ImportError as exc:

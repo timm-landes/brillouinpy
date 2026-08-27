@@ -7,6 +7,6 @@ API Reference
    core
    preprocessing
    analysis
-   export
+   io
    utils
    plot
