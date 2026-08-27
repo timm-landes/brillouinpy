@@ -11,6 +11,8 @@ This project is licensed under the BSD 3-Clause License (see [`LICENSE`](LICENSE
 
 **Repository:** the canonical, publicly accessible repository is [github.com/timm-landes/brillouinpy](https://github.com/timm-landes/brillouinpy). A mirror also exists on the Leibniz University Hannover GitLab instance (`gitlab.uni-hannover.de/phytophotonics/brillouinpy`) for internal development - note that this mirror is only reachable from within the LUH network/SSO and is not usable by external contributors or users.
 
+**Contributing:** bug reports and pull requests are welcome on the GitHub repository - see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development setup, coding conventions, and how to run the test suite/linter locally.
+
 ## Documentation
 A step-by-step [Tutorial](docs/tutorial.md) walking through the `examples/` folder, and the full API reference (built from the doc strings in this package), are published via GitHub Pages: **https://timm-landes.github.io/brillouinpy/**. They're rebuilt automatically on every push to `main` (see [`.github/workflows/docs.yml`](.github/workflows/docs.yml)). The same build also runs on the internal GitLab mirror's CI (find the link under **Deploy → Pages** in the GitLab project), reachable only from within the LUH network.
 
