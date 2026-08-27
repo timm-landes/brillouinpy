@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-27
+
+First public release. The project is now developed openly on GitHub, with the
+existing GitLab instance kept as an LUH-internal mirror.
+
+### Added
+- Public repository at [github.com/timm-landes/brillouinpy](https://github.com/timm-landes/brillouinpy),
+  now the canonical, publicly accessible home of the project (mirrored
+  internally on `gitlab.uni-hannover.de/phytophotonics/brillouinpy`, reachable
+  only from within the LUH network/SSO).
+- `.github/workflows/docs.yml`, automatically building and publishing the
+  Sphinx documentation to GitHub Pages
+  (`https://timm-landes.github.io/brillouinpy/`) on every push to `main`.
+
 ### Changed
 - **Renamed the package from `BrillouinAnalyzer` to `BrillouinPy`** (import name
   `brillouinpy`). `brillouinanalyzer` remains installable as a thin backwards-
