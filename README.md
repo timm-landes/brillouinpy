@@ -1,7 +1,9 @@
 
-#  BrillouinPy
+# BrillouinPy
 
-This module should help you to analyze Brillouin light scattering data efficiently. This is strongly, let's say "inspired" by the package [RamanSPy](https://github.com/barahona-research-group/RamanSPy). For the most steps it uses the same syntax, but I started to remove unnecessary functions and added useful ones for Brillouin imaging. For instance, Raman scattering data often requires a baseline correction. This however, is something we don't do in Brillouin. Usually the background in Brillouin light scattering experiments is very flat and only requires the removal of a constant background. But analysis of Brillouin data requires removal of the Rayleigh scattered light, or in our case removal of the reference beam.
+BrillouinPy is a Python package for analyzing Brillouin light scattering (BLS) microscopy and imaging data - from raw spectra to instrument response deconvolution, damped harmonic oscillator (DHO) fitting, and multivariate analysis.
+
+Its data model and pipeline architecture originate as a fork of [RamanSPy](https://github.com/barahona-research-group/RamanSPy), a package built for Raman spectroscopy. Raman and Brillouin analysis share a lot of structure - spectral containers, preprocessing pipelines, decomposition/clustering workflows - but the two modalities differ in the physics that matters: Brillouin spectra don't need baseline correction the way Raman spectra do, since the background in BLS experiments is typically flat, but they do require removal of the elastically scattered light (Rayleigh or reference-beam peak) and are usually interpreted through a Lorentzian/DHO lineshape rather than discrete Raman bands. BrillouinPy keeps the parts of RamanSPy's architecture that generalize well and replaces or extends the rest with Brillouin-specific preprocessing and analysis: masked-array/NaN-aware pipelines, IRF deconvolution, and DHO peak fitting. See [`NOTICE.md`](NOTICE.md) for a file-by-file breakdown of what was adapted from RamanSPy and what changed.
 
 **Note:** this package was renamed from `BrillouinAnalyzer` to `BrillouinPy`. Existing code doing `import brillouinanalyzer as bp` keeps working unchanged (it now emits a `DeprecationWarning` and re-exports everything from `brillouinpy`) - update your imports to `import brillouinpy as bp` when convenient.
 
@@ -18,71 +20,63 @@ sphinx-build -b html docs docs/_build/html
 Then open `docs/_build/html/index.html` in your browser.
 
 ## Installation
-This gives a short manual for installation of Anaconda and BrillouinPy. I highly recommend the use of Anaconda as a Python distribution if you are new to Python Scripting and Programming. After installing BrillouinPy, you will be able to use BrillouinPy like any other Python package.
+The instructions below use [Anaconda](https://www.anaconda.com/download/success) as the Python distribution, which is recommended if you are new to Python. Any other Python ≥ 3.10 environment works just as well.
 
 ### Prerequisites
- 1. Install Anaconda: [Link to Anaconda download website](https://www.anaconda.com/download/success).
- 2. Create a new conda environment `conda create --name <mynewenv>`. Make sure to replace `<mynewenv>` with a correct a perceptible name. You will later need to recall it.
- 3. Activate the environment via `conda activate <mynewenv>`.
- 4. Install pip and git via `conda install pip`.
+ 1. Install Anaconda: [download](https://www.anaconda.com/download/success).
+ 2. Create a new conda environment: `conda create --name <env-name>`, replacing `<env-name>` with a name of your choice.
+ 3. Activate the environment: `conda activate <env-name>`.
+ 4. Install pip and git: `conda install pip git`.
 
-Now you can choose one of the two next sections to install BrillouinPy depending on your needs. 
- 1. Installation using the **Git-Repository**. This method is recommended if you do not work on the package itself. Here you will always find the latest version of BrillouinPy.
- 2. Installation from a **local directory**. This method is recommended if you want to work on the package code itself. It will be possible to make changes to the code that can be applied directly.
-  
-Now just one remark: **Keep the installation of Conda as it is, unless you definitely need newer packages! :)** I bricked my conda several times updating conda.
+You can then install BrillouinPy in one of two ways:
+ 1. From the **Git repository** - recommended if you only use the package and want to stay up to date with the latest version.
+ 2. From a **local clone** - recommended if you intend to modify the package code itself.
 
-### Install BrillouinPy from the Git-Repository
-For this you'll need git. Install it via `conda install pip` and need to set up a local SSH key in GitLab. A nice tutorial you can find [here (Link to YouTube)](https://www.youtube.com/watch?v=Vmt0V6a3ppE).
-You have already installed git. So you can directly type in the Anaconda prompt.
-However, this installation has the big advantage that it's easier to keep your installation up-to-date. 
+**Note:** unless you have a specific reason to upgrade, keep your conda installation as-is - upgrading conda itself can break existing environments.
+
+### Install from the Git repository
+This requires git and a local SSH key registered with GitLab (see [this tutorial](https://www.youtube.com/watch?v=Vmt0V6a3ppE) if you haven't set one up yet). With that in place, install directly via pip:
 
 ```bash
 pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinpy.git
 ```
-					
-### Install BrillouinPy from a local folder
 
+### Install from a local folder
 
-1. Generate a folder where you want to save the module.
-2. Move to the folder in the Anaconda prompt: 
+1. Choose a folder to hold the clone and navigate to it:
    ```bash
    cd <your folder path>
    ```
-4. Clone the Repository into this folder:
+2. Clone the repository:
    ```bash
    git clone https://gitlab.uni-hannover.de/phytophotonics/brillouinpy.git
    ```
-6. Installation of BrillouinPy:
+3. Install the package:
    ```bash
    pip install .
    ```
-
-7. You can install the package editable for development purposes:
+   Or, for an editable install that picks up local changes without reinstalling:
    ```bash
    pip install -e .
    ```
+
 ## Updates
-1. To update the installation of BrillouinPy open the anaconda prompt and start the conda environment `conda activate <mynewenv>`.
-2. When installed from the git repository type
+1. Activate your environment: `conda activate <env-name>`.
+2. If installed from the git repository:
    ```bash
-   pip install --upgrade git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinpy.git.
+   pip install --upgrade git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinpy.git
    ```
-3. When installed from a local folder navigate to the folder
-   ```bash
-   cd <your folder path>
-   ```
-   and then for the locked installation
+3. If installed from a local folder, navigate to it and run:
    ```bash
    pip install --upgrade .
    ```
-   For the editable mode:
+   or, for an editable install:
    ```bash
    pip install -e .
    ```
 
 ## Example
-I attached some examples in the [`example`-folder](examples/) of this project. You can access those, copy them, alter them, or clone them. This shows how capable BrillouinPy is regarding ML approaches. For a guided, illustrated walkthrough of those examples, see the [Tutorial](docs/tutorial.md).
+The [`examples`](examples/) folder contains complete, runnable scripts covering typical workflows, including multivariate/ML-based analysis. For a guided, illustrated walkthrough, see the [Tutorial](docs/tutorial.md).
 
 Subsequently, you'll find a short example code. Example data can be found in [here](https://seafile.projekt.uni-hannover.de/d/ae7aff2e3bf14f119ed5/). The necessary password is `brillouin_test_data`.
 ```python
@@ -95,9 +89,9 @@ if __name__ == '__main__':
     # All output will be stored in the folder pp_data. If nonexistent, it will be generated. 
     project_path = r'complete_path_to_your_project'
     
-    # Load of the Brillouin spectral data
+    # Load the Brillouin spectral data
     brillouin_data = bp.utils.load_spectral_image(project_path, 'Brillouin')
-    # Calculate the Frequency axis of the Brillouin data. Values needs to fit to your data!
+    # Calculate the frequency axis of the Brillouin data. Values need to match your setup!
     brillouin_frequency_scale = bp.utils.brillouin_spectral_axis(
         mirror_spacing = 3e-3, # [m]
         scan_amplitude = 309e-9, # [m] 
@@ -118,13 +112,13 @@ if __name__ == '__main__':
         bp.preprocessing.normalise.MaxIntensity(pixelwise=True # When pixelwise normalization is wanted
                                                 ), 
         
-        # # Removal of the Intrument Response Function (IRF) and intensity signal deconvolution
-        bp.preprocessing.misc.Deconvoluter_IRF(offset=65, # additional offset from IRF. You can use this parameter to remove unwanted Rayleigh scattered light
-                                               iterations = 4, # This is the number of iteration cycles. This is not something that should be changed unintentionally
-                                               padding = None # currently not in use
+        # Removal of the instrument response function (IRF) and deconvolution of the signal
+        bp.preprocessing.misc.Deconvoluter_IRF(offset=65, # additional offset from the IRF; use it to suppress residual Rayleigh/reference-beam light
+                                               iterations = 4, # number of deconvolution iterations; leave at the default unless you have a specific reason to change it
+                                               padding = None # optional edge padding (in channels) to reduce ringing artifacts near the spectrum's edges; see the docstring for guidance
                                                ), 
         
-        # Smooting of the intensity
+        # Smoothing of the intensity
         bp.preprocessing.denoise.SavGol(window_length= 7, polyorder= 2) 
         ])
     
@@ -140,16 +134,15 @@ if __name__ == '__main__':
 ```
 
 ## Usage in Spyder
-When you want to use the package in Spyder you have to install the Spyder kernels in your environment:
+To use the package's environment as the Spyder console, install the Spyder kernels into that environment (via conda, not pip):
 ```bash
-   conda install spyder-kernels
-   ```
-If you are using Spyder 5.XX you'll need to install spyder-kernels in a specific version. 
+conda install spyder-kernels
+```
+Spyder 5.x requires a specific kernels version instead:
 ```bash
-   conda install spyder-kernels=2.5
-   ```
-Do **NOT** use pip here!
-You then can open a new console (Spyder 6) and select the environment or change the default environment (Spyder 5) with right-click on the bottom status bar right.
+conda install spyder-kernels=2.5
+```
+Then, in Spyder, open a new console on that environment (Spyder 6), or set it as the default environment via the interpreter selector in the bottom status bar (Spyder 5).
 
 
 ## Changelog
