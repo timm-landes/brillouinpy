@@ -33,7 +33,12 @@ setup(
     description='Brillouin light scattering data analysis (formerly BrillouinAnalyzer), architecturally inspired by RamanSPy (see NOTICE.md)',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',  # Format der Langbeschreibung
-    url='https://gitlab.uni-hannover.de/phytophotonics/brillouinpy',  # URL zu Ihrem Projekt
+    url='https://github.com/timm-landes/brillouinpy',  # public, canonical repository
+    # Internal development mirror, only reachable from within the Leibniz University
+    # Hannover network/SSO - not usable by external contributors or users.
+    project_urls={
+        'GitLab (LUH-internal mirror)': 'https://gitlab.uni-hannover.de/phytophotonics/brillouinpy',
+    },
     license='BSD-3-Clause',
     classifiers=[  # Optional: Klassifizierung Ihres Pakets
         'Programming Language :: Python :: 3',

@@ -9,8 +9,10 @@ Its data model and pipeline architecture originate as a fork of [RamanSPy](https
 
 This project is licensed under the BSD 3-Clause License (see [`LICENSE`](LICENSE)); see [`NOTICE.md`](NOTICE.md) for the third-party (RamanSPy, VCA) components it incorporates and their respective licenses.
 
+**Repository:** the canonical, publicly accessible repository is [github.com/timm-landes/brillouinpy](https://github.com/timm-landes/brillouinpy). A mirror also exists on the Leibniz University Hannover GitLab instance (`gitlab.uni-hannover.de/phytophotonics/brillouinpy`) for internal development - note that this mirror is only reachable from within the LUH network/SSO and is not usable by external contributors or users.
+
 ## Documentation
-A step-by-step [Tutorial](docs/tutorial.md) walking through the `examples/` folder, and the full API reference (built from the doc strings in this package), are published via GitLab Pages. Find the link under **Deploy → Pages** in this project on GitLab once the `pages` pipeline job has run on `main`.
+A step-by-step [Tutorial](docs/tutorial.md) walking through the `examples/` folder, and the full API reference (built from the doc strings in this package), are published via GitHub Pages: **https://timm-landes.github.io/brillouinpy/**. They're rebuilt automatically on every push to `main` (see [`.github/workflows/docs.yml`](.github/workflows/docs.yml)). The same build also runs on the internal GitLab mirror's CI (find the link under **Deploy → Pages** in the GitLab project), reachable only from within the LUH network.
 
 To build it locally instead:
 ```bash
@@ -35,10 +37,8 @@ You can then install BrillouinPy in one of two ways:
 **Note:** unless you have a specific reason to upgrade, keep your conda installation as-is - upgrading conda itself can break existing environments.
 
 ### Install from the Git repository
-This requires git and a local SSH key registered with GitLab (see [this tutorial](https://www.youtube.com/watch?v=Vmt0V6a3ppE) if you haven't set one up yet). With that in place, install directly via pip:
-
 ```bash
-pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinpy.git
+pip install git+https://github.com/timm-landes/brillouinpy.git
 ```
 
 ### Install from a local folder
@@ -49,7 +49,7 @@ pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinpy.git
    ```
 2. Clone the repository:
    ```bash
-   git clone https://gitlab.uni-hannover.de/phytophotonics/brillouinpy.git
+   git clone https://github.com/timm-landes/brillouinpy.git
    ```
 3. Install the package:
    ```bash
@@ -60,11 +60,13 @@ pip install git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinpy.git
    pip install -e .
    ```
 
+**LUH-internal note:** if you're working from inside the university network and prefer the GitLab mirror instead, replace the URL above with `git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinpy.git` (requires a GitLab SSH key registered with your LUH account - see [this tutorial](https://www.youtube.com/watch?v=Vmt0V6a3ppE) if you haven't set one up). This is not reachable outside the LUH network/SSO.
+
 ## Updates
 1. Activate your environment: `conda activate <env-name>`.
 2. If installed from the git repository:
    ```bash
-   pip install --upgrade git+ssh://git@gitlab.uni-hannover.de/phytophotonics/brillouinpy.git
+   pip install --upgrade git+https://github.com/timm-landes/brillouinpy.git
    ```
 3. If installed from a local folder, navigate to it and run:
    ```bash
