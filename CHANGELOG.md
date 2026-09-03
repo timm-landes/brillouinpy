@@ -7,6 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- `SpectralContainer` can now carry co-acquired data in a `channels` dict
+  (`{name: SpectralObject}`) - e.g. a Raman or fluorescence channel on the same
+  sample. The mechanism is generic (no modality-specific types or reserved
+  names); the primary `spectral_data` stays the Brillouin data. A channel whose
+  spatial `shape` matches the container's follows along through indexing,
+  `flat` and stacking; other channels are passed through untouched. Introspect
+  with the new `channels_grid_conformant` property and `repr()`. `mean` /
+  `variance` carry no channels. `to_brim` / `to_hdf5_bls` do not export channels
+  (pickle `save`/`load` round-trips them). See
+  [`docs/design/multimodal_container.md`](docs/design/multimodal_container.md).
 - `Spectrum` / `SpectralImage` / `SpectralVolume` now validate their
   dimensionality at construction (`ndim` 1 / 3 / 4) and raise a clear
   `ValueError` on a mismatch, instead of the class name silently not matching the

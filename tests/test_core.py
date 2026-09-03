@@ -174,6 +174,68 @@ def test_peaks_on_image_uses_mean_spectrum():
     assert axis[peaks[0]] == pytest.approx(3, abs=0.5)
 
 
+def test_channels_default_empty_and_grid_conformance():
+    axis = np.linspace(-20, 20, 10)
+    raman = SpectralImage(np.random.rand(4, 3, 6), np.linspace(0, 100, 6))
+    camera = SpectralImage(np.random.rand(64, 48, 1), np.array([550.0]))
+    image = SpectralImage(np.random.rand(4, 3, 10), axis,
+                          channels={"raman": raman, "camera": camera})
+
+    assert SpectralImage(np.random.rand(4, 3, 10), axis).channels == {}
+    assert image.channels_grid_conformant == {"raman": True, "camera": False}
+
+
+def test_grid_conformant_channel_follows_spatial_ops():
+    axis = np.linspace(-20, 20, 10)
+    raman = SpectralImage(np.arange(4 * 3 * 6).reshape(4, 3, 6), np.linspace(0, 100, 6))
+    camera = SpectralImage(np.random.rand(8, 8, 1), np.array([550.0]))
+    image = SpectralImage(np.random.rand(4, 3, 10), axis,
+                          channels={"raman": raman, "camera": camera})
+
+    sliced = image[1:3, 0:2]
+    assert sliced.channels["raman"].shape == (2, 2)
+    assert sliced.channels["camera"].shape == (8, 8)  # non-conformant: untouched
+    assert np.array_equal(sliced.channels["raman"].spectral_data,
+                          raman.spectral_data[1:3, 0:2])
+
+    assert image.flat.channels["raman"].shape == (12,)
+    assert image.flat.channels["camera"].shape == (8, 8)
+
+    # derived channels are copies
+    sliced.channels["raman"].spectral_data[:] = 0
+    assert raman.spectral_data.sum() != 0
+
+    # mean/variance carry no channels
+    assert image.mean.channels == {}
+
+
+def test_from_image_stack_merges_conformant_channels_only():
+    axis = np.linspace(-20, 20, 10)
+
+    def img(with_bad=False):
+        chans = {"raman": SpectralImage(np.random.rand(3, 3, 6), np.linspace(0, 100, 6))}
+        if with_bad:
+            chans["cam"] = SpectralImage(np.random.rand(5, 5, 1), np.array([550.0]))
+        return SpectralImage(np.random.rand(3, 3, 10), axis, channels=chans)
+
+    merged = SpectralVolume.from_image_stack([img(), img()])
+    assert merged.channels["raman"].shape == (3, 3, 2)
+
+    dropped = SpectralVolume.from_image_stack([img(with_bad=True), img(with_bad=True)])
+    assert dropped.channels == {}
+
+
+def test_channels_survive_pickle_and_legacy_setstate():
+    axis = np.linspace(-20, 20, 10)
+    raman = SpectralImage(np.random.rand(3, 3, 6), np.linspace(0, 100, 6))
+    image = SpectralImage(np.random.rand(3, 3, 10), axis, channels={"raman": raman})
+    assert list(pickle.loads(pickle.dumps(image)).channels) == ["raman"]
+
+    legacy = SpectralImage(np.random.rand(3, 3, 10), axis)
+    del legacy.__dict__["channels"]
+    assert pickle.loads(pickle.dumps(legacy)).channels == {}
+
+
 def test_metadata_and_px_size_default_to_empty():
     spectrum = Spectrum(np.random.rand(10), np.linspace(-20, 20, 10))
 

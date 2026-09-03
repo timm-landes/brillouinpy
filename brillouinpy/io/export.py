@@ -400,6 +400,8 @@ def to_brim(
         :class:`~brillouinpy.Spectrum`, :class:`~brillouinpy.SpectralImage`
         or :class:`~brillouinpy.SpectralVolume` (i.e. ``spectral_data`` with 1,
         3 or 4 dimensions) - brim's PSD array is always 4D ``(z, y, x, spectral)``.
+        Any ``channels`` on the object are not written (brim is a Brillouin-only
+        format); use pickle ``save`` to keep them.
     filepath : str
         Destination path of the brim store. By convention, ``.brim.zarr`` for a
         directory store (the default), or ``.brim.zip`` when ``as_zip=True``.

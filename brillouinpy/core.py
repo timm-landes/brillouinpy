@@ -29,7 +29,7 @@ def _empty_px_size() -> dict:
     return {"x": None, "y": None, "z": None}
 
 
-def _create_data(spectral_data, spectral_axis, *, metadata=None, px_size_um=None):
+def _create_data(spectral_data, spectral_axis, *, metadata=None, px_size_um=None, channels=None):
     if len(spectral_data.shape) == 1:
         cls = Spectrum
     elif len(spectral_data.shape) == 3:
@@ -38,7 +38,7 @@ def _create_data(spectral_data, spectral_axis, *, metadata=None, px_size_um=None
         cls = SpectralVolume
     else:
         cls = SpectralContainer
-    return cls(spectral_data, spectral_axis, metadata=metadata, px_size_um=px_size_um)
+    return cls(spectral_data, spectral_axis, metadata=metadata, px_size_um=px_size_um, channels=channels)
 
 
 class SpectralContainer:
@@ -61,6 +61,15 @@ class SpectralContainer:
     px_size_um : dict, optional
         Real-world pixel spacing as ``{"x"/"y"/"z": float_or_None}`` in
         micrometers. Always present on the instance (missing axes are ``None``).
+    channels : dict, optional
+        Additional co-acquired data as ``{name: SpectralObject}`` - e.g. a Raman
+        or fluorescence channel taken on the same sample. The primary
+        ``spectral_data`` stays the Brillouin data; channels are a generic
+        side-car and brillouinpy makes no assumption about what they contain.
+        Always a dict on the instance. A channel whose spatial ``shape`` matches
+        this object's is "grid-conformant" and follows along through spatial
+        operations (indexing, ``flat``, stacking); one that doesn't is passed
+        through untouched. See :attr:`channels_grid_conformant`.
 
     Example
     ----------
@@ -80,7 +89,7 @@ class SpectralContainer:
     #: which accepts any dimensionality; set on the shape-specific subclasses.
     _required_ndim = None
 
-    def __init__(self, spectral_data, spectral_axis, *, metadata=None, px_size_um=None):
+    def __init__(self, spectral_data, spectral_axis, *, metadata=None, px_size_um=None, channels=None):
         # Convert to masked array if it isn't already one
         if np.ma.is_masked(spectral_data):
             self.spectral_data = spectral_data
@@ -90,6 +99,7 @@ class SpectralContainer:
         self.spectral_axis = np.asarray(spectral_axis)
         self.instrument_response_function = None
         self.metadata = {} if metadata is None else dict(metadata)
+        self.channels = {} if channels is None else dict(channels)
         self.px_size_um = _empty_px_size()
         if px_size_um:
             self.px_size_um.update(px_size_um)
@@ -116,18 +126,44 @@ class SpectralContainer:
         self.__dict__.update(state)
         self.__dict__.setdefault("instrument_response_function", None)
         self.__dict__.setdefault("metadata", {})
+        self.__dict__.setdefault("channels", {})
         self.__dict__.setdefault("px_size_um", _empty_px_size())
 
-    def _derive(self, spectral_data, spectral_axis=None, *, keep_px_size=True):
+    def __repr__(self):
+        parts = [f"shape={self.shape}", f"spectral_length={self.spectral_length}"]
+        if self.channels:
+            chans = ", ".join(f"{k}: {tuple(getattr(v, 'shape', ()))}" for k, v in self.channels.items())
+            parts.append(f"channels={{{chans}}}")
+        return f"{type(self).__name__}({', '.join(parts)})"
+
+    @property
+    def channels_grid_conformant(self) -> dict:
+        """
+        Maps each channel name to whether its spatial ``shape`` matches this
+        object's - i.e. whether it follows along through spatial operations
+        (indexing, ``flat``, stacking). Non-conformant channels are passed
+        through untouched.
+        """
+        return {name: getattr(ch, "shape", None) == self.shape for name, ch in self.channels.items()}
+
+    def _map_channels(self, op) -> dict:
+        """Apply ``op`` to grid-conformant channels; pass the rest through unchanged."""
+        conformant = self.channels_grid_conformant
+        return {name: op(ch) if conformant[name] else ch for name, ch in self.channels.items()}
+
+    def _derive(self, spectral_data, spectral_axis=None, *, keep_px_size=True, channels=None):
         """
         Build a derived object of the appropriate type for ``spectral_data``,
         carrying this object's metadata (and, by default, pixel size) forward.
+        ``channels`` defaults to a deep copy of this object's channels; pass an
+        explicit dict when a spatial operation has transformed them.
         """
         return _create_data(
             spectral_data,
             self.spectral_axis if spectral_axis is None else spectral_axis,
             metadata=copy.deepcopy(self.metadata),
             px_size_um=dict(self.px_size_um) if keep_px_size else None,
+            channels=copy.deepcopy(self.channels) if channels is None else channels,
         )
 
     @staticmethod
@@ -137,6 +173,28 @@ class SpectralContainer:
             "metadata": copy.deepcopy(source.metadata),
             "px_size_um": dict(source.px_size_um) if keep_px_size else None,
         }
+
+    @staticmethod
+    def _stack_channels(sources: List[SpectralContainer], stack_fn) -> dict:
+        """
+        Merge channels across a list of objects being stacked, using ``stack_fn``
+        (a ``from_stack``/``from_image_stack``-style classmethod). Channels are
+        kept only when every source carries the same channel names and each of
+        those channels is grid-conformant to its source; otherwise the stacked
+        result carries no channels.
+        """
+        if not sources or not sources[0].channels:
+            return {}
+        names = set(sources[0].channels)
+        if any(set(s.channels) != names for s in sources):
+            return {}
+        merged = {}
+        for name in names:
+            group = [s.channels[name] for s in sources]
+            if any(getattr(ch, "shape", None) != s.shape for ch, s in zip(group, sources)):
+                return {}
+            merged[name] = stack_fn(group)
+        return merged
 
     def peaks(self, *, height=None, threshold=None, distance=None, prominence=None,
               width=None, wlen=None, rel_height=0.5, plateau_size=None):
@@ -199,6 +257,7 @@ class SpectralContainer:
             raise ValueError("Cannot stack unaligned spectral objects. Spectral axes must match.")
 
         return cls(np.vstack([obj.flat.spectral_data for obj in stack]), stack[0].spectral_axis,
+                   channels=cls._stack_channels(stack, SpectralContainer.from_stack),
                    **cls._inherited_kwargs(stack[0]))
 
     @property
@@ -211,7 +270,8 @@ class SpectralContainer:
         numpy.ndarray of shape (dim_1*dim_2*...*dim_n, B)
         """
         return SpectralContainer(self.spectral_data.reshape(-1, self.spectral_length), self.spectral_axis,
-                                 metadata=copy.deepcopy(self.metadata), px_size_um=dict(self.px_size_um))
+                                 metadata=copy.deepcopy(self.metadata), px_size_um=dict(self.px_size_um),
+                                 channels=self._map_channels(lambda ch: ch.flat))
 
     @property
     def shape(self) -> tuple[int]:
@@ -275,7 +335,8 @@ class SpectralContainer:
         if len(spectral_data_slice.shape) == 0:
             return spectral_data_slice
         else:
-            return self._derive(spectral_data_slice)
+            return self._derive(spectral_data_slice,
+                                channels=self._map_channels(lambda ch: ch[key]))
 
     def band(self, spectral_band: Number) -> np.ndarray:
         """Returns a spectral slice across the closest spectral band in the axis to the one given."""
@@ -400,6 +461,7 @@ class SpectralVolume(SpectralContainer):
 
         return cls(np.dstack([image.spectral_data[..., np.newaxis, :] for image in image_stack]),
                    image_stack[0].spectral_axis,
+                   channels=cls._stack_channels(image_stack, SpectralVolume.from_image_stack),
                    **cls._inherited_kwargs(image_stack[0]))
 
     # def plot(self, bands, **kwargs):

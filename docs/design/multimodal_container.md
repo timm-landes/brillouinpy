@@ -1,6 +1,6 @@
 # Design: multimodal `SpectralContainer`
 
-**Status:** planned, not yet implemented (as of 2026-08-27).
+**Status:** Phase 1 (generic `channels`) implemented 2026-09-03; phases 2-6 planned.
 **Context:** planned as a short sub-chapter of the author's doctoral thesis, differentiating BrillouinPy from its origin as a fork of [RamanSPy](https://github.com/barahona-research-group/RamanSPy) - see [`NOTICE.md`](../../NOTICE.md) for the existing fork attribution.
 
 ## Motivation
@@ -13,29 +13,26 @@ BrillouinPy's data model (`SpectralContainer`/`Spectrum`/`SpectralImage`/`Spectr
 - **Brightfield / fluorescence**: acquired by a separate camera-based optical path (wide-field, not scanned). Different field of view / pixel size than the scanner grid. NOT automatically co-registered with Brillouin/Raman. Multi-color fluorescence is naturally represented the same way as any other spectral data: an array of shape `(x, y, C)` with `C` = number of colors; brightfield is the degenerate `C = 1` case. No bespoke type is needed - a fluorescence/brightfield channel is just another `SpectralObject` whose "spectral axis" holds discrete emission wavelengths/labels instead of a continuous frequency shift.
 - Camera and scanner sit at fixed positions in the same microscope, so a **one-time calibrated affine transform** (scale + offset, possibly rotation) between camera pixel coordinates and scan coordinates is sufficient - confirmed realistic for this setup, no per-measurement image-based registration required.
 
-## API sketch
+## API
 
-- `SpectralContainer.__init__(spectral_data, spectral_axis, *, channels: dict[str, SpectralObject] | None = None)`
-- A `channels` entry is itself a `SpectralObject` (`Spectrum`/`SpectralImage`/`SpectralVolume`).
-- Channels sharing the primary object's spatial shape (e.g. Raman on the same scan grid) are "grid-conformant" and participate transparently in spatial operations.
-- Channels that don't (e.g. a camera-based brightfield/fluorescence channel) may carry an optional `transform` attribute (an `AffineTransform2D`, scale/offset/rotation) mapping camera pixel coordinates to scan coordinates. Such channels are "non-conformant" until resampled.
-- **Non-conformant channel access policy (decided 2026-08-27):** spatial operations that touch `channels` (`__getitem__`, `flat`, `from_stack`/`from_image_stack`) emit a `UserWarning` ("context warning") when they encounter a channel whose spatial shape doesn't match the primary object's, rather than silently passing it through unchanged or raising a hard error. This flags the mismatch to the user without blocking the operation - the non-conformant channel is left untouched (not spatially transformed) and the warning names the channel key and the mismatch.
+- `SpectralContainer.__init__(spectral_data, spectral_axis, *, metadata=None, px_size_um=None, channels: dict[str, SpectralObject] | None = None)`
+- A `channels` entry is itself a `SpectralObject`. brillouinpy makes **no** assumption about what a channel holds - no modality-specific types, no reserved names. The primary `spectral_data` stays the Brillouin data; `channels` is a generic side-car.
+- Channels sharing the primary object's spatial `shape` (e.g. Raman on the same scan grid) are "grid-conformant" and participate transparently in spatial operations.
+- Channels that don't (e.g. a camera-based brightfield/fluorescence channel) are "non-conformant" and are passed through spatial operations untouched.
+- **Non-conformant channel access policy (decided 2026-09-03, supersedes the 2026-08-27 "context warning" idea):** spatial operations (`__getitem__`, `flat`, `from_stack`/`from_image_stack`) act on grid-conformant channels and pass non-conformant ones through **silently, unchanged** - no `UserWarning`. Rationale: brillouinpy cannot know the intended data layout, so a warning would cry wolf. Visibility instead comes from introspection: `__repr__` lists channel names + shapes, and `SpectralContainer.channels_grid_conformant` returns `{name: bool}`. A future opt-in `warn_on_nonconformant` flag is easy to add if wanted.
+- `mean` / `variance` / `tolist` collapse the spatial dimension and carry **no** channels.
+- Camera→scan registration (`AffineTransform2D`, resampling) is **Phase 2**, not part of the container - a non-conformant channel simply stays non-conformant until the user resamples it into a conformant one.
 
 ## Implementation phases
 
-### Phase 0 - API contract
-Fix signatures and conventions above before writing code. ~2h, no code.
-
-### Phase 1 - Container core (`brillouinpy/core.py`)
-- `__init__`: accept and store `channels`; no shape validation against `spectral_data` (camera channels legitimately differ in shape).
-- `_create_data`: pass `channels` through.
-- `flat`: flatten grid-conformant channels alongside `spectral_data`; for non-conformant channels, emit the context warning and pass them through unchanged.
-- `__getitem__`: apply spatial indexing to grid-conformant channels; emit the context warning and leave non-conformant channels unchanged otherwise.
-- `from_stack`/`from_image_stack`: merge `channels` across elements (matching keys/types); emit the context warning for any channel that isn't grid-conformant across the stack.
-- `save`/`load` (pickle) already round-trip `channels` losslessly with no changes needed.
-
-Estimate: ~1 day (implementation + docstrings).
-Tests: extend `tests/test_core.py` - construction with `channels`, crop/index/flat/stack with a mix of conformant/non-conformant channels (asserting the warning fires), backward compatibility (no `channels` -> unchanged existing behaviour).
+### Phase 1 - Container core (`brillouinpy/core.py`) - DONE (2026-09-03)
+- `__init__` / `_create_data`: accept and store `channels` (always a dict, no shape validation).
+- `channels_grid_conformant` property; `__repr__` shows channels.
+- `flat`, `__getitem__`: apply the same spatial op to grid-conformant channels; pass non-conformant ones through unchanged (silently).
+- `from_stack` / `from_image_stack`: merge `channels` only when every input has the same channel names and each is grid-conformant; otherwise the stacked result carries no channels.
+- `save`/`load` (pickle) round-trip `channels`; `__setstate__` fills `{}` for pre-`channels` pickles.
+- Also landed alongside: first-class `metadata` / `px_size_um`, and hard `ndim` validation on the `Spectrum`/`SpectralImage`/`SpectralVolume` subclasses.
+- Tests in `tests/test_core.py`.
 
 ### Phase 2 - Camera calibration / registration (`brillouinpy/utils.py`)
 - `AffineTransform2D` class (scale, offset, rotation) with `.apply(coords)` / `.inverse()`.
@@ -57,8 +54,8 @@ Tests: synthetic correlated/uncorrelated images with known expected outcome.
 
 Estimate: ~0.5 day (only the bleaching correction is new work).
 
-### Phase 5 - RamanSPy interoperability (`brillouinpy/export.py`)
-- `to_ramanspy(spectral_object) -> ramanspy.SpectralContainer` / `from_ramanspy(obj) -> core.SpectralObject`, following the existing `to_brim`/`from_hdf5_bls` pattern (soft optional dependency, see [`export.py`](../../brillouinpy/export.py)).
+### Phase 5 - RamanSPy interoperability (`brillouinpy/io/export.py`)
+- `to_ramanspy(spectral_object) -> ramanspy.SpectralContainer` / `from_ramanspy(obj) -> core.SpectralObject`, following the existing `to_brim`/`from_hdf5_bls` pattern (soft optional dependency, see [`io/export.py`](../../brillouinpy/io/export.py)).
 - `channels` are not representable in RamanSPy's model and are dropped on `to_ramanspy`, with the same kind of caveat already documented for brim/HDF5_BLS.
 
 Estimate: ~0.5 day.
