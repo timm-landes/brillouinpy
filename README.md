@@ -14,7 +14,7 @@ This project is licensed under the BSD 3-Clause License (see [`LICENSE`](LICENSE
 **Contributing:** bug reports and pull requests are welcome on the GitHub repository - see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development setup, coding conventions, and how to run the test suite/linter locally.
 
 ## Documentation
-A step-by-step [Tutorial](docs/tutorial.md) walking through the `examples/` folder, and the full API reference (built from the doc strings in this package), are published via GitHub Pages: **https://timm-landes.github.io/brillouinpy/**. They're rebuilt automatically on every push to `main` (see [`.github/workflows/docs.yml`](.github/workflows/docs.yml)). The same build also runs on the internal GitLab mirror's CI (find the link under **Deploy → Pages** in the GitLab project), reachable only from within the LUH network.
+A step-by-step [Tutorial](docs/tutorial.md) walking through the `examples/` folder, and the full API reference (built from the doc strings in this package), are published via GitHub Pages: **https://timm-landes.github.io/brillouinpy/**. They're rebuilt automatically on every push to `main`, i.e. on each release (see [`.github/workflows/docs.yml`](.github/workflows/docs.yml)); day-to-day development happens on `develop`. The same build also runs on the internal GitLab mirror's CI (find the link under **Deploy → Pages** in the GitLab project), reachable only from within the LUH network.
 
 To build it locally instead:
 ```bash
@@ -82,59 +82,76 @@ pip install git+https://github.com/timm-landes/brillouinpy.git
 ## Example
 The [`examples`](examples/) folder contains complete, runnable scripts covering typical workflows, including multivariate/ML-based analysis. For a guided, illustrated walkthrough, see the [Tutorial](docs/tutorial.md).
 
-Subsequently, you'll find a short example code. Example data can be found in [here](https://seafile.projekt.uni-hannover.de/d/ae7aff2e3bf14f119ed5/). The necessary password is `brillouin_test_data`.
+The snippet below loads a measurement, preprocesses it and fits the Brillouin
+doublet. The [`examples/`](examples/) scripts cover each step in more depth (and
+fall back to synthetic data, so they run without a dataset configured). Example
+data is available [here](https://seafile.projekt.uni-hannover.de/d/ae7aff2e3bf14f119ed5/)
+(password `brillouin_test_data`).
+
 ```python
-import brillouinpy as bp
+import numpy as np
 import matplotlib.pyplot as plt
 
-#%% Simple Analysis
-if __name__ == '__main__':
-    # Set the project path. Here, your raw data needs to be in a folder 'data'.
-    # All output will be stored in the folder pp_data. If nonexistent, it will be generated. 
-    project_path = r'complete_path_to_your_project'
-    
-    # Load the Brillouin spectral data
-    brillouin_data = bp.io.legacy.load_spectral_image(project_path, 'Brillouin')
-    # Calculate the frequency axis of the Brillouin data. Values need to match your setup!
-    brillouin_frequency_scale = bp.utils.brillouin_spectral_axis(
-        mirror_spacing = 3e-3, # [m]
-        scan_amplitude = 309e-9, # [m] 
-        no_of_channels = brillouin_data.shape[-1] # get spectral dimension from data
-    )
-    
-    # Generate the Brillouin object
-    brillouin_data = bp.SpectralImage(brillouin_data, brillouin_frequency_scale)
-    
-    # Plot the mean spectrum of the samples data
-    bp.plot.mean_spectra(brillouin_data, title='Raw Brillouin Data')
-    plt.ylim(.1, None)
-    bp.plot.show()
-    
-    # Define the processing pipeline. This gives you an example on what data manipulation/processing is possible
-    pipeline = bp.preprocessing.Pipeline([
-        # # Normalization regarding the spectrometer performance
-        bp.preprocessing.normalise.MaxIntensity(pixelwise=True # When pixelwise normalization is wanted
-                                                ), 
-        
-        # Removal of the instrument response function (IRF) and deconvolution of the signal
-        bp.preprocessing.misc.Deconvoluter_IRF(offset=65, # additional offset from the IRF; use it to suppress residual Rayleigh/reference-beam light
-                                               iterations = 4, # number of deconvolution iterations; leave at the default unless you have a specific reason to change it
-                                               padding = None # optional edge padding (in channels) to reduce ringing artifacts near the spectrum's edges; see the docstring for guidance
-                                               ), 
-        
-        # Smoothing of the intensity
-        bp.preprocessing.denoise.SavGol(window_length= 7, polyorder= 2) 
-        ])
-    
-    
-    # Apply the pipeline to the data
-    pp_brillouin_data = pipeline.apply(brillouin_data)
-    
-    # Plot the mean spectrum of the preprocessed samples data
-    bp.plot.mean_spectra(pp_brillouin_data, title='Processed Brillouin Data', yscale='linear')
-    plt.ylim(.0, None)
-    bp.plot.show()
+import brillouinpy as bp
 
+if __name__ == '__main__':
+    # Raw measurement files live in <project_path>/data, with the (x, y, z, t)
+    # coordinates encoded in each filename (e.g. "Bri_0_0_0_0.DAT").
+    project_path = r'complete_path_to_your_project'
+
+    # Load every spectrum under <project_path>/data into one masked
+    # (x, y, z, t, spectral) array. .squeeze() drops the singleton z / timepoint
+    # axes of a plain 2D scan, leaving (x, y, spectral); keep them (and use
+    # bp.SpectralVolume below) for a z-stack.
+    intensity = bp.io.prepare_brillouin_data(project_path, 'Brillouin').squeeze()
+
+    # The frequency-shift axis is derived from the interferometer scan
+    # parameters. If the measurement ships a META.json, read them automatically:
+    try:
+        spectral_axis = bp.io.brillouin_spectral_axis_from_meta(
+            project_path, no_of_channels=intensity.shape[-1],
+        )
+    except (FileNotFoundError, KeyError):
+        # otherwise enter them by hand - these must match your setup!
+        spectral_axis = bp.utils.brillouin_spectral_axis(
+            mirror_spacing=3e-3,    # [m]
+            scan_amplitude=309e-9,  # [m]
+            no_of_channels=intensity.shape[-1],
+        )
+
+    brillouin_data = bp.SpectralImage(intensity, spectral_axis)  # bp.SpectralVolume for a z-stack
+
+    # Anything else in META.json (sample name, operator, acquisition date) can be
+    # attached to the object; it rides along through processing and is written
+    # out again on export (io.to_brim / io.to_hdf5_bls).
+    try:
+        brillouin_data.metadata = bp.io.read_meta(project_path)
+    except FileNotFoundError:
+        pass
+
+    bp.plot.mean_spectra(brillouin_data, title='Raw Brillouin data', yscale='log')
+    plt.show()
+
+    # Preprocessing pipeline: normalise per pixel, remove the instrument
+    # response function (IRF) / elastic peak, then smooth.
+    pipeline = bp.preprocessing.Pipeline([
+        bp.preprocessing.normalise.MaxIntensity(pixelwise=True),
+        bp.preprocessing.misc.Deconvoluter_IRF(offset=65, iterations=4, padding=None),
+        bp.preprocessing.denoise.SavGol(window_length=7, polyorder=2),
+    ])
+    pp_brillouin_data = pipeline.apply(brillouin_data)
+
+    bp.plot.mean_spectra(pp_brillouin_data, title='Processed Brillouin data', yscale='linear')
+    plt.show()
+
+    # Fit one damped-harmonic-oscillator doublet per pixel.
+    model = bp.analysis.fitmodel.DHO(
+        expected_peaks=1,
+        p0=[20, 8, 0.5, 0, 0],  # [amplitude, shift (GHz), width, background, asymmetry]
+        bounds=([0, 5, 0.1, -5, -5], [100, 15, 10, 5, 5]),
+    )
+    fit_result, metrics = model.apply(pp_brillouin_data)
+    print(f"mean Brillouin frequency shift: {np.nanmean(fit_result[..., 1]):.3f} GHz")
 ```
 
 ## Usage in Spyder

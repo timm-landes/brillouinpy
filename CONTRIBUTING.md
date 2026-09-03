@@ -11,6 +11,20 @@ issues and pull requests there. A mirror also exists on the Leibniz University H
 GitLab instance for internal development; it's only reachable from within the LUH
 network/SSO, so it isn't usable for external contributions.
 
+## Branching and pull requests
+
+- **`main`** is release-only. Every commit on it is a tagged release (`vX.Y.Z`);
+  it is protected, so changes land only through a merged pull request with
+  green CI.
+- **`develop`** is the integration branch - this is where day-to-day work goes.
+  Base your feature branches on `develop` and open PRs against it (`develop` is
+  the default branch, so new PRs target it automatically).
+- Releases merge `develop` into `main` and tag it - see
+  [`RELEASING.md`](RELEASING.md).
+
+Both the GitHub repo and the LUH-internal GitLab mirror carry `main` and
+`develop`; push your branch to whichever you use (`git push <remote> <branch>`).
+
 ## Setting up a development environment
 
 ```bash
@@ -108,7 +122,8 @@ throughout the `examples/` scripts.
 User-facing changes (new features, bug fixes, behaviour changes, deprecations) belong in
 [`CHANGELOG.md`](CHANGELOG.md) under `[Unreleased]`, following the existing
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) style (`### Added`/`### Changed`/
-`### Fixed` subsections).
+`### Fixed` subsections). At release time the `[Unreleased]` section is renamed to the new
+version - see [`RELEASING.md`](RELEASING.md).
 
 ## License
 

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- Development now happens on a `develop` branch; `main` is release-only and
+  protected. Added [`RELEASING.md`](RELEASING.md) and a "Branching and pull
+  requests" section to `CONTRIBUTING.md`. Refreshed the `README.md` quick-start
+  example (META.json-derived frequency axis, `metadata`, a DHO fit).
+
 ## [0.3.0] - 2026-09-03
 
 Makes acquisition metadata and pixel size a first-class part of the data model,
