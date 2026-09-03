@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- `Spectrum` / `SpectralImage` / `SpectralVolume` now validate their
+  dimensionality at construction (`ndim` 1 / 3 / 4) and raise a clear
+  `ValueError` on a mismatch, instead of the class name silently not matching the
+  data shape. `core._create_data` still picks the class by `ndim` (base
+  `SpectralContainer` for 2D / 5D+); preprocessing and analysis steps are
+  unaffected as they deep-copy rather than reconstruct.
+- `SpectralContainer.peaks()` is now available on any spectral object, not just
+  `Spectrum`; for an object with spatial dimensions it operates on the `mean`
+  spectrum.
 - `SpectralContainer` (and subclasses) now carry `metadata` and `px_size_um`
   dicts as first-class attributes, settable via the constructor. Both always
   exist on an instance (default: `{}` and `{"x": None, "y": None, "z": None}`),

@@ -52,7 +52,7 @@ if __name__ == '__main__':
     # 'padding' reflect-pads the spectrum before deconvolution to avoid edge artefacts
     # (a spurious up/down swing near the first/last few channels) - set it if you see
     # those; a value of None/0 disables it.
-    deconvoluter = bp.preprocessing.misc.Deconvoluter_IRF(offset=3, iterations=4, padding=20)
+    deconvoluter = bp.preprocessing.misc.Deconvoluter_IRF(offset=35, iterations=4, padding=20)
     cleaned_image = deconvoluter.apply(brillouin_image)
 
     # Compare a single raw spectrum against the IRF-removed result

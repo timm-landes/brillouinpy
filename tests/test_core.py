@@ -141,6 +141,39 @@ def test_volume_layer_returns_image():
     assert np.array_equal(layer.spectral_data, volume.spectral_data[..., 0, :])
 
 
+@pytest.mark.parametrize(
+    "cls, bad_shape",
+    [
+        (Spectrum, (4, 10)),
+        (SpectralImage, (4, 10)),
+        (SpectralImage, (4, 4, 3, 10)),
+        (SpectralVolume, (4, 4, 10)),
+    ],
+)
+def test_subclass_rejects_wrong_dimensionality(cls, bad_shape):
+    axis = np.linspace(-20, 20, bad_shape[-1])
+    with pytest.raises(ValueError, match="dimensional"):
+        cls(np.random.rand(*bad_shape), axis)
+
+
+def test_base_container_accepts_any_dimensionality():
+    axis = np.linspace(-20, 20, 10)
+    obj = SpectralContainer(np.random.rand(2, 3, 4, 5, 10), axis)
+    assert obj.shape == (2, 3, 4, 5)
+
+
+def test_peaks_on_image_uses_mean_spectrum():
+    axis = np.linspace(-10, 10, 41)
+    bump = np.exp(-((axis - 3) ** 2))
+    image = SpectralImage(np.tile(bump, (3, 3, 1)), axis)
+
+    peaks, _ = image.peaks(prominence=0.2)
+    spectrum_peaks, _ = Spectrum(bump, axis).peaks(prominence=0.2)
+
+    assert np.array_equal(peaks, spectrum_peaks)
+    assert axis[peaks[0]] == pytest.approx(3, abs=0.5)
+
+
 def test_metadata_and_px_size_default_to_empty():
     spectrum = Spectrum(np.random.rand(10), np.linspace(-20, 20, 10))
 

@@ -75,6 +75,11 @@ class SpectralContainer:
 
         brillouin_object = SpectralContainer(spectral_data, spectral_axis)
     """
+    #: Number of dimensions ``spectral_data`` must have for this class (spatial
+    #: dimensions + the trailing spectral one). ``None`` on the base container,
+    #: which accepts any dimensionality; set on the shape-specific subclasses.
+    _required_ndim = None
+
     def __init__(self, spectral_data, spectral_axis, *, metadata=None, px_size_um=None):
         # Convert to masked array if it isn't already one
         if np.ma.is_masked(spectral_data):
@@ -88,6 +93,13 @@ class SpectralContainer:
         self.px_size_um = _empty_px_size()
         if px_size_um:
             self.px_size_um.update(px_size_um)
+
+        if self._required_ndim is not None and self.spectral_data.ndim != self._required_ndim:
+            raise ValueError(
+                f"{type(self).__name__} requires {self._required_ndim}-dimensional data "
+                f"({self._required_ndim - 1} spatial + 1 spectral); got {self.spectral_data.ndim} "
+                f"dimensions (shape {self.spectral_data.shape}). Use a different container class "
+                f"or SpectralContainer for this shape.")
 
         if self.spectral_data.shape[-1] != len(self.spectral_axis):
             raise ValueError(
@@ -117,6 +129,35 @@ class SpectralContainer:
             metadata=copy.deepcopy(self.metadata),
             px_size_um=dict(self.px_size_um) if keep_px_size else None,
         )
+
+    @staticmethod
+    def _inherited_kwargs(source: SpectralContainer, *, keep_px_size: bool = True) -> dict:
+        """Constructor kwargs that carry ``source``'s metadata/pixel size forward."""
+        return {
+            "metadata": copy.deepcopy(source.metadata),
+            "px_size_um": dict(source.px_size_um) if keep_px_size else None,
+        }
+
+    def peaks(self, *, height=None, threshold=None, distance=None, prominence=None,
+              width=None, wlen=None, rel_height=0.5, plateau_size=None):
+        """
+        Finds peaks in the spectrum's intensity data.
+
+        A thin wrapper around :func:`scipy.signal.find_peaks`; all keyword arguments are
+        passed through unchanged, see its documentation for details. For an object with
+        spatial dimensions the peaks are found in its :attr:`mean` spectrum.
+
+        Returns
+        -------
+        peaks : numpy.ndarray
+            Indices of the detected peaks (into ``spectral_axis``).
+        properties : dict
+            The peak properties computed by :func:`scipy.signal.find_peaks`.
+        """
+        intensity = self.spectral_data if self.spectral_data.ndim == 1 else self.mean.spectral_data
+        return find_peaks(intensity, height=height, threshold=threshold, distance=distance,
+                          prominence=prominence, width=width, wlen=wlen, rel_height=rel_height,
+                          plateau_size=plateau_size)
 
     def save(self, filename: str, directory: str = None):
         """
@@ -155,10 +196,10 @@ class SpectralContainer:
         The spectral axes of the spectra provided must match.
         """
         if not utils.is_aligned(stack):
-            ValueError("Cannot stack unaligned spectral objects. Spectral axes must match.")
+            raise ValueError("Cannot stack unaligned spectral objects. Spectral axes must match.")
 
         return cls(np.vstack([obj.flat.spectral_data for obj in stack]), stack[0].spectral_axis,
-                   metadata=copy.deepcopy(stack[0].metadata), px_size_um=dict(stack[0].px_size_um))
+                   **cls._inherited_kwargs(stack[0]))
 
     @property
     def flat(self) -> SpectralContainer:
@@ -280,43 +321,7 @@ class Spectrum(SpectralContainer):
         brillouin_spectrum = Spectrum(spectral_data, spectral_axis)
     """
 
-    # def plot(self, **kwargs):
-    #     """
-    #     Plots the spectrum.
-
-    #     Parameters
-    #     ----------
-    #     **kwargs : keyword arguments, optional,
-    #         Check the :meth:`brillouinpy.plot.spectra' method for a list of keyword parameters.
-    #     """
-    #     return plot.spectra(self, **kwargs)
-
-    def peaks(self,
-              *,
-              height=None,
-              threshold=None,
-              distance=None,
-              prominence=None,
-              width=None,
-              wlen=None,
-              rel_height=0.5,
-              plateau_size=None,
-              ):
-        """
-        Finds peaks in the spectrum's intensity data.
-
-        A thin wrapper around :func:`scipy.signal.find_peaks`; all keyword arguments are
-        passed through unchanged, see its documentation for details.
-
-        Returns
-        -------
-        peaks : numpy.ndarray
-            Indices of the detected peaks (into ``spectral_data``/``spectral_axis``).
-        properties : dict
-            The peak properties computed by :func:`scipy.signal.find_peaks`.
-        """
-        peaks, properties = find_peaks(self.spectral_data,  height=height, threshold=threshold, distance=distance, prominence=prominence, width=width, wlen=wlen, rel_height=rel_height, plateau_size=plateau_size)
-        return peaks, properties
+    _required_ndim = 1
 
 
 class SpectralImage(SpectralContainer):
@@ -337,6 +342,8 @@ class SpectralImage(SpectralContainer):
 
         brillouin_image = SpectralImage(spectral_data, spectral_axis)
     """
+
+    _required_ndim = 3
 
     # def plot(self, bands: Union[Number, List[Number]], **kwargs):
     #     """
@@ -379,6 +386,8 @@ class SpectralVolume(SpectralContainer):
         brillouin_volume = SpectralVolume(spectral_data, spectral_axis)
     """
 
+    _required_ndim = 4
+
     @classmethod
     def from_image_stack(cls, image_stack: List[SpectralImage]) -> SpectralVolume:
         """
@@ -387,12 +396,11 @@ class SpectralVolume(SpectralContainer):
         All dimensions of the spectral images must match, as well as their spectral axes.
         """
         if not utils.is_aligned(image_stack):
-            ValueError("Cannot create a spectral volume out of unaligned spectral images. Spectral axes must match.")
+            raise ValueError("Cannot create a spectral volume out of unaligned spectral images. Spectral axes must match.")
 
-        first = image_stack[0]
         return cls(np.dstack([image.spectral_data[..., np.newaxis, :] for image in image_stack]),
-                   first.spectral_axis,
-                   metadata=copy.deepcopy(first.metadata), px_size_um=dict(first.px_size_um))
+                   image_stack[0].spectral_axis,
+                   **cls._inherited_kwargs(image_stack[0]))
 
     # def plot(self, bands, **kwargs):
     #     """
@@ -418,7 +426,7 @@ class SpectralVolume(SpectralContainer):
     def layer(self, layer_index: int) -> SpectralImage:
         """Returns the :class:`SpectralImage` layer specified by the given index as a SpectralImage. Index must be between 0 and z dimension - 1."""
         if not (0 <= layer_index <= self.shape[-1] - 1):
-            ValueError(
+            raise ValueError(
                 f"The layer index must be between 0 and {self.shape[-1] - 1} inclusively. Got {layer_index} instead.")
 
         return SpectralImage(self.spectral_data[..., layer_index, :], self.spectral_axis,
