@@ -6,7 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-03
+
+Makes acquisition metadata and pixel size a first-class part of the data model,
+adds generic multimodal support to `SpectralContainer`, and reorganises the
+loading/export functions under a new `brillouinpy.io` subpackage.
+
 ### Added
+- `SpectralContainer` (and subclasses) now carry `metadata` and `px_size_um`
+  dicts as first-class attributes, settable via the constructor. Both always
+  exist on an instance (default: `{}` and `{"x": None, "y": None, "z": None}`),
+  and derived objects (spatial slices, `flat`, `mean`, `variance`, `tolist`,
+  `from_stack`, `from_image_stack`, `layer`) inherit a copy. Pickles written
+  before these attributes existed load with the defaults filled in.
+- `io.from_brim` now also attaches the data group's pixel size to the returned
+  object as a `px_size_um` dict (`{"x"/"y"/"z": float_or_None}`, in micrometers),
+  alongside the existing `metadata` dict.
 - `SpectralContainer` can now carry co-acquired data in a `channels` dict
   (`{name: SpectralObject}`) - e.g. a Raman or fluorescence channel on the same
   sample. The mechanism is generic (no modality-specific types or reserved
@@ -14,8 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   spatial `shape` matches the container's follows along through indexing,
   `flat` and stacking; other channels are passed through untouched. Introspect
   with the new `channels_grid_conformant` property and `repr()`. `mean` /
-  `variance` carry no channels. `to_brim` / `to_hdf5_bls` do not export channels
-  (pickle `save`/`load` round-trips them). See
+  `variance` carry no channels. `io.to_brim` / `io.to_hdf5_bls` do not export
+  channels (pickle `save`/`load` round-trips them). See
   [`docs/design/multimodal_container.md`](docs/design/multimodal_container.md).
 - `Spectrum` / `SpectralImage` / `SpectralVolume` now validate their
   dimensionality at construction (`ndim` 1 / 3 / 4) and raise a clear
@@ -26,23 +41,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `SpectralContainer.peaks()` is now available on any spectral object, not just
   `Spectrum`; for an object with spatial dimensions it operates on the `mean`
   spectrum.
-- `SpectralContainer` (and subclasses) now carry `metadata` and `px_size_um`
-  dicts as first-class attributes, settable via the constructor. Both always
-  exist on an instance (default: `{}` and `{"x": None, "y": None, "z": None}`),
-  and derived objects (spatial slices, `flat`, `mean`, `variance`, `tolist`,
-  `from_stack`, `from_image_stack`, `layer`) inherit a copy. Pickles written
-  before these attributes existed load with the defaults filled in.
-- `io.from_brim` now also attaches the data group's pixel size to the returned
-  object as a `px_size_um` dict (`{"x"/"y"/"z": float_or_None}`, in micrometers),
-  alongside the existing `metadata` dict.
-
-### Fixed
-- `io.to_brim` now always writes an `Experiment.Datetime` metadata field (from the
-  new `acquisition_datetime` argument, a value already present in `metadata`, or
-  the current local time). Files written without any Experiment metadata made
-  BrimView fail with `AttributeError: 'NoneType' object has no attribute 'get'`.
-- `io.from_brim` no longer includes empty metadata categories in the returned
-  `metadata` dict.
+- A new "Writing your own loader" section in the tutorial (`docs/tutorial.md`),
+  explaining the minimal `(intensity_array, spectral_axis)` contract a custom
+  loader needs to satisfy to work with the rest of the package, using
+  `io.tfp.prepare_brillouin_data` as a worked example.
+- `CONTRIBUTING.md`, outlining development setup, project layout and conventions.
 
 ### Changed
 - `io.to_brim` reads `metadata` and the x/y/z pixel steps off the passed object
@@ -77,11 +80,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `prepare_brillouin_data`'s CSV-loading branch (carried over unnoticed from
   `load_spectral_image`; harmless but noisy).
 
-### Added
-- A new "Writing your own loader" section in the tutorial (`docs/tutorial.md`),
-  explaining the minimal `(intensity_array, spectral_axis)` contract a custom
-  loader needs to satisfy to work with the rest of the package, using
-  `io.tfp.prepare_brillouin_data` as a worked example.
+### Fixed
+- `io.to_brim` now always writes an `Experiment.Datetime` metadata field (from the
+  new `acquisition_datetime` argument, a value already present in `metadata`, or
+  the current local time). Files written without any Experiment metadata made
+  BrimView fail with `AttributeError: 'NoneType' object has no attribute 'get'`.
+- `io.from_brim` no longer includes empty metadata categories in the returned
+  `metadata` dict.
 
 ## [0.2.0] - 2026-08-27
 
