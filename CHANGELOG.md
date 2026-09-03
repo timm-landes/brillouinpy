@@ -6,7 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- `SpectralContainer` (and subclasses) now carry `metadata` and `px_size_um`
+  dicts as first-class attributes, settable via the constructor. Both always
+  exist on an instance (default: `{}` and `{"x": None, "y": None, "z": None}`),
+  and derived objects (spatial slices, `flat`, `mean`, `variance`, `tolist`,
+  `from_stack`, `from_image_stack`, `layer`) inherit a copy. Pickles written
+  before these attributes existed load with the defaults filled in.
+- `io.from_brim` now also attaches the data group's pixel size to the returned
+  object as a `px_size_um` dict (`{"x"/"y"/"z": float_or_None}`, in micrometers),
+  alongside the existing `metadata` dict.
+
+### Fixed
+- `io.to_brim` now always writes an `Experiment.Datetime` metadata field (from the
+  new `acquisition_datetime` argument, a value already present in `metadata`, or
+  the current local time). Files written without any Experiment metadata made
+  BrimView fail with `AttributeError: 'NoneType' object has no attribute 'get'`.
+- `io.from_brim` no longer includes empty metadata categories in the returned
+  `metadata` dict.
+
 ### Changed
+- `io.to_brim` reads `metadata` and the x/y/z pixel steps off the passed object
+  when the corresponding arguments are omitted, so a
+  `from_brim` -> process -> `to_brim` round-trip preserves metadata and pixel
+  size without the caller re-supplying them. Explicit arguments still take
+  precedence.
 - **Reorganised acquisition-side loaders and export/interop functions under a new
   `brillouinpy.io` subpackage**, split by purpose:
   - `io.tfp` - this group's actively used tandem Fabry-Perot loading path

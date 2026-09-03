@@ -373,6 +373,7 @@ def to_brim(
     *,
     sample: Optional[str] = None,
     laser_wavelength_nm: Optional[float] = None,
+    acquisition_datetime=None,
     metadata: Optional[dict] = None,
     fit_result: Optional[np.ndarray] = None,
     expected_peaks: Optional[int] = None,
@@ -414,7 +415,16 @@ def to_brim(
     laser_wavelength_nm : float, optional
         Excitation laser wavelength, in nm, stored as the "Optics.Wavelength"
         metadata field.
+    acquisition_datetime : str or datetime.datetime/date, optional
+        Value for the "Experiment.Datetime" metadata field (ISO 8601). If omitted,
+        a Datetime is still written - taken from ``metadata`` if present there
+        (e.g. a value round-tripped by :func:`from_brim`), otherwise the current
+        local time. brillouinpy always writes this field because some viewers
+        (BrimView) error out on a file whose Experiment metadata section is
+        missing entirely.
     metadata : dict[str, dict], optional
+        Defaults to ``spectral_object.metadata`` if the object has one (e.g. when
+        it came from :func:`from_brim`); pass a dict here to override that.
         Additional metadata, as ``{category: {attribute: value_or_(value, units)}}``,
         where ``category`` is the name of a ``brimfile.Metadata.Type`` member (e.g.
         ``"Brillouin"``, ``"Acquisition"``, ``"Spectrometer"``) and each attribute
@@ -437,6 +447,8 @@ def to_brim(
     x_step_um, y_step_um, z_step_um : float, optional
         Real-world pixel spacing along x/y/z, in micrometers - brim's ``px_size_um``
         is always in micrometers, unlike :func:`to_hdf5_bls`'s configurable unit.
+        Each axis not given here falls back to ``spectral_object.px_size_um`` if
+        the object carries one (e.g. from :func:`from_brim`).
         If omitted, that axis' pixel size is left undefined.
     overwrite : bool, optional
         Overwrite ``filepath`` if it already exists, by default False.
@@ -454,6 +466,21 @@ def to_brim(
 
     PSD = _spectral_data_to_zyx_psd(spectral_object)
     frequency = np.asarray(spectral_object.spectral_axis)
+
+    # Carry over the bits that :func:`from_brim` attaches to the object, so a
+    # from_brim -> (process) -> to_brim round-trip preserves them without the
+    # caller having to thread them through by hand. Anything passed explicitly
+    # still wins.
+    stored_px_size = getattr(spectral_object, "px_size_um", None) or {}
+    if x_step_um is None:
+        x_step_um = stored_px_size.get("x")
+    if y_step_um is None:
+        y_step_um = stored_px_size.get("y")
+    if z_step_um is None:
+        z_step_um = stored_px_size.get("z")
+
+    if metadata is None:
+        metadata = getattr(spectral_object, "metadata", None)
 
     if z_step_um is None and PSD.shape[0] == 1:
         # A single z-slice (e.g. a plain SpectralImage) has no real z-extent, so
@@ -501,6 +528,22 @@ def to_brim(
             }
             md.add(category, items)
 
+        # Always write an Experiment.Datetime. It is optional in the brim spec,
+        # but at least one viewer (BrimView) assumes the Experiment metadata
+        # section exists and crashes with "AttributeError: 'NoneType' object has
+        # no attribute 'get'" on a file that has none. Prefer, in order: an
+        # explicit 'acquisition_datetime', a value already carried in 'metadata'
+        # (e.g. round-tripped by from_brim), otherwise the current local time.
+        if "Datetime" not in (metadata or {}).get("Experiment", {}):
+            import datetime as _dt
+
+            value = acquisition_datetime
+            if value is None:
+                value = _dt.datetime.now().astimezone().isoformat(timespec="seconds")
+            elif isinstance(value, (_dt.datetime, _dt.date)):
+                value = value.isoformat()
+            md.add(brim.Metadata.Type.Experiment, {"Datetime": Item(str(value))})
+
         if fit_result is not None:
             fit_result = np.asarray(fit_result)
             if expected_peaks is None:
@@ -525,6 +568,39 @@ def to_brim(
             )
     finally:
         f.close()
+
+
+_MICROMETER_UNITS = {"um", "µm", "micron", "microns", "micrometer", "micrometre", "micrometers", "micrometres"}
+
+
+def _read_px_size_um(data_group) -> dict:
+    """
+    Best-effort read of a data group's pixel size, as ``{"x", "y", "z"} -> float|None``
+    in micrometers. Returns ``None`` for an axis whose size brim doesn't define (or
+    defines in units we don't recognise as micrometers).
+    """
+    from numbers import Number
+
+    result = {"x": None, "y": None, "z": None}
+    try:
+        # brimfile exposes this as a (z, y, x) tuple of Metadata.Item; it is a
+        # "private but stable" attribute (populated on open, no public accessor
+        # as of brimfile 1.7.0).
+        px_z, px_y, px_x = data_group._spatial_map_px_size
+    except (AttributeError, TypeError, ValueError):
+        return result
+
+    for axis, item in (("x", px_x), ("y", px_y), ("z", px_z)):
+        value = getattr(item, "value", None)
+        units = getattr(item, "units", None)
+        if not isinstance(value, Number):
+            continue
+        # units=None with value==1 is brimfile's "undefined" placeholder.
+        if units is None and value == 1:
+            continue
+        if units is None or str(units).lower() in _MICROMETER_UNITS:
+            result[axis] = float(value)
+    return result
 
 
 def from_brim(filepath: str, *, index: int = 0) -> core.SpectralObject:
@@ -553,7 +629,11 @@ def from_brim(filepath: str, *, index: int = 0) -> core.SpectralObject:
         based on the dimensionality of the stored data; a single spectrum stored in
         a 1x1-pixel data group comes back as a 1x1 ``SpectralImage``, since brim
         doesn't distinguish the two cases), with the data group's metadata attached
-        as a ``metadata`` dict of the form ``{category: {attribute: (value, units)}}``.
+        as a ``metadata`` dict of the form ``{category: {attribute: (value, units)}}``
+        and the pixel size attached as a ``px_size_um`` dict
+        (``{"x"/"y"/"z": float_or_None}``, in micrometers). :func:`to_brim` reads
+        both back off the object, so a ``from_brim`` -> process -> ``to_brim``
+        round-trip carries them over automatically.
     """
     brim = _open_brim()
 
@@ -561,8 +641,6 @@ def from_brim(filepath: str, *, index: int = 0) -> core.SpectralObject:
     try:
         data_group = f.get_data(index)
         PSD, frequency, _psd_units, _frequency_units = data_group.get_PSD_as_spatial_map(broadcast_frequency=False)
-
-        spectral_object = core._create_data(_zyx_psd_to_spectral_data(np.asarray(PSD)), np.asarray(frequency))
 
         try:
             raw_metadata = data_group.get_metadata().all_to_dict()
@@ -572,14 +650,18 @@ def from_brim(filepath: str, *, index: int = 0) -> core.SpectralObject:
             # initialise it, which fails because the file is open read-only here.
             raw_metadata = {}
 
-        spectral_object.metadata = {
+        metadata = {
             category: {
                 attribute: (item.value, item.units) for attribute, item in attributes.items()
             }
             for category, attributes in raw_metadata.items()
+            if attributes  # brimfile lists every known category; skip the empty ones
         }
 
-        return spectral_object
+        return core._create_data(
+            _zyx_psd_to_spectral_data(np.asarray(PSD)), np.asarray(frequency),
+            metadata=metadata, px_size_um=_read_px_size_um(data_group),
+        )
     finally:
         f.close()
 

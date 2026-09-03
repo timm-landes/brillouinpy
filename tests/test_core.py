@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 import pytest
 
@@ -137,6 +139,47 @@ def test_volume_layer_returns_image():
 
     assert isinstance(layer, SpectralImage)
     assert np.array_equal(layer.spectral_data, volume.spectral_data[..., 0, :])
+
+
+def test_metadata_and_px_size_default_to_empty():
+    spectrum = Spectrum(np.random.rand(10), np.linspace(-20, 20, 10))
+
+    assert spectrum.metadata == {}
+    assert spectrum.px_size_um == {"x": None, "y": None, "z": None}
+
+
+def test_metadata_and_px_size_carry_through_slicing_and_reductions():
+    axis = np.linspace(-20, 20, 10)
+    md = {"Experiment": {"Sample": ("water", None)}}
+    image = SpectralImage(np.random.rand(4, 3, 10), axis,
+                          metadata=md, px_size_um={"x": 0.5, "y": 0.25})
+
+    sliced = image[0]
+    assert sliced.metadata == md
+    assert sliced.px_size_um["x"] == 0.5
+
+    # derived objects get a copy, not a shared reference
+    sliced.metadata["Experiment"]["Sample"] = ("changed", None)
+    assert image.metadata["Experiment"]["Sample"] == ("water", None)
+
+    assert image.mean.metadata == md
+    assert image.flat.metadata == md
+    assert image.tolist()[0].metadata == md
+
+
+def test_metadata_survives_pickle_and_legacy_pickle_without_attrs(tmp_path):
+    axis = np.linspace(-20, 20, 10)
+    image = SpectralImage(np.random.rand(3, 3, 10), axis, metadata={"a": 1})
+    image.save("img.pkl", directory=str(tmp_path))
+    assert SpectralImage.load(str(tmp_path / "img.pkl")).metadata == {"a": 1}
+
+    # simulate a pickle written before metadata/px_size_um existed
+    legacy = SpectralImage(np.random.rand(3, 3, 10), axis)
+    del legacy.__dict__["metadata"]
+    del legacy.__dict__["px_size_um"]
+    restored = pickle.loads(pickle.dumps(legacy))
+    assert restored.metadata == {}
+    assert restored.px_size_um == {"x": None, "y": None, "z": None}
 
 
 def test_save_and_load_roundtrip(tmp_path):

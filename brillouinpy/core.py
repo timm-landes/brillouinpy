@@ -13,6 +13,7 @@ data doesn't need it), and Brillouin-specific docstring/unit updates.
 """
 
 from __future__ import annotations  # default if Python >= 3.10
+import copy
 from numbers import Number
 import os
 import pickle
@@ -24,15 +25,20 @@ from scipy.signal import find_peaks
 from . import utils
 
 
-def _create_data(spectral_data, spectral_axis):
+def _empty_px_size() -> dict:
+    return {"x": None, "y": None, "z": None}
+
+
+def _create_data(spectral_data, spectral_axis, *, metadata=None, px_size_um=None):
     if len(spectral_data.shape) == 1:
-        return Spectrum(spectral_data, spectral_axis)
+        cls = Spectrum
     elif len(spectral_data.shape) == 3:
-        return SpectralImage(spectral_data, spectral_axis)
+        cls = SpectralImage
     elif len(spectral_data.shape) == 4:
-        return SpectralVolume(spectral_data, spectral_axis)
+        cls = SpectralVolume
     else:
-        return SpectralContainer(spectral_data, spectral_axis)
+        cls = SpectralContainer
+    return cls(spectral_data, spectral_axis, metadata=metadata, px_size_um=px_size_um)
 
 
 class SpectralContainer:
@@ -46,6 +52,15 @@ class SpectralContainer:
         The intensity values to store. Last dimension must be the spectral dimension.
     spectral_axis : array_like of shape (B, )
         The Brillouin spectral axis (typically the frequency shift, in GHz). Order and length must match the last dimension of ``spectral_data``.
+    metadata : dict, optional
+        Free-form acquisition metadata carried alongside the data. Populated e.g.
+        by :func:`brillouinpy.io.from_brim` (as ``{category: {attribute: (value,
+        units)}}``) and read back by :func:`brillouinpy.io.to_brim`. Always a dict
+        on the instance (never ``None``); derived objects (slices, ``flat``,
+        ``mean``, ...) inherit a copy of it.
+    px_size_um : dict, optional
+        Real-world pixel spacing as ``{"x"/"y"/"z": float_or_None}`` in
+        micrometers. Always present on the instance (missing axes are ``None``).
 
     Example
     ----------
@@ -60,7 +75,7 @@ class SpectralContainer:
 
         brillouin_object = SpectralContainer(spectral_data, spectral_axis)
     """
-    def __init__(self, spectral_data, spectral_axis):
+    def __init__(self, spectral_data, spectral_axis, *, metadata=None, px_size_um=None):
         # Convert to masked array if it isn't already one
         if np.ma.is_masked(spectral_data):
             self.spectral_data = spectral_data
@@ -69,6 +84,10 @@ class SpectralContainer:
 
         self.spectral_axis = np.asarray(spectral_axis)
         self.instrument_response_function = None
+        self.metadata = {} if metadata is None else dict(metadata)
+        self.px_size_um = _empty_px_size()
+        if px_size_um:
+            self.px_size_um.update(px_size_um)
 
         if self.spectral_data.shape[-1] != len(self.spectral_axis):
             raise ValueError(
@@ -78,6 +97,26 @@ class SpectralContainer:
         sorted_indices = self.spectral_axis.argsort()
         self.spectral_data = self.spectral_data[..., sorted_indices]
         self.spectral_axis = self.spectral_axis[sorted_indices]
+
+    def __setstate__(self, state):
+        # Backwards compatibility: pickles written before metadata/px_size_um
+        # existed as attributes.
+        self.__dict__.update(state)
+        self.__dict__.setdefault("instrument_response_function", None)
+        self.__dict__.setdefault("metadata", {})
+        self.__dict__.setdefault("px_size_um", _empty_px_size())
+
+    def _derive(self, spectral_data, spectral_axis=None, *, keep_px_size=True):
+        """
+        Build a derived object of the appropriate type for ``spectral_data``,
+        carrying this object's metadata (and, by default, pixel size) forward.
+        """
+        return _create_data(
+            spectral_data,
+            self.spectral_axis if spectral_axis is None else spectral_axis,
+            metadata=copy.deepcopy(self.metadata),
+            px_size_um=dict(self.px_size_um) if keep_px_size else None,
+        )
 
     def save(self, filename: str, directory: str = None):
         """
@@ -118,7 +157,8 @@ class SpectralContainer:
         if not utils.is_aligned(stack):
             ValueError("Cannot stack unaligned spectral objects. Spectral axes must match.")
 
-        return cls(np.vstack([obj.flat.spectral_data for obj in stack]), stack[0].spectral_axis)
+        return cls(np.vstack([obj.flat.spectral_data for obj in stack]), stack[0].spectral_axis,
+                   metadata=copy.deepcopy(stack[0].metadata), px_size_um=dict(stack[0].px_size_um))
 
     @property
     def flat(self) -> SpectralContainer:
@@ -129,7 +169,8 @@ class SpectralContainer:
         -------
         numpy.ndarray of shape (dim_1*dim_2*...*dim_n, B)
         """
-        return SpectralContainer(self.spectral_data.reshape(-1, self.spectral_length), self.spectral_axis)
+        return SpectralContainer(self.spectral_data.reshape(-1, self.spectral_length), self.spectral_axis,
+                                 metadata=copy.deepcopy(self.metadata), px_size_um=dict(self.px_size_um))
 
     @property
     def shape(self) -> tuple[int]:
@@ -150,14 +191,16 @@ class SpectralContainer:
         """
         Returns the mean spectrum in the spectral object.
         """
-        return Spectrum(np.nanmean(self.flat.spectral_data, axis=0), self.spectral_axis)
+        return Spectrum(np.nanmean(self.flat.spectral_data, axis=0), self.spectral_axis,
+                        metadata=copy.deepcopy(self.metadata))
 
     @property
     def variance(self) -> Spectrum:
         """
         Returns the mean spectrum in the spectral object.
         """
-        return Spectrum(np.nanvar(self.flat.spectral_data, axis=0), self.spectral_axis)
+        return Spectrum(np.nanvar(self.flat.spectral_data, axis=0), self.spectral_axis,
+                        metadata=copy.deepcopy(self.metadata))
 
     # TODO: spatial vs spectral indexing
     def __getitem__(self, key):
@@ -191,7 +234,7 @@ class SpectralContainer:
         if len(spectral_data_slice.shape) == 0:
             return spectral_data_slice
         else:
-            return _create_data(spectral_data_slice, self.spectral_axis)
+            return self._derive(spectral_data_slice)
 
     def band(self, spectral_band: Number) -> np.ndarray:
         """Returns a spectral slice across the closest spectral band in the axis to the one given."""
@@ -215,7 +258,8 @@ class SpectralContainer:
         """
         unfolded_spectral_data = self.spectral_data.reshape(-1, self.spectral_length)
 
-        return [Spectrum(spectral_data, self.spectral_axis) for spectral_data in unfolded_spectral_data]
+        return [Spectrum(spectral_data, self.spectral_axis, metadata=copy.deepcopy(self.metadata))
+                for spectral_data in unfolded_spectral_data]
 
 
 class Spectrum(SpectralContainer):
@@ -345,8 +389,10 @@ class SpectralVolume(SpectralContainer):
         if not utils.is_aligned(image_stack):
             ValueError("Cannot create a spectral volume out of unaligned spectral images. Spectral axes must match.")
 
+        first = image_stack[0]
         return cls(np.dstack([image.spectral_data[..., np.newaxis, :] for image in image_stack]),
-                   image_stack[0].spectral_axis)
+                   first.spectral_axis,
+                   metadata=copy.deepcopy(first.metadata), px_size_um=dict(first.px_size_um))
 
     # def plot(self, bands, **kwargs):
     #     """
@@ -375,7 +421,9 @@ class SpectralVolume(SpectralContainer):
             ValueError(
                 f"The layer index must be between 0 and {self.shape[-1] - 1} inclusively. Got {layer_index} instead.")
 
-        return SpectralImage(self.spectral_data[..., layer_index, :], self.spectral_axis)
+        return SpectralImage(self.spectral_data[..., layer_index, :], self.spectral_axis,
+                             metadata=copy.deepcopy(self.metadata),
+                             px_size_um={"x": self.px_size_um.get("x"), "y": self.px_size_um.get("y")})
 
 
 # for typing

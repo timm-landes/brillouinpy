@@ -47,6 +47,35 @@ def test_to_brim_from_brim_roundtrip(tmp_path, image):
     assert reloaded.metadata["Optics"]["Wavelength"] == (532.1, "nm")
 
 
+def test_from_brim_to_brim_carries_over_metadata_and_px_size(tmp_path, image):
+    first = str(tmp_path / "first.brim.zarr")
+    second = str(tmp_path / "second.brim.zarr")
+
+    export.to_brim(
+        image, first,
+        sample="Sample A", laser_wavelength_nm=660.0,
+        x_step_um=0.25, y_step_um=0.75,
+    )
+
+    reloaded = export.from_brim(first)
+    assert reloaded.px_size_um["x"] == 0.25
+    assert reloaded.px_size_um["y"] == 0.75
+
+    # no metadata / px-size args: everything should ride along on the object
+    export.to_brim(reloaded, second)
+    again = export.from_brim(second)
+
+    assert again.metadata["Experiment"]["Sample"][0] == "Sample A"
+    assert again.metadata["Optics"]["Wavelength"] == (660.0, "nm")
+    assert again.px_size_um["x"] == 0.25
+    assert again.px_size_um["y"] == 0.75
+
+    # explicit args still win
+    third = str(tmp_path / "third.brim.zarr")
+    export.to_brim(reloaded, third, x_step_um=1.5)
+    assert export.from_brim(third).px_size_um["x"] == 1.5
+
+
 def test_to_brim_without_metadata_roundtrips_cleanly(tmp_path, image):
     # regression test for a brimfile <= 1.7.0 quirk: reading a data group that
     # never had any metadata written raises when the file is opened read-only.
@@ -55,7 +84,17 @@ def test_to_brim_without_metadata_roundtrips_cleanly(tmp_path, image):
     export.to_brim(image, filepath)
     reloaded = export.from_brim(filepath)
 
-    assert reloaded.metadata == {}
+    # to_brim always writes Experiment.Datetime (some viewers crash without it).
+    assert "Datetime" in reloaded.metadata["Experiment"]
+
+
+def test_to_brim_writes_explicit_acquisition_datetime(tmp_path, image):
+    filepath = str(tmp_path / "dt.brim.zarr")
+
+    export.to_brim(image, filepath, acquisition_datetime="2026-09-03T12:34:56")
+    reloaded = export.from_brim(filepath)
+
+    assert reloaded.metadata["Experiment"]["Datetime"][0] == "2026-09-03T12:34:56"
 
 
 def test_to_brim_raises_without_overwrite(tmp_path, image):
