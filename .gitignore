@@ -157,6 +157,9 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# Editors
+.vscode/
+
 # PyPI configuration file
 .pypirc
 .claude/settings.json

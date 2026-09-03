@@ -3,9 +3,9 @@
 
 BrillouinPy is a Python package for analyzing Brillouin light scattering (BLS) microscopy and imaging data - from raw spectra to instrument response deconvolution, damped harmonic oscillator (DHO) fitting, and multivariate analysis.
 
-Its data model and pipeline architecture originate as a fork of [RamanSPy](https://github.com/barahona-research-group/RamanSPy), a package built for Raman spectroscopy. Raman and Brillouin analysis share a lot of structure - spectral containers, preprocessing pipelines, decomposition/clustering workflows - but the two modalities differ in the physics that matters: Brillouin spectra don't need baseline correction the way Raman spectra do, since the background in BLS experiments is typically flat, but they do require removal of the elastically scattered light (Rayleigh or reference-beam peak) and are usually interpreted through a Lorentzian/DHO lineshape rather than discrete Raman bands. BrillouinPy keeps the parts of RamanSPy's architecture that generalize well and replaces or extends the rest with Brillouin-specific preprocessing and analysis: masked-array/NaN-aware pipelines, IRF deconvolution, and DHO peak fitting. See [`NOTICE.md`](NOTICE.md) for a file-by-file breakdown of what was adapted from RamanSPy and what changed.
+Its data model and pipeline architecture originate as a fork of [RamanSPy](https://github.com/barahona-research-group/RamanSPy), a package built for Raman spectroscopy. Raman and Brillouin analysis share a lot of structure - spectral containers, preprocessing pipelines, decomposition/clustering workflows - but the two modalities differ in the physics that matters: Brillouin spectra don't need baseline correction the way Raman spectra do, since the background in BLS experiments is typically flatter, but they do require removal of the elastically scattered light (Rayleigh or reference-beam peak) and are usually interpreted through a Lorentzian/DHO line shape rather than discrete Raman bands. BrillouinPy keeps the parts of RamanSPy's architecture that generalize well and replaces or extends the rest with Brillouin-specific preprocessing and analysis: masked-array/NaN-aware pipelines, instrumental response function deconvolution, and Lorentzian/DHO peak fitting. See [`NOTICE.md`](NOTICE.md) for a file-by-file breakdown of what was adapted from RamanSPy and what changed.
 
-**Note:** this package was renamed from `BrillouinAnalyzer` to `BrillouinPy`. Existing code doing `import brillouinanalyzer as bp` keeps working unchanged (it now emits a `DeprecationWarning` and re-exports everything from `brillouinpy`) - update your imports to `import brillouinpy as bp` when convenient.
+**Note:** this package was renamed from `BrillouinAnalyzer` to `BrillouinPy` earlier than v0.2.0. Existing code doing `import brillouinanalyzer as bp` keeps working unchanged (it now emits a `DeprecationWarning` and re-imports everything from `brillouinpy`) - update your imports to `import brillouinpy as bp` when convenient.
 
 This project is licensed under the BSD 3-Clause License (see [`LICENSE`](LICENSE)); see [`NOTICE.md`](NOTICE.md) for the third-party (RamanSPy, VCA) components it incorporates and their respective licenses.
 
@@ -74,7 +74,7 @@ pip install git+https://github.com/timm-landes/brillouinpy.git
    ```bash
    pip install --upgrade .
    ```
-   or, for an editable install:
+   or, for an editable installation:
    ```bash
    pip install -e .
    ```
