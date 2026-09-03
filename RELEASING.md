@@ -76,9 +76,6 @@ git push origin develop
 
   (`twine` reads the token from `~/.pypirc`.) Then sanity-check:
   `pip install --no-cache-dir BrillouinPy==X.Y.Z`.
-- **GitLab wiki:** if `docs/tutorial.md` changed, update the corresponding wiki
-  page at
-  `gitlab.uni-hannover.de/phytophotonics/brillouinpy/-/wikis` to match.
 
 ## 4. Post-release
 

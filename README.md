@@ -14,7 +14,7 @@ This project is licensed under the BSD 3-Clause License (see [`LICENSE`](LICENSE
 **Contributing:** bug reports and pull requests are welcome on the GitHub repository - see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development setup, coding conventions, and how to run the test suite/linter locally.
 
 ## Documentation
-A step-by-step [Tutorial](docs/tutorial.md) walking through the `examples/` folder, and the full API reference (built from the doc strings in this package), are published via GitHub Pages: **https://timm-landes.github.io/brillouinpy/**. They're rebuilt automatically on every push to `main`, i.e. on each release (see [`.github/workflows/docs.yml`](.github/workflows/docs.yml)); day-to-day development happens on `develop`. The same build also runs on the internal GitLab mirror's CI (find the link under **Deploy → Pages** in the GitLab project), reachable only from within the LUH network.
+A step-by-step [Tutorial](docs/tutorial/) walking through the `examples/` folder, and the full API reference (built from the doc strings in this package), are published via GitHub Pages: **https://timm-landes.github.io/brillouinpy/**. They're rebuilt automatically on every push to `main`, i.e. on each release (see [`.github/workflows/docs.yml`](.github/workflows/docs.yml)); day-to-day development happens on `develop`. The same build also runs on the internal GitLab mirror's CI (find the link under **Deploy → Pages** in the GitLab project), reachable only from within the LUH network.
 
 To build it locally instead:
 ```bash
@@ -80,7 +80,7 @@ pip install git+https://github.com/timm-landes/brillouinpy.git
    ```
 
 ## Example
-The [`examples`](examples/) folder contains complete, runnable scripts covering typical workflows, including multivariate/ML-based analysis. For a guided, illustrated walkthrough, see the [Tutorial](docs/tutorial.md).
+The [`examples`](examples/) folder contains complete, runnable scripts covering typical workflows, including multivariate/ML-based analysis. For a guided, illustrated walkthrough, see the [Tutorial](https://timm-landes.github.io/brillouinpy/tutorial/).
 
 The snippet below loads a measurement, preprocesses it and fits the Brillouin
 doublet. The [`examples/`](examples/) scripts cover each step in more depth (and

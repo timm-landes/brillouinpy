@@ -1,0 +1,240 @@
+# Exploratory analysis
+
+*Scripts: `examples/04_classical_analysis.py`, `05_unmix_vca.py`, `06_decompose_nmf.py`, `07_decompose_pca.py`, `08_cluster_kmeans.py`*
+
+Before reaching for a peak-fitting model, it pays to build a picture of the
+dataset's structure: how many Brillouin modes are present, and whether the sample
+is spatially homogeneous or a mix of regions/materials. This page covers the four
+model-free approaches - classical mean/variance statistics, spectral unmixing,
+matrix decomposition, and clustering - that all feed the same answer into the
+[fitting step](fitting.md): a value for `expected_peaks` and a rough `p0`.
+
+`analysis.decompose.PCA`/`NMF`, every `analysis.unmix` method and
+`analysis.cluster.KMeans` share one interface:
+`apply(spectral_object) -> (projections, components)`. Anything that works with one
+works with the others.
+
+## Classical mean/variance analysis
+
+The **mean spectrum** answers *where are the peaks?*; the **variance spectrum**
+answers *which of those peaks actually change from pixel to pixel*, rather than
+being a constant background feature or a shared noise floor. Both are available
+directly off any spectral object:
+
+```python
+mean_spectrum = preprocessed_image.mean
+variance_spectrum = preprocessed_image.variance
+```
+
+This matters most for data holding more than one Brillouin doublet, especially when
+those doublets overlap closely enough to blend into what looks like a single peak -
+the mean spectrum alone can't tell you how many independent modes are actually mixed
+in. This step therefore uses a variant of the two-material synthetic dataset from
+the sections below (`two_material_image()`) with its two materials' frequency shifts
+moved much closer together than that function's default (6.0/11.0 GHz), so the two
+doublets fully merge in the mean spectrum instead of sitting cleanly apart:
+
+```{image} /_static/tutorial/04_classical_analysis.png
+:alt: Left, the mean spectrum showing what looks like a single symmetric doublet. Right, the variance spectrum over the same range, showing two close, sharp peaks on each side (four total), each pair straddling the corresponding mean-spectrum peak, with a much flatter floor between and around them than the mean spectrum has.
+:width: 720px
+:align: center
+```
+
+The mean spectrum alone looks like a single, ordinary doublet - but the variance
+spectrum reveals two peaks hiding on each side: `bp.plot.peaks` (built on
+`scipy.signal.find_peaks`) marks four sharp variance peaks, straddling each mean
+peak, because that's where the intensity actually changes from pixel to pixel across
+the image (the local mix of the two materials shifts spatially; a genuine single
+peak's flat top would not vary that way). Denoising beforehand
+(`preprocessing.denoise.SavGol`) matters more here than in earlier steps, since the
+variance spectrum squares per-pixel noise and can otherwise turn it into spurious
+extra local maxima. Real Brillouin peaks come in +/- pairs, so half the variance-peak
+count gives the number of independent modes ('doublets') worth analysing further:
+
+```python
+n_doublets = len(found_peaks) // 2   # 4 peaks -> 2 doublets, here
+```
+
+That number feeds directly into `n_endmembers`/`n_components`/`n_clusters` for the
+unmixing/decomposition/clustering below, and into `expected_peaks` for
+[fitting](fitting.md) - a first, model-free estimate instead of guessing blind. A
+rough `p0` for the fit can be read off the mean spectrum the same way: the
+approximate peak positions and widths are usually visible by eye once you know how
+many to look for.
+
+## Spectral unmixing
+
+Instead of fitting individual peaks, unmixing finds a small number of "pure"
+spectra (**endmembers**) that best explain the whole spectral image, plus a
+per-pixel **abundance map** of how much of each is present - useful to separate
+spatially mixed materials without assuming a peak model up front, e.g. when the
+number/shape of peaks per material isn't known ahead of time or varies across the
+sample.
+
+### Choosing how many endmembers/components/clusters
+
+The variance spectrum above already gives a first, model-free estimate of the count
+to use - `analysis.variance_explained` complements it with a second, quantitative
+check that works directly against whichever method you're about to run:
+
+```python
+variances = bp.analysis.variance_explained(
+    preprocessed_image,
+    lambda n: bp.analysis.unmix.VCA(n_endmembers=n, abundance_method='ucls'),
+    param_values=range(1, 5),
+)
+```
+
+```{image} /_static/tutorial/05a_variance_explained.png
+:alt: Line plot of variance explained versus n_endmembers, showing a sharp jump from n=1 to n=2 followed by an almost flat line for n=3 and n=4 - a clear elbow at 2.
+:width: 480px
+:align: center
+```
+
+For each count in `param_values`, this fits the given method, reconstructs the data
+as `projections @ components`, and returns the fraction of variance that
+reconstruction explains (`{1: ..., 2: ..., ...}`) - plot it and look for the
+"elbow" where adding another endmember/component/cluster stops meaningfully
+improving the fit, rather than guessing `n_endmembers` blind. Here that's a sharp
+jump from `n_endmembers=1` to `2`, then almost no further gain at `3` or `4` -
+confirming 2 is the right count for this two-material dataset. Note that the
+*absolute* level doesn't have to approach `1.0` to be a useful signal, especially
+for spectral data: the metric weighs every channel equally, but a typical spectrum
+is mostly flat baseline with only a couple of narrow peaks actually carrying
+structure that varies with the endmembers/components - so measurement noise on
+that (large) baseline dominates the total variance, capping the achievable value
+well below `1.0` even for a perfect model. It's the shape of the curve (the
+elbow), not its height, that tells you how many to use - the same reasoning
+`sklearn.decomposition.PCA.explained_variance_ratio_` is built on.
+
+Because every method shares the same `apply() -> (projections, components)`
+interface, the exact same `variance_explained` call works unchanged for any of
+them - just swap the `lambda` for e.g.
+`lambda n: bp.analysis.decompose.NMF(n_components=n, init='nndsvda')` or
+`lambda n: bp.analysis.cluster.KMeans(n_clusters=n, random_state=0)`.
+
+### Finding the endmembers
+
+```python
+unmixer = bp.analysis.unmix.VCA(n_endmembers=2, abundance_method='ucls')
+abundance_maps, endmembers = unmixer.apply(preprocessed_image)
+```
+
+```{image} /_static/tutorial/05_vca_unmixing.png
+:alt: Left, two endmember spectra found by VCA, each a clean symmetric doublet at a different frequency shift. Right, the corresponding abundance map, showing a smooth vertical gradient from one endmember's colour at the top to the other's at the bottom.
+:width: 720px
+:align: center
+```
+
+On this synthetic dataset - two materials mixed with a smooth top-to-bottom spatial
+gradient - VCA recovers both underlying spectra cleanly and the abundance map
+correctly reproduces that gradient, without ever being told the mixing ratio or the
+peak positions.
+
+`analysis.unmix` also provides `NFINDR`, `PPI` and `FIPPI` with the exact same
+interface. VCA is used in the example because it's implemented natively in
+`brillouinpy`, whereas the other three delegate to the
+[pysptools](https://pysptools.sourceforge.io/) package - as of pysptools 0.15.0
+together with scipy >= 1.13, that dependency calls a private scipy API that has
+since been removed, so those three currently fail with `AttributeError: module
+'scipy.linalg' has no attribute '_flinalg'`. If your environment has an
+older/compatible scipy, they remain a drop-in alternative to VCA. `abundance_method`
+picks how the abundance maps are derived once the endmembers are known: `'ucls'`
+(unconstrained least squares) is fastest, `'nnls'` additionally forces abundances to
+be non-negative, and `'fcls'` further constrains them to sum to 1 per pixel (the
+physically strictest choice, and the slowest).
+
+VCA assumes at least one (near-)pure pixel is present per endmember - i.e.
+somewhere in the image, each material dominates the pixel almost completely - and
+needs that to reliably recover the correct endmembers. The gradient built into
+`two_material_image()` reaches abundance 0/1 at its edges, so that assumption holds
+in this example; real data without any sufficiently pure pixels can make VCA's
+endmembers inaccurate. NMF (next section) makes no such assumption - it optimises
+all components simultaneously against the whole dataset - which is worth trying as
+a cross-check if you suspect your data lacks pure pixels (see Prats-Mateu et al.,
+["Multivariate unmixing approaches on Raman images of plant cell walls: new
+insights or overinterpretation of results?"](https://doi.org/10.1186/s13007-018-0320-9),
+Plant Methods 14:52, 2018).
+
+## Decomposition with NMF and PCA
+
+`analysis.decompose` wraps scikit-learn's decomposition methods behind the same
+`apply(spectral_object) -> (scores, components)` interface as the fitting and
+unmixing steps above:
+
+```python
+nmf = bp.analysis.decompose.NMF(n_components=2, init='nndsvda', max_iter=500)
+scores, components = nmf.apply(preprocessed_image)   # scores: per-pixel maps, components: source spectra
+
+pca = bp.analysis.decompose.PCA(n_components=3)
+scores, components = pca.apply(preprocessed_image)   # scores: per-pixel maps, components: loading vectors
+```
+
+**NMF** requires non-negative data (use `preprocessing.normalise.MinMax` beforehand
+if needed) and, like unmixing, decomposes the data into non-negative source spectra
+that can often be interpreted as "pure" materials directly:
+
+```{image} /_static/tutorial/06_nmf.png
+:alt: Two rows: top row, two score maps each showing the same top-to-bottom gradient as the VCA abundance maps, one increasing downward and the other upward. Bottom row, the two corresponding NMF component spectra, each a symmetric doublet at a different frequency shift, resembling the two mixed materials.
+:width: 900px
+:align: center
+```
+
+The two NMF components closely mirror the two VCA endmembers - on this
+dataset, unmixing and NMF converge on essentially the same answer via different
+algorithms, which is a useful cross-check when unsure which method suits your data.
+
+**PCA** instead describes variation *around the mean spectrum* - its components can
+be negative and aren't directly interpretable as material spectra, but it's a fast
+way to spot spatial structure/heterogeneity in a dataset, e.g. before clustering
+(`analysis.cluster`):
+
+```{image} /_static/tutorial/07_pca.png
+:alt: Three columns: score maps and loading spectra for PC1 through PC3. PC1's score map shows a clear top-to-bottom gradient and its loading a derivative-like doublet shape. PC2 and PC3's score maps look like unstructured noise, and their loadings are progressively noisier with no clear peak shape.
+:width: 900px
+:align: center
+```
+
+Requesting `n_components=3` here, even though the data only has two real underlying
+materials, illustrates a common PCA reading exercise: PC1's score map clearly
+recovers the same spatial gradient as VCA/NMF, and its loading spectrum has the
+derivative-like shape typical of "the difference between the two mixed spectra".
+PC2 and PC3, by contrast, have score maps that look like unstructured noise and
+loadings with no clear peak shape - past the first (real) component, PCA is just
+fitting noise. In practice, this is exactly how you'd use PCA to decide how many
+components are worth keeping for further analysis: keep the ones with structured
+score maps and interpretable loadings, discard the ones that look like noise.
+
+## Clustering
+
+`analysis.cluster.KMeans` takes a different approach again: instead of the *soft*,
+continuous membership maps produced by unmixing/decomposition above, it assigns
+every pixel to exactly one of `n_clusters` groups based on spectral similarity - a
+hard partition rather than a mixture. Useful as a quick, model-free way to segment a
+spectral image, e.g. as a first pass before deciding how many
+endmembers/components a more detailed unmixing/decomposition analysis should look
+for.
+
+```python
+kmeans = bp.analysis.cluster.KMeans(n_clusters=2, random_state=0)
+memberships, centers = kmeans.apply(preprocessed_image)
+# memberships: list of n_clusters (x, y) one-hot maps
+# centers: list of n_clusters cluster-centre spectra
+
+# Collapse the one-hot maps into a single (x, y) label map for display
+cluster_map = np.argmax(np.stack(memberships, axis=-1), axis=-1)
+```
+
+```{image} /_static/tutorial/08_kmeans.png
+:alt: Left, a two-colour cluster assignment map showing a clean, roughly horizontal boundary splitting the image into a top and bottom region, matching the synthetic gradient. Right, the two cluster-centre spectra, each a symmetric doublet at a different frequency shift, closely resembling the two mixed materials' spectra.
+:width: 720px
+:align: center
+```
+
+On this synthetic dataset, `n_clusters=2` k-means recovers essentially the same
+top-to-bottom split as VCA/NMF/PCA above, and its cluster-centre spectra closely
+resemble the two underlying materials - a useful cross-check that all four methods
+agree on this dataset's structure. Unlike unmixing/NMF, however, k-means gives each
+pixel a single hard label rather than a mixing fraction, so it's a better fit when
+you expect genuinely distinct regions (e.g. different tissue types) rather than a
+continuous gradient of mixed composition like the one simulated here.

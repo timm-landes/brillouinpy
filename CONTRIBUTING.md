@@ -49,7 +49,7 @@ ruff check .
 pytest tests/ -v
 ```
 
-If you change `docs/tutorial.md`, `docs/`, or any docstrings, also build the docs locally
+If you change anything under `docs/` or any docstrings, also build the docs locally
 to check for Sphinx warnings before opening a PR:
 
 ```bash
@@ -71,7 +71,7 @@ A quick map, so new code ends up in the right place:
   - `io.tfp` - this group's actively used tandem Fabry-Perot loading path. If you're
     adding support for reading data from a different setup/lab, model it on this module
     rather than extending it - see the "Writing your own loader" section of the
-    [tutorial](docs/tutorial.md) for the minimal contract a loader needs to satisfy.
+    [tutorial](docs/tutorial/custom-loader.md) for the minimal contract a loader needs to satisfy.
   - `io.legacy` - superseded loaders kept only for reading old datasets. Don't add new
     functionality here.
   - `io.multimodal` - loaders for modalities other than the group's primary setup

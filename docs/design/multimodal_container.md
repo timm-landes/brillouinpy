@@ -62,8 +62,7 @@ Estimate: ~0.5 day.
 Tests: round-trip test (`brillouinpy -> ramanspy -> brillouinpy`), if `ramanspy` is available as a test dependency.
 
 ### Phase 6 - Documentation
-- `docs/tutorial.md` plus a new example in `examples/` (multimodal workflow: load Brillouin+Raman+brightfield/fluorescence, calibrate/register, colocalize).
-- GitLab wiki sync when `docs/tutorial.md` changes (existing project convention).
+- A new tutorial page under `docs/tutorial/` plus a new example in `examples/` (multimodal workflow: load Brillouin+Raman+brightfield/fluorescence, calibrate/register, colocalize).
 
 Estimate: ~0.5-1 day.
 
