@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-03
+
+Documentation and repository-workflow changes only; no code changes.
+
+### Changed
+- Development now happens on a `develop` branch; `main` is release-only and
+  protected. Added [`RELEASING.md`](RELEASING.md) and a "Branching and pull
+  requests" section to `CONTRIBUTING.md`. Refreshed the `README.md` quick-start
+  example (META.json-derived frequency axis, `metadata`, a DHO fit).
+- Restructured the documentation site: the front page is now a short landing page
+  instead of the full README, installation moved to its own page, and the
+  single-file tutorial was split into per-stage pages under `docs/tutorial/`
+  (loading / preprocessing / exploratory analysis / fitting / exporting / custom
+  loader). The GitLab wiki mirror of the tutorial is retired in favour of the
+  GitHub Pages site.
+
 ## [0.3.0] - 2026-09-03
 
 Makes acquisition metadata and pixel size a first-class part of the data model,

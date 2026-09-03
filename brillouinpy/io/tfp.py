@@ -8,7 +8,7 @@ kept for old datasets) and :mod:`brillouinpy.io.multimodal` (Raman).
 
 If your own setup/lab uses a different raw-data layout, this module is meant as a
 worked example to model a custom loader on - see the "Writing your own loader"
-section of the tutorial (``docs/tutorial.md``).
+page of the tutorial (``docs/tutorial/custom-loader.md``).
 """
 import json
 import os

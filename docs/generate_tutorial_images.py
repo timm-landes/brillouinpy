@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Regenerates the figures embedded in docs/tutorial.md (docs/_static/tutorial/*.png).
+Regenerates the figures embedded in the docs/tutorial/ pages (docs/_static/tutorial/*.png).
 
 Run with:
 

@@ -49,7 +49,9 @@ intersphinx_mapping = {
 }
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+# "design/" holds internal planning notes, not user-facing documentation - keep it
+# in the repo but out of the built site.
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "design/*"]
 
 html_theme = "furo"
 html_static_path = ["_static"]
