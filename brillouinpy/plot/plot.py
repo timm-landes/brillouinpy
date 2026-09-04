@@ -605,6 +605,82 @@ def volume(
     return ax
 
 
+def phasor(
+        result,
+        *,
+        ax=None,
+        bins: int = 200,
+        cmap: str = 'viridis',
+        title: str = "Spectral phasor plot",
+        reference_circle: bool = True,
+        **hist_kwargs
+):
+    """
+    Visualising a spectral phasor cloud (see
+    :func:`brillouinpy.analysis.phasor.phasor`).
+
+    Every pixel's phasor ``(G, S)`` is shown as a 2D histogram in the phasor
+    plane. Distinct materials / compartments show up as separate clusters.
+
+    Parameters
+    -----------
+    result : brillouinpy.analysis.phasor.PhasorResult
+        The phasor transform to plot.
+    ax : matplotlib.axes.Axes, optional
+        Axes to draw into. Default: a new figure/axes.
+    bins : int, optional
+        Number of bins per axis for the 2D histogram. Default ``200``.
+    cmap : str, optional
+        Colormap for the density. Default ``'viridis'``.
+    title : str, optional
+        Plot title. Default ``'Spectral phasor plot'``.
+    reference_circle : bool, optional
+        Whether to overlay the unit circle (the locus of an infinitely sharp
+        single spectral line, the outer bound of the phasor cloud). Default
+        ``True``.
+    **hist_kwargs :
+        Passed to `matplotlib.pyplot.hist2d <https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.hist2d.html>`_.
+
+    Returns
+    -------
+    matplotlib.axes.Axes :
+        The Axes object of the plot.
+
+    Examples
+    ---------
+
+    .. code::
+
+        import brillouinpy as bp
+
+        ph = bp.analysis.phasor.phasor(image, axis_range=(4, 12), background='min')
+        bp.plot.phasor(ph)
+        bp.plot.show()
+    """
+    G = np.asarray(result.G).reshape(-1)
+    S = np.asarray(result.S).reshape(-1)
+    finite = np.isfinite(G) & np.isfinite(S)
+    G, S = G[finite], S[finite]
+
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    ax.hist2d(G, S, bins=bins, cmap=cmap, cmin=1, **hist_kwargs)
+
+    if reference_circle:
+        theta = np.linspace(0, 2 * np.pi, 400)
+        ax.plot(np.cos(theta), np.sin(theta), 'k--', linewidth=0.8)
+
+    ax.axhline(0, color='grey', linewidth=0.5)
+    ax.axvline(0, color='grey', linewidth=0.5)
+    ax.set_xlabel('G')
+    ax.set_ylabel('S')
+    ax.set_title(title)
+    ax.set_aspect('equal')
+
+    return ax
+
+
 def peak_dist(
         spectra: Union[SpectralObject, List[SpectralObject], List[List[SpectralObject]]],
         band: Number,

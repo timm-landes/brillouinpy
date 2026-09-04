@@ -1,7 +1,8 @@
 from . import fitmodel
+from . import phasor
 from .Step import variance_explained
 
-__all__ = ["cluster", "decompose", "unmix", "fitmodel", "variance_explained"]
+__all__ = ["cluster", "decompose", "unmix", "fitmodel", "phasor", "variance_explained"]
 
 
 def __getattr__(name):

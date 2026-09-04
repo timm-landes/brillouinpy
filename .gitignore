@@ -13,6 +13,9 @@ pp_data/
 # Local/untracked scratch scripts (e.g. examples/run_pipeline_local.py)
 examples/*_local.py
 
+# Method-comparison benchmark scripts - kept local for now, not ready for the repo
+benchmarks/
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
