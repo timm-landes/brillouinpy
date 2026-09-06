@@ -390,6 +390,114 @@ def image_with_irf(nx=15, ny=15, n_channels=250, freq_shift=8.5, linewidth=1.0,
     return bp.SpectralImage(spectral_data, spectral_axis), irf_index
 
 
+def irf_broadened_image(nx=30, ny=30, n_channels=300, component_shift=6.5,
+                        intrinsic_linewidth_background=0.9, intrinsic_linewidth_blob=0.45,
+                        irf_fwhm=0.5, irf_shape='lorentzian', elastic_amplitude=0.0,
+                        noise_model='poisson', noise=6e-4, peak_photons=250,
+                        seed=7, geometry='blob', edge='sharp'):
+    """
+    A :class:`~brillouinpy.SpectralImage` whose spectra are an intrinsic DHO doublet
+    *convolved with a known instrument response function* (IRF) - the case
+    :class:`brillouinpy.analysis.fitmodel.DHO`'s ``irf=`` argument is built for.
+
+    Every pixel holds one Brillouin doublet at ``component_shift`` GHz. The intrinsic
+    (pre-IRF) linewidth is ``intrinsic_linewidth_background`` outside a centred blob and
+    ``intrinsic_linewidth_blob`` inside it, so linewidth recovery can be scored against a
+    known two-valued map. The clean spectrum is then convolved with an IRF of full width
+    ``irf_fwhm`` (:func:`brillouinpy.analysis.fitmodel.irf_kernel`), which broadens every
+    line - a plain DHO fit sees ``intrinsic + instrumental`` width, an ``irf=``-aware fit
+    recovers the intrinsic width.
+
+    Parameters
+    ----------
+    component_shift : float
+        Brillouin shift (GHz) of the doublet (placed symmetrically at +/- this value).
+    intrinsic_linewidth_background, intrinsic_linewidth_blob : float
+        Intrinsic DHO linewidths (GHz), before IRF convolution, outside / inside the blob.
+    irf_fwhm : float
+        Full width at half maximum (GHz) of the IRF.
+    irf_shape : {'lorentzian', 'gaussian', 'voigt'}
+        IRF lineshape. ``'voigt'`` splits ``irf_fwhm`` evenly between its Lorentzian and
+        Gaussian parts.
+    elastic_amplitude : float
+        If > 0, add a narrow elastic / Rayleigh peak at zero shift with this amplitude
+        (relative to the Brillouin peak height), so a measured IRF can be extracted from
+        the data itself. Its channels are *not* zeroed - crop them with
+        :class:`~brillouinpy.preprocessing.misc.IRF_Remover` before fitting.
+    noise_model, noise, peak_photons :
+        As in :func:`additive_blob_image`.
+    geometry : {'blob', 'half'}
+    edge : {'sharp', 'soft'}
+
+    Returns
+    -------
+    image : SpectralImage
+    intrinsic_linewidth_map : numpy.ndarray of float
+        ``(nx, ny)`` ground-truth intrinsic linewidth per pixel (GHz).
+    info : dict
+        ``{'irf_fwhm', 'irf_shape', 'component_shift', 'irf_kernel'}`` - ``irf_kernel`` is
+        the exact normalised kernel used, ready to pass as ``DHO(..., irf=info['irf_kernel'])``.
+    """
+    rng = np.random.default_rng(seed)
+
+    spectral_axis = bp.utils.brillouin_spectral_axis(
+        mirror_spacing=6e-3, scan_amplitude=480e-9, no_of_channels=n_channels
+    )
+
+    if irf_shape == 'voigt':
+        irf_spec = ('voigt', irf_fwhm / 2, irf_fwhm / 2)
+    elif irf_shape in ('lorentzian', 'gaussian'):
+        irf_spec = (irf_shape, irf_fwhm)
+    else:
+        raise ValueError(f"irf_shape must be 'lorentzian', 'gaussian' or 'voigt', got {irf_shape!r}.")
+    kernel = bp.analysis.fitmodel.irf_kernel(irf_spec, spectral_axis)
+
+    def _broadened(linewidth):
+        intrinsic = _dho(spectral_axis, 5e-3, component_shift, linewidth)
+        pad = kernel.size
+        return np.convolve(np.pad(intrinsic, pad, mode='edge'), kernel, mode='same')[pad:-pad]
+
+    if geometry == 'blob':
+        blob = _blob(nx, ny, cx=ny / 2, cy=nx / 2, radius=min(nx, ny) / 3)
+    elif geometry == 'half':
+        blob = np.tile((np.arange(ny) >= ny / 2).astype(float), (nx, 1))
+    else:
+        raise ValueError(f"geometry must be 'blob' or 'half', got {geometry!r}.")
+    inside = blob >= 0.5 if edge == 'sharp' else np.clip(blob, 0, 1)
+    if edge not in ('sharp', 'soft'):
+        raise ValueError(f"edge must be 'sharp' or 'soft', got {edge!r}.")
+
+    bg_spectrum = _broadened(intrinsic_linewidth_background)
+    blob_spectrum = _broadened(intrinsic_linewidth_blob)
+    weight = inside.astype(float)
+    spectral_data = ((1 - weight)[..., None] * bg_spectrum[None, None, :]
+                     + weight[..., None] * blob_spectrum[None, None, :]) + 1e-4
+
+    intrinsic_linewidth_map = (intrinsic_linewidth_background
+                               + weight * (intrinsic_linewidth_blob - intrinsic_linewidth_background))
+
+    if elastic_amplitude > 0:
+        # A narrow elastic / Rayleigh line at zero shift, shaped like the IRF itself
+        # (that is what it physically is) and scaled to elastic_amplitude x the Brillouin
+        # peak height. Placed at the central channel.
+        peak_height = float(spectral_data.max())
+        centre = n_channels // 2
+        half = kernel.size // 2
+        lo, hi = max(0, centre - half), min(n_channels, centre + half + 1)
+        elastic = np.zeros(n_channels)
+        elastic[lo:hi] = kernel[half - (centre - lo):half + (hi - centre)]
+        elastic *= elastic_amplitude * peak_height / elastic.max()
+        spectral_data = spectral_data + elastic[None, None, :]
+
+    photon_scale = peak_photons / spectral_data.max()
+    spectral_data = _add_noise(spectral_data, rng, noise_model=noise_model,
+                               noise=noise, photon_scale=photon_scale)
+
+    info = {'irf_fwhm': irf_fwhm, 'irf_shape': irf_shape,
+            'component_shift': component_shift, 'irf_kernel': kernel}
+    return bp.SpectralImage(spectral_data, spectral_axis), intrinsic_linewidth_map, info
+
+
 def two_material_image(nx=20, ny=20, n_channels=250, noise=3e-4, seed=1,
                         freq_shift_a=6.0, freq_shift_b=11.0):
     """

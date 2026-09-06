@@ -8,8 +8,9 @@ from brillouinpy.analysis.fitmodel import (
     _Lorentzian_1,
     DHO,
     estimate_p0,
+    irf_kernel,
 )
-from brillouinpy.core import Spectrum
+from brillouinpy.core import Spectrum, SpectralImage
 
 
 def test_dho1_peaks_near_freq_shift():
@@ -131,3 +132,58 @@ def test_estimate_p0_rejects_invalid_expected_peaks():
 
     with pytest.raises(ValueError):
         estimate_p0(spectrum, expected_peaks=4)
+
+
+# --- IRF convolution -------------------------------------------------------- #
+
+def test_irf_kernel_parametric_and_measured_are_normalised_and_centred():
+    axis = np.linspace(-15, 15, 400)
+
+    for spec in (("lorentzian", 0.5), ("gaussian", 0.5), ("voigt", 0.3, 0.4)):
+        k = irf_kernel(spec, axis)
+        assert k.size % 2 == 1
+        assert k.sum() == pytest.approx(1.0)
+        assert np.argmax(k) == k.size // 2  # symmetric, centred
+
+    # a measured (noisy, off-centre, sloping-baseline) sample still normalises/centres
+    grid = np.arange(-20, 21) * (axis[1] - axis[0])
+    measured = 1.0 / (1.0 + (grid / 0.25) ** 2) + 0.05 + 0.001 * grid
+    k = irf_kernel(measured, axis)
+    assert k.sum() == pytest.approx(1.0)
+    assert np.argmax(k) == k.size // 2
+
+
+def test_irf_kernel_rejects_non_uniform_axis():
+    axis = np.concatenate([np.linspace(-10, 0, 50), np.linspace(0.5, 10, 50)])
+    with pytest.raises(ValueError):
+        irf_kernel(("gaussian", 0.5), axis)
+
+
+def test_convolved_dho_fit_recovers_intrinsic_linewidth():
+    # A DHO spectrum broadened by a known IRF: the plain fit sees the broadened width,
+    # the irf= fit recovers the intrinsic one.
+    rng = np.random.default_rng(1)
+    axis = np.linspace(-15, 15, 400)
+    true_shift, true_lw, amp, bg, irf_fwhm = 6.0, 0.6, 1.0, 0.05, 0.5
+
+    intrinsic = _DHO_1(axis, amp, true_shift, true_lw, 0.0, 0.0)
+    k = irf_kernel(("lorentzian", irf_fwhm), axis)
+    n = k.size
+    broadened = np.convolve(np.pad(intrinsic, n, mode="edge"), k, mode="same")[n:-n] + bg
+
+    scale = 400.0 / broadened.max()
+    noisy = rng.poisson(np.clip(np.tile(broadened, (5, 5, 1)) * scale, 0, None)) / scale
+    image = SpectralImage(noisy.astype(float), axis)
+
+    p0 = [amp, true_shift, 1.0, bg, 0.0]
+    bounds = ([0, 3, 0.05, -1, -1], [10, 14, 5, 2, 1])
+
+    plain, _ = DHO(expected_peaks=1, p0=p0, bounds=bounds).apply(image)
+    conv, _ = DHO(expected_peaks=1, p0=p0, bounds=bounds, irf=("lorentzian", irf_fwhm)).apply(image)
+
+    plain_lw = float(np.nanmedian(plain[..., 2]))
+    conv_lw = float(np.nanmedian(conv[..., 2]))
+
+    assert plain_lw > true_lw + 0.1                       # plain fit is broadened
+    assert conv_lw == pytest.approx(true_lw, abs=0.08)    # convolution fit recovers it
+    assert float(np.nanmedian(conv[..., 1])) == pytest.approx(true_shift, abs=0.05)

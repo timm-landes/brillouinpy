@@ -6,7 +6,7 @@ Created on Thu Feb 20 13:14:03 2025
 """
 import numpy as np
 from scipy.optimize import curve_fit
-from scipy.signal import find_peaks, peak_prominences, peak_widths
+from scipy.signal import find_peaks, fftconvolve, peak_prominences, peak_widths
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
 import os
@@ -182,6 +182,118 @@ def estimate_p0(spectral_object, expected_peaks):
     return p0
 
 
+_FWHM_TO_SIGMA = 2.0 * np.sqrt(2.0 * np.log(2.0))
+
+
+def irf_kernel(irf, spectral_axis):
+    """
+    Build a normalised, centred convolution kernel from an instrument response function (IRF).
+
+    Pass the result as the ``irf`` argument of :class:`DHO` to fit the *convolved* model
+    ``(intrinsic lineshape) * IRF + background`` to the raw spectrum, so the fitted linewidth
+    is the intrinsic Brillouin linewidth with the instrumental broadening accounted for in the
+    forward model - rather than deconvolving the data first (which amplifies noise). See the
+    ``benchmarks/irf_convolution.py`` comparison.
+
+    Parameters
+    ----------
+    irf : array-like or tuple
+        Either
+
+        - a 1-D array: a measured IRF sample (e.g. the background-subtracted elastic /
+          Rayleigh / reference-beam peak), on the *same* channel spacing as ``spectral_axis``.
+          It is baseline-subtracted, clipped to non-negative, trimmed to a symmetric window
+          about its maximum and normalised.
+        - ``('lorentzian', fwhm)`` / ``('gaussian', fwhm)`` / ``('voigt', fwhm_lorentz,
+          fwhm_gauss)``: a parametric IRF with the given full width(s) at half maximum, in the
+          units of ``spectral_axis`` (GHz).
+
+    spectral_axis : array-like
+        The (uniformly spaced) spectral axis the model will be evaluated on. A non-uniform
+        axis raises ``ValueError`` - resample first.
+
+    Returns
+    -------
+    numpy.ndarray
+        Odd-length 1-D kernel, summing to 1, centred on its middle sample.
+    """
+    axis = np.asarray(spectral_axis, dtype=float)
+    diffs = np.diff(axis)
+    dx = float(np.mean(diffs))
+    if dx <= 0 or not np.allclose(diffs, dx, rtol=1e-3, atol=0.0):
+        raise ValueError(
+            "irf_kernel needs a uniformly spaced spectral_axis; got spacing varying by "
+            f"{float(np.ptp(diffs)):.3g}. Resample the spectrum onto a regular grid first.")
+
+    if isinstance(irf, (tuple, list)) and len(irf) >= 2 and isinstance(irf[0], str):
+        shape = irf[0].lower()
+        if shape in ("lorentzian", "gaussian"):
+            fwhm = float(irf[1])
+            if fwhm <= 0:
+                raise ValueError(f"irf fwhm must be positive, got {fwhm}.")
+            # Lorentzian tails are heavy - truncating at 5x FWHM drops enough area to
+            # bias the renormalised kernel narrow; go wider. A Gaussian is essentially
+            # zero by 5 sigma.
+            support = 12.0 if shape == "lorentzian" else 5.0
+            half_n = max(3, int(np.ceil(support * fwhm / dx)))
+            grid = np.arange(-half_n, half_n + 1) * dx
+            if shape == "lorentzian":
+                kernel = 1.0 / (1.0 + (grid / (fwhm / 2.0)) ** 2)
+            else:
+                kernel = np.exp(-0.5 * (grid / (fwhm / _FWHM_TO_SIGMA)) ** 2)
+        elif shape == "voigt":
+            from scipy.special import voigt_profile
+            fwhm_l, fwhm_g = float(irf[1]), float(irf[2])
+            if fwhm_l <= 0 or fwhm_g <= 0:
+                raise ValueError(f"voigt irf fwhms must be positive, got ({fwhm_l}, {fwhm_g}).")
+            half_n = max(3, int(np.ceil(5.0 * (fwhm_l + fwhm_g) / dx)))
+            grid = np.arange(-half_n, half_n + 1) * dx
+            kernel = voigt_profile(grid, fwhm_g / _FWHM_TO_SIGMA, fwhm_l / 2.0)
+        else:
+            raise ValueError(
+                f"parametric irf shape must be 'lorentzian', 'gaussian' or 'voigt', got {irf[0]!r}.")
+    else:
+        kernel = np.asarray(irf, dtype=float).ravel()
+        if kernel.size < 3:
+            raise ValueError(f"a measured irf needs at least 3 samples, got {kernel.size}.")
+        kernel = np.nan_to_num(kernel, nan=0.0)
+        kernel = np.clip(kernel - kernel.min(), 0.0, None)
+        peak = int(np.argmax(kernel))
+        reach = min(peak, kernel.size - 1 - peak)
+        if reach < 1:
+            raise ValueError("measured irf peak is at the very edge of the sample; give a wider window.")
+        kernel = kernel[peak - reach:peak + reach + 1]
+
+    total = kernel.sum()
+    if not np.isfinite(total) or total <= 0:
+        raise ValueError("irf kernel has non-positive total; check the input.")
+    return kernel / total
+
+
+class _ConvolvedModel:
+    """Picklable wrapper turning a bare lineshape ``f(x, *peak_params, Background, Asymmetry)``
+    into ``conv(f(., *peak_params, 0, Asymmetry), kernel) + Background``, evaluated on a stored
+    uniform grid and interpolated to whatever sample points ``curve_fit`` passes (which may be
+    a subset of the grid, e.g. with the elastic-peak channels dropped)."""
+
+    def __init__(self, base_func, kernel, full_axis):
+        self.base_func = base_func
+        self.kernel = np.asarray(kernel, dtype=float)
+        self.full_axis = np.asarray(full_axis, dtype=float)
+
+    def __call__(self, x, *params):
+        x = np.asarray(x, dtype=float)
+        background = params[-2]
+        peaks = self.base_func(self.full_axis, *params[:-2], 0.0, params[-1])
+        n = self.kernel.size
+        padded = np.pad(peaks, n, mode="edge")
+        convolved = fftconvolve(padded, self.kernel, mode="same")[n:-n]
+        model = convolved + background
+        if x.shape == self.full_axis.shape and np.array_equal(x, self.full_axis):
+            return model
+        return np.interp(x, self.full_axis, model)
+
+
 class DHO(FitStep):
     """
     Fit of one or multiple density distributions of Damped Harmonic Oscillators (DHO)
@@ -195,11 +307,24 @@ class DHO(FitStep):
         The initial guess
     bounds : list[list[floats], list[floats]] or None
         Boundaries for the plot
+    irf : array-like, tuple or None, optional
+        Instrument response function. If given, the model fitted to each spectrum is the
+        intrinsic DHO lineshape *convolved with the IRF* plus a background, so the fitted
+        ``LineWidth`` is the intrinsic Brillouin linewidth with the instrumental broadening
+        modelled explicitly - instead of deconvolving the data first (which amplifies noise;
+        contrast :class:`~brillouinpy.preprocessing.misc.Deconvoluter_IRF`). Accepts anything
+        :func:`irf_kernel` accepts: a measured 1-D IRF sample (e.g. the background-subtracted
+        elastic peak) on the spectrum's channel spacing, or a parametric
+        ``('lorentzian'|'gaussian', fwhm)`` / ``('voigt', fwhm_l, fwhm_g)`` spec (GHz). The
+        elastic-peak channels should still be blanked to ``NaN`` (e.g. via
+        :class:`~brillouinpy.preprocessing.misc.IRF_Remover`) so they are excluded from the
+        residual; the convolved model itself is evaluated on the full axis. ``None`` (default)
+        keeps the plain, unconvolved fit.
     **kwargs :
 
     """
-    def __init__(self, *, expected_peaks, p0, bounds):
-        super().__init__(_fit_concurrent_DHO2, expected_peaks=expected_peaks, p0=p0, bounds=bounds)
+    def __init__(self, *, expected_peaks, p0, bounds, irf=None):
+        super().__init__(_fit_concurrent_DHO2, expected_peaks=expected_peaks, p0=p0, bounds=bounds, irf=irf)
 
 
 class Lorentzian(FitStep):
@@ -276,7 +401,7 @@ def _fitDHO2(idx, spectral_axis, intensity_data_slice, expected_peaks, p0, bound
         print(f"Fit not successful for pixel {idx}")
         return idx, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
 
-def _fit_concurrent_DHO2(intensity_data, spectral_axis, expected_peaks, p0=None, bounds=None):
+def _fit_concurrent_DHO2(intensity_data, spectral_axis, expected_peaks, p0=None, bounds=None, irf=None):
     variables = int(expected_peaks * 3 + 2)
     spatial_shape = intensity_data.shape[:-1]
     fit_results = np.zeros(spatial_shape + (variables,))
@@ -285,6 +410,8 @@ def _fit_concurrent_DHO2(intensity_data, spectral_axis, expected_peaks, p0=None,
     fit_funcs = {1: _DHO_1, 2: _DHO_2, 3: _DHO_3}
     fit_func = fit_funcs[expected_peaks]
     spectral_axis = spectral_axis[0]
+    if irf is not None:
+        fit_func = _ConvolvedModel(fit_func, irf_kernel(irf, spectral_axis), spectral_axis)
     print('Starting of Multiprocessing can take up to 10 seconds.')
     tasks = []
     with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.25))) as executor:
