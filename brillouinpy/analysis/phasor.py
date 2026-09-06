@@ -95,11 +95,20 @@ def phasor(spectral_object, *, harmonic=1, axis_range=None, background=None) -> 
         ``(low, high)`` bounds (in the units of ``spectral_axis``, i.e. GHz) to
         restrict the transform to - e.g. to a single Stokes peak. The phase then
         maps onto this window. Default: the full axis.
-    background : {'min'} or float, optional
-        Background handling before the transform, since a constant offset pulls
-        the phasor toward the origin. ``'min'`` subtracts each spectrum's own
-        minimum; a float subtracts that constant; ``None`` (default) leaves the
-        data untouched.
+    background : {'min'}, float or array_like, optional
+        Background handling before the transform, since anything common to every
+        spectrum (a DC offset, or a peak shared by all pixels) sits at a fixed
+        point in the phasor plane and compresses the contrast between pixels.
+        ``'min'`` subtracts each spectrum's own minimum (removes a DC offset); a
+        float subtracts that constant; a 1-D array the length of
+        ``spectral_axis`` subtracts that spectrum from every pixel (e.g. a
+        measured or estimated common background - the way to stop a strong shared
+        Brillouin peak dominating the transform); ``None`` (default) leaves the
+        data untouched. For the array form, the phasor is normalised by each
+        pixel's total *before* subtraction, not after - stays well-behaved even
+        where the excess signal is tiny or the background is comparable to the
+        total intensity, unlike ``'min'``/a constant (which change the
+        normaliser itself).
 
     Returns
     -------
@@ -129,11 +138,21 @@ def phasor(spectral_object, *, harmonic=1, axis_range=None, background=None) -> 
     data = np.ma.filled(np.ma.asarray(flat), np.nan).astype(float)  # (n_pixels, n_channels)
     axis = np.asarray(spectral_object.spectral_axis, dtype=float)
 
+    background_spectrum = None
+    if background is not None and not isinstance(background, str) and np.ndim(background) > 0:
+        background_spectrum = np.asarray(background, dtype=float)
+        if background_spectrum.shape != axis.shape:
+            raise ValueError(
+                f"background spectrum has length {background_spectrum.shape} but spectral_axis "
+                f"has length {axis.shape}.")
+
     if axis_range is not None:
         low, high = axis_range
         selected = (axis >= low) & (axis <= high)
         data = data[:, selected]
         axis = axis[selected]
+        if background_spectrum is not None:
+            background_spectrum = background_spectrum[selected]
 
     # Drop channels that are NaN/masked in *any* (non-empty) pixel so the DFT
     # basis (which depends on the channel count N) is identical across the map -
@@ -144,6 +163,8 @@ def phasor(spectral_object, *, harmonic=1, axis_range=None, background=None) -> 
         else np.zeros(data.shape[1], dtype=bool)
     data = data[:, valid_channels]
     axis = axis[valid_channels]
+    if background_spectrum is not None:
+        background_spectrum = background_spectrum[valid_channels]
 
     min_channels = 2 * harmonic + 1
     if data.shape[1] < min_channels:
@@ -151,13 +172,22 @@ def phasor(spectral_object, *, harmonic=1, axis_range=None, background=None) -> 
             f"Need at least {min_channels} valid spectral channels for harmonic {harmonic}, "
             f"got {data.shape[1]} after cropping/masking.")
 
-    if background == 'min':
-        data = data - np.nanmin(data, axis=1, keepdims=True)
-    elif background is not None:
-        data = data - float(background)
-
-    totals = data.sum(axis=1)
-    ft = np.fft.rfft(data, axis=1)
+    if background_spectrum is not None:
+        # Normalise by the pre-subtraction total, not the (possibly near-zero, or
+        # even negative after removing a background comparable to the signal)
+        # subtracted total: dividing the excess-signal Fourier component by the
+        # raw brightness is the numerically stable, lock-in-amplifier-style way
+        # to do this - it keeps every pixel's normaliser bounded and positive
+        # even where the excess is ~0 (all background, no added signal).
+        totals = data.sum(axis=1)
+        ft = np.fft.rfft(data - background_spectrum[None, :], axis=1)
+    else:
+        if background == 'min':
+            data = data - np.nanmin(data, axis=1, keepdims=True)
+        elif background is not None:
+            data = data - float(background)
+        totals = data.sum(axis=1)
+        ft = np.fft.rfft(data, axis=1)
 
     with np.errstate(invalid='ignore', divide='ignore'):
         G = ft[:, harmonic].real / totals

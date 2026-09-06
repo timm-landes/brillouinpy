@@ -21,6 +21,31 @@ def _dho(x, amplitude, freq_shift, linewidth, background=0.0, asymmetry=0.0):
     ) + background
 
 
+def _add_noise(clean, rng, *, noise_model, noise, photon_scale):
+    """
+    Add measurement noise to a clean spectrum/stack.
+
+    ``noise_model='gaussian'`` adds zero-mean Gaussian noise of standard deviation
+    ``noise`` (a fixed noise floor, independent of signal level).
+
+    ``noise_model='poisson'`` models photon shot noise: the clean intensity is
+    scaled to photon counts by ``photon_scale`` (counts per intensity unit),
+    Poisson-sampled, and scaled back - so the noise grows as sqrt(signal) and the
+    per-pixel SNR is set by the photon budget, not a constant. ``noise`` is
+    ignored.
+
+    Either way the result is clipped to be non-negative.
+    """
+    clean = np.clip(clean, 0, None)
+    if noise_model == 'gaussian':
+        out = clean + rng.normal(scale=noise, size=clean.shape)
+    elif noise_model == 'poisson':
+        out = rng.poisson(clean * photon_scale) / photon_scale
+    else:
+        raise ValueError(f"noise_model must be 'gaussian' or 'poisson', got {noise_model!r}.")
+    return np.clip(out, 0, None)
+
+
 def _gradient(nx, ny):
     """Abundance map going from 0 to 1 along x."""
     return np.tile(np.linspace(0, 1, nx)[:, None], (1, ny))
@@ -57,7 +82,8 @@ def single_peak_image(nx=15, ny=15, n_channels=200, freq_shift=8.5, linewidth=1.
 
 
 def two_region_image(nx=40, ny=40, n_channels=250, freq_shift_a=5.6, freq_shift_b=6.0,
-                     linewidth=0.8, noise=3e-4, seed=3, geometry='blob', edge='sharp'):
+                     linewidth=0.8, noise=3e-4, noise_model='gaussian', peak_photons=200,
+                     seed=3, geometry='blob', edge='sharp'):
     """
     A :class:`~brillouinpy.SpectralImage` of two materials meeting at a hard edge -
     every pixel holds exactly one pure DHO spectrum (that of its region) plus
@@ -78,7 +104,14 @@ def two_region_image(nx=40, ny=40, n_channels=250, freq_shift_a=5.6, freq_shift_
     linewidth : float
         Shared DHO linewidth (GHz).
     noise : float
-        Standard deviation of additive Gaussian noise.
+        Standard deviation of additive Gaussian noise (``noise_model='gaussian'``).
+    noise_model : {'gaussian', 'poisson'}
+        ``'gaussian'`` (default): a constant noise floor of width ``noise``.
+        ``'poisson'``: photon shot noise, with the brighter region's peak set to
+        ``peak_photons`` counts; ``noise`` is then ignored. See :func:`_add_noise`.
+    peak_photons : float
+        Photon count at the region peak, for ``noise_model='poisson'``. The
+        shot-noise SNR at the peak is roughly ``sqrt(peak_photons)``.
     geometry : {'blob', 'half'}
         ``'blob'`` puts region B in a centred disc on a region-A background;
         ``'half'`` splits the image left/right.
@@ -125,8 +158,9 @@ def two_region_image(nx=40, ny=40, n_channels=250, freq_shift_a=5.6, freq_shift_
         (1 - weight_b)[..., None] * spectrum_a[None, None, :]
         + weight_b[..., None] * spectrum_b[None, None, :]
     )
-    spectral_data += rng.normal(scale=noise, size=spectral_data.shape)
-    spectral_data = np.clip(spectral_data, 0, None)
+    photon_scale = peak_photons / max(spectrum_a.max(), spectrum_b.max())
+    spectral_data = _add_noise(spectral_data, rng, noise_model=noise_model,
+                               noise=noise, photon_scale=photon_scale)
 
     return bp.SpectralImage(spectral_data, spectral_axis), label_map, [spectrum_a, spectrum_b]
 
@@ -134,7 +168,8 @@ def two_region_image(nx=40, ny=40, n_channels=250, freq_shift_a=5.6, freq_shift_
 def additive_blob_image(nx=40, ny=40, n_channels=250, background_shift=5.6, component_shift=6.4,
                         background_linewidth=0.8, component_linewidth=0.8,
                         background_amplitude=5e-3, component_amplitude=2.5e-3,
-                        noise=6e-4, seed=4, geometry='blob', edge='soft'):
+                        noise=6e-4, noise_model='gaussian', peak_photons=200,
+                        seed=4, geometry='blob', edge='soft'):
     """
     A :class:`~brillouinpy.SpectralImage` where one **constant** background
     spectrum is present in every pixel and a second, shifted DHO component is
@@ -160,7 +195,13 @@ def additive_blob_image(nx=40, ny=40, n_channels=250, background_shift=5.6, comp
         Peak amplitudes. The component is weaker by default (it only ever appears
         added to the background).
     noise : float
-        Standard deviation of additive Gaussian noise.
+        Standard deviation of additive Gaussian noise (``noise_model='gaussian'``).
+    noise_model : {'gaussian', 'poisson'}
+        ``'gaussian'`` (default): a constant noise floor of width ``noise``.
+        ``'poisson'``: photon shot noise, with the background peak set to
+        ``peak_photons`` counts; ``noise`` is then ignored. See :func:`_add_noise`.
+    peak_photons : float
+        Photon count at the background peak, for ``noise_model='poisson'``.
     geometry : {'blob', 'half'}
         ``'blob'`` adds the component in a centred disc; ``'half'`` in the right
         half.
@@ -204,10 +245,96 @@ def additive_blob_image(nx=40, ny=40, n_channels=250, background_shift=5.6, comp
         background[None, None, :]
         + component_weight[..., None] * component[None, None, :]
     )
-    spectral_data += rng.normal(scale=noise, size=spectral_data.shape)
-    spectral_data = np.clip(spectral_data, 0, None)
+    photon_scale = peak_photons / background.max()
+    spectral_data = _add_noise(spectral_data, rng, noise_model=noise_model,
+                               noise=noise, photon_scale=photon_scale)
 
     return bp.SpectralImage(spectral_data, spectral_axis), label_map, component_weight
+
+
+def three_component_image(nx=40, ny=40, n_channels=250,
+                          background_shift=5.6, cytoplasm_shift=6.3, nucleus_shift=7.5,
+                          background_linewidth=0.8, cytoplasm_linewidth=0.6, nucleus_linewidth=0.4,
+                          background_amplitude=5e-3, cytoplasm_amplitude=4e-3, nucleus_amplitude=3.5e-3,
+                          noise_model='poisson', noise=6e-4, peak_photons=200,
+                          seed=6, cell_radius_frac=0.38, nucleus_radius_frac=0.16):
+    """
+    A :class:`~brillouinpy.SpectralImage` mimicking a cell in a hydrated medium:
+    a constant **background** (medium) DHO peak everywhere, a second component
+    (**cytoplasm**) added on top inside a centred "cell" disc, and a third
+    component (**nucleus**) added on top of *both* inside a smaller, concentric
+    disc - so nucleus pixels carry all three components additively, cytoplasm
+    pixels carry two, and background pixels carry one. All three peaks are
+    always present in their respective regions; none of the three domains holds
+    a pure single-component spectrum other than the background.
+
+    Ground truth is nested by construction (nucleus is a subset of cell), which
+    :func:`brillouinpy.analysis.phasor`-and-friends based methods do not need to
+    know, but the DHO-based recommended workflow (see
+    ``brillouinpy`` benchmarks' ``dho_fit_segmented_3``) exploits deliberately: a
+    cheap classifier first tells background from cytoplasm from nucleus by
+    total intensity (background < cytoplasm-only < cytoplasm+nucleus, since
+    every extra component only adds signal), then a 1/2/3-peak DHO fit is run
+    in exactly the matching region.
+
+    Parameters
+    ----------
+    background_shift, cytoplasm_shift, nucleus_shift : float
+        Brillouin shift (GHz) of each component.
+    background_linewidth, cytoplasm_linewidth, nucleus_linewidth : float
+        DHO linewidths (GHz) - deliberately distinct per component, so
+        linewidth (not just shift) recovery is a meaningful question.
+    background_amplitude, cytoplasm_amplitude, nucleus_amplitude : float
+        Peak amplitudes.
+    noise_model, noise, peak_photons :
+        As in :func:`additive_blob_image` - ``noise_model='poisson'`` (default)
+        scales the background peak to ``peak_photons`` counts.
+    cell_radius_frac, nucleus_radius_frac : float
+        Cell and nucleus disc radii, as a fraction of ``min(nx, ny)``. The
+        nucleus disc is concentric with and inside the cell disc.
+
+    Returns
+    -------
+    image : SpectralImage
+    label_map : numpy.ndarray of int
+        ``(nx, ny)`` ground truth: 0 = background, 1 = cytoplasm, 2 = nucleus.
+    true_params : dict[str, tuple[float, float]]
+        ``{'background': (shift, linewidth), 'cytoplasm': (...), 'nucleus': (...)}``.
+    """
+    rng = np.random.default_rng(seed)
+
+    spectral_axis = bp.utils.brillouin_spectral_axis(
+        mirror_spacing=6e-3, scan_amplitude=480e-9, no_of_channels=n_channels
+    )
+
+    background = _dho(spectral_axis, background_amplitude, background_shift, background_linewidth, background=1e-4)
+    cytoplasm = _dho(spectral_axis, cytoplasm_amplitude, cytoplasm_shift, cytoplasm_linewidth)
+    nucleus = _dho(spectral_axis, nucleus_amplitude, nucleus_shift, nucleus_linewidth)
+
+    cx, cy = ny / 2, nx / 2
+    cell_radius = cell_radius_frac * min(nx, ny)
+    nucleus_radius = nucleus_radius_frac * min(nx, ny)
+    yy, xx = np.mgrid[0:nx, 0:ny]
+    dist = np.sqrt((xx - cx) ** 2 + (yy - cy) ** 2)
+
+    label_map = np.zeros((nx, ny), dtype=int)
+    label_map[dist <= cell_radius] = 1
+    label_map[dist <= nucleus_radius] = 2
+
+    spectral_data = np.tile(background, (nx, ny, 1))
+    spectral_data[label_map >= 1] = spectral_data[label_map >= 1] + cytoplasm
+    spectral_data[label_map >= 2] = spectral_data[label_map >= 2] + nucleus
+
+    photon_scale = peak_photons / background.max()
+    spectral_data = _add_noise(spectral_data, rng, noise_model=noise_model,
+                               noise=noise, photon_scale=photon_scale)
+
+    true_params = {
+        'background': (background_shift, background_linewidth),
+        'cytoplasm': (cytoplasm_shift, cytoplasm_linewidth),
+        'nucleus': (nucleus_shift, nucleus_linewidth),
+    }
+    return bp.SpectralImage(spectral_data, spectral_axis), label_map, true_params
 
 
 def image_with_irf(nx=15, ny=15, n_channels=250, freq_shift=8.5, linewidth=1.0,

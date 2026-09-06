@@ -17,6 +17,10 @@ Analysis
    :members:
    :show-inheritance:
 
+.. automodule:: brillouinpy.analysis.segmented
+   :members:
+   :show-inheritance:
+
 .. automodule:: brillouinpy.analysis.decompose
    :members:
    :show-inheritance:

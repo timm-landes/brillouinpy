@@ -1,20 +1,47 @@
 import numpy as np
 import scipy.linalg as splin
+from scipy.optimize import nnls as _scipy_nnls
 import functools
 from typing import Literal
-import pysptools.abundance_maps.amaps as amaps
-import pysptools.eea as eea
 
 from .Step import AnalysisStep
+
+
+def _ucls(spectral_data, endmembers):
+    """Unconstrained least squares abundances: solve ``endmembers.T @ a = pixel``
+    for every pixel at once. Pure NumPy - no pysptools dependency."""
+    solution, *_ = np.linalg.lstsq(endmembers.T, spectral_data.T, rcond=None)
+    return solution.T
+
+
+def _nnls(spectral_data, endmembers):
+    """Non-negative least squares abundances (``scipy.optimize.nnls``, one pixel
+    at a time - matches pysptools' per-pixel NNLS, no extra dependency)."""
+    M = endmembers.T  # (bands, n_endmembers)
+    return np.array([_scipy_nnls(M, pixel)[0] for pixel in spectral_data])
+
+
+def _fcls(spectral_data, endmembers, delta=1 / 1000):
+    """
+    Fully-constrained least squares abundances (non-negative, sum-to-one), via
+    the standard NNLS-with-an-augmented-row trick (Heinz & Chang, 2001): appending
+    a heavily-weighted "abundances must sum to 1" equation to the NNLS system
+    enforces both constraints using only ``scipy.optimize.nnls``.
+    """
+    n_endmembers = endmembers.shape[0]
+    M = np.vstack([delta * endmembers.T, np.ones((1, n_endmembers))])  # (bands+1, n_endmembers)
+    ones_row = np.ones((spectral_data.shape[0], 1))
+    augmented_data = np.hstack([delta * spectral_data, ones_row])
+    return np.array([_scipy_nnls(M, pixel)[0] for pixel in augmented_data])
 
 
 """
 List of the available methods for calculating fractional abundances.
 """
 abundance_methods = {
-    'ucls': amaps.UCLS,
-    'nnls': amaps.NNLS,
-    'fcls': amaps.FCLS,
+    'ucls': _ucls,
+    'nnls': _nnls,
+    'fcls': _fcls,
 }
 
 
@@ -24,7 +51,7 @@ def unmixer(endmember_func):
         endmembers = endmember_func(spectral_data, n_endmembers)
 
         abundance_method_ = abundance_methods.get(abundance_method, None)
-        if abundance_method is None:
+        if abundance_method_ is None:
             raise ValueError(
                 f"{abundance_method} is not a valid abundance method. Possible methods are {abundance_methods.keys()}")
 
@@ -33,6 +60,19 @@ def unmixer(endmember_func):
         return abundances, endmembers
 
     return wrap
+
+
+def _import_eea():
+    """Lazily import pysptools' endmember-extraction algorithms (``eea``) - only
+    PPI/FIPPI/NFINDR need them; VCA's own endmember search (:func:`_vca`) and all
+    three abundance methods above are pure NumPy/SciPy and need no such import."""
+    try:
+        import pysptools.eea as eea
+    except ImportError as exc:
+        raise ImportError(
+            "PPI/FIPPI/NFINDR need the optional 'pysptools' dependency "
+            "(pip install pysptools); VCA does not.") from exc
+    return eea
 
 
 class PPI(AnalysisStep):
@@ -60,7 +100,7 @@ class PPI(AnalysisStep):
     """
 
     def __init__(self, *, n_endmembers: int, abundance_method: Literal['ucls', 'nnls', 'fcls'] = 'fcls'):
-        super().__init__(unmixer(eea.PPI().extract), n_endmembers, abundance_method)
+        super().__init__(unmixer(_import_eea().PPI().extract), n_endmembers, abundance_method)
 
 
 class FIPPI(AnalysisStep):
@@ -88,7 +128,7 @@ class FIPPI(AnalysisStep):
     """
 
     def __init__(self, *, n_endmembers: int, abundance_method: Literal['ucls', 'nnls', 'fcls'] = 'fcls'):
-        super().__init__(unmixer(eea.FIPPI().extract), n_endmembers, abundance_method)
+        super().__init__(unmixer(_import_eea().FIPPI().extract), n_endmembers, abundance_method)
 
 
 class NFINDR(AnalysisStep):
@@ -240,4 +280,4 @@ def _nfindr(spectral_data, num_of_endmembers):
     # flattened to (n_pixels, bands), so present it as a cube with a dummy width of 1
     # (pysptools reshapes it straight back to (n_pixels, bands) internally anyway).
     cube = spectral_data[:, np.newaxis, :]
-    return eea.NFINDR().extract(cube, num_of_endmembers)
+    return _import_eea().NFINDR().extract(cube, num_of_endmembers)
