@@ -188,6 +188,8 @@ def from_dho_fit(fit_parameters, covariances=None, *, peak=0,
 
     s_unc = w_unc = None
     if covariances is not None:
+        # DHO.apply on an image returns the covariance as a list of per-row arrays;
+        # np.asarray stacks that back to (..., n_params, n_params).
         cov = np.asarray(covariances, dtype=float)
         s_unc = np.sqrt(np.abs(cov[..., s_idx, s_idx]))
         w_unc = np.sqrt(np.abs(cov[..., w_idx, w_idx]))

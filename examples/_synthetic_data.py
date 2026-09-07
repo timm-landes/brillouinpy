@@ -81,6 +81,50 @@ def single_peak_image(nx=15, ny=15, n_channels=200, freq_shift=8.5, linewidth=1.
     return bp.SpectralImage(spectral_data, spectral_axis)
 
 
+def two_mode_image(nx=30, ny=30, n_channels=250, shift_a=6.0, shift_b_range=(10.0, 13.0),
+                   linewidth_a=0.8, linewidth_b=0.5, amplitude_a=5e-3, amplitude_b=4e-3,
+                   noise_model='poisson', noise=6e-4, peak_photons=300, seed=8):
+    """
+    A :class:`~brillouinpy.SpectralImage` where **every** pixel holds *two*
+    Brillouin modes: mode A at a fixed shift, and mode B whose frequency shift
+    ramps linearly across x (a graded stiffness in a second phase). No pixel is
+    single-mode, so it is a clean test for automatic peak-count selection
+    (``brillouinpy.analysis.fitmodel.estimate_peak_count`` /
+    ``DHO(expected_peaks='auto')``) without the ambiguity a spatially-varying
+    number of modes would introduce.
+
+    Returns
+    -------
+    image : SpectralImage
+    shift_b_map : numpy.ndarray of float
+        ``(nx, ny)`` ground-truth Brillouin shift of mode B per pixel (GHz).
+    info : dict
+        ``{'shift_a', 'linewidth_a', 'linewidth_b'}`` - the fixed parameters.
+    """
+    rng = np.random.default_rng(seed)
+
+    spectral_axis = bp.utils.brillouin_spectral_axis(
+        mirror_spacing=6e-3, scan_amplitude=480e-9, no_of_channels=n_channels
+    )
+
+    shift_b_map = shift_b_range[0] + _gradient(nx, ny) * (shift_b_range[1] - shift_b_range[0])
+    mode_a = _dho(spectral_axis, amplitude_a, shift_a, linewidth_a, background=1e-4)
+
+    spectral_data = np.empty((nx, ny, n_channels))
+    for x in range(nx):
+        for y in range(ny):
+            spectral_data[x, y, :] = mode_a + _dho(
+                spectral_axis, amplitude_b, shift_b_map[x, y], linewidth_b
+            )
+
+    photon_scale = peak_photons / spectral_data.max()
+    spectral_data = _add_noise(spectral_data, rng, noise_model=noise_model,
+                               noise=noise, photon_scale=photon_scale)
+
+    info = {'shift_a': shift_a, 'linewidth_a': linewidth_a, 'linewidth_b': linewidth_b}
+    return bp.SpectralImage(spectral_data, spectral_axis), shift_b_map, info
+
+
 def two_region_image(nx=40, ny=40, n_channels=250, freq_shift_a=5.6, freq_shift_b=6.0,
                      linewidth=0.8, noise=3e-4, noise_model='gaussian', peak_photons=200,
                      seed=3, geometry='blob', edge='sharp'):

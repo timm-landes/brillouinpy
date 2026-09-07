@@ -8,6 +8,8 @@ from brillouinpy.analysis.fitmodel import (
     _Lorentzian_1,
     DHO,
     estimate_p0,
+    estimate_peak_count,
+    fitted_peak_count,
     irf_kernel,
 )
 from brillouinpy.core import Spectrum, SpectralImage
@@ -245,3 +247,62 @@ def test_dho_per_pixel_irf_falls_back_to_plain_where_absent():
 
     assert np.isfinite(params[0, 0, 2])          # the no-IRF pixel still fits (plain)
     assert params[1, 1, 2] == pytest.approx(0.6, abs=0.1)  # an IRF pixel recovers the intrinsic width
+
+
+# --- automatic peak-count selection (expected_peaks='auto') -------------------
+
+def _multi_mode_image(shifts, linewidths, nx=8, ny=8, n_channels=250, noise=3e-4, seed=0):
+    rng = np.random.default_rng(seed)
+    axis = np.linspace(-20, 20, n_channels)
+    spectrum = np.zeros(n_channels)
+    for s, lw in zip(shifts, linewidths):
+        spectrum += _DHO_1(axis, 5e-3, s, lw, 0.0, 0.0)
+    data = np.tile(spectrum, (nx, ny, 1)) + rng.normal(scale=noise, size=(nx, ny, n_channels))
+    return SpectralImage(np.clip(data, 0, None), axis)
+
+
+def test_estimate_peak_count_one_and_two_modes():
+    one = _multi_mode_image([7.5], [0.8], seed=1)
+    two = _multi_mode_image([6.0, 10.0], [0.8, 0.9], seed=2)
+
+    assert estimate_peak_count(one) == 1
+    assert estimate_peak_count(two) == 2
+
+    best, scores = estimate_peak_count(two, return_scores=True)
+    assert best == 2 and scores[2] < scores[1]
+
+
+def test_estimate_peak_count_min_improvement_controls_parsimony():
+    two = _multi_mode_image([6.0, 10.0], [0.8, 0.9], seed=3)
+    # a huge threshold refuses to ever add a peak
+    assert estimate_peak_count(two, min_improvement=1e9) == 1
+
+
+def test_dho_auto_returns_padded_params_and_recovers_modes():
+    two = _multi_mode_image([6.0, 10.0], [0.8, 0.9], nx=6, ny=6, seed=4)
+
+    params, cov = DHO(expected_peaks='auto', max_peaks=3).apply(two)
+    cov = np.asarray(cov)
+
+    assert params.shape == (6, 6, 11)          # padded to 3 * max_peaks + 2
+    assert cov.shape == (6, 6, 11, 11)
+    counts = fitted_peak_count(params)
+    assert counts.shape == (6, 6)
+    assert np.median(counts) == 2
+
+    two_peak = counts == 2
+    s1 = np.abs(params[..., 1])[two_peak]
+    s2 = np.abs(params[..., 4])[two_peak]
+    lo, hi = np.minimum(s1, s2), np.maximum(s1, s2)
+    assert np.nanmedian(lo) == pytest.approx(6.0, abs=0.4)
+    assert np.nanmedian(hi) == pytest.approx(10.0, abs=0.4)
+    # the unused third peak triplet (amplitude, shift, width at indices 6, 7, 8) is NaN
+    assert np.all(np.isnan(params[two_peak][:, 6:9]))
+
+
+def test_dho_auto_single_mode_picks_one_almost_everywhere():
+    one = _multi_mode_image([8.0], [1.0], nx=8, ny=8, seed=5)
+    params, _ = DHO(expected_peaks='auto').apply(one)
+    counts = fitted_peak_count(params)
+    # per-pixel model selection is noisy; the overwhelming majority is 1 mode
+    assert np.mean(counts == 1) >= 0.9
