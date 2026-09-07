@@ -13,6 +13,18 @@ Analysis
    :members:
    :show-inheritance:
 
+.. automodule:: brillouinpy.analysis.phasor
+   :members:
+   :show-inheritance:
+
+.. automodule:: brillouinpy.analysis.segmented
+   :members:
+   :show-inheritance:
+
+.. automodule:: brillouinpy.analysis.mechanics
+   :members:
+   :show-inheritance:
+
 .. automodule:: brillouinpy.analysis.decompose
    :members:
    :show-inheritance:

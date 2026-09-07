@@ -6,6 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-07
+
+Bundles everything on `develop` since 0.3.1: spectral phasor analysis, VCA/NMF/PCA/k-means
+exploratory tools, `segmented_fit`, IRF-convolution fitting, automatic peak-count
+selection, and the `analysis.mechanics` module - plus a review-driven cleanup of
+the `DHO`/`Lorentzian` fit models. **Breaking:** the fit models' parameter
+conventions are now pinned down (`Asymmetry` → `axis_shift`, `LineWidth` is the
+HWHM, `Background` counted once, real Lorentzian doublet) and the derived
+`analysis.mechanics` / `io.export` linewidths change accordingly - refit any data
+whose fit parameters were stored with 0.3.x. See below.
+
+### Added
+- **`segmented_fit(..., model=...)`.** The segmented fit can now use a Lorentzian
+  lineshape (`model='lorentzian'`) instead of the DHO (`model='dho'`, default).
+  `SegmentedFitResult` is unchanged (same parameter layout; `linewidth` is the
+  HWHM either way).
+- **Tutorial: new "Multi-component and mixed images" page** covering the three
+  spatial scales of a Brillouin image (phonon wavelength / voxel / structure,
+  after Prevedel et al. 2019), why fitting the maximum peak count everywhere
+  fails, `segmented_fit`, `estimate_peak_count`, `DHO(expected_peaks='auto')` and
+  how they compare to the model-free methods. The "Fitting spectra" page gains
+  sections on the parameter conventions (HWHM, `axis_shift`), `DHO` vs
+  `Lorentzian`, and `max_workers`.
+
+### Changed
+- **`fitmodel` internals consolidated.** The pixel-wise fit now runs through a
+  single `_fit_concurrent` (lineshape family selected by `model=`) plus the
+  separate `_fit_concurrent_DHO_auto` for peak-count selection; the three unused
+  runners (`_fit_concurrent_DHO`, `_fit_concurrent_DHO3` with its
+  `shared_memory` machinery, `_fit_concurrent_lorentzian`) are removed. No
+  public API change. `DHO` and `Lorentzian` gain an optional `max_workers=`
+  argument (default: a quarter of the visible CPUs, as before). `Lorentzian`
+  gains `irf=` support and now applies the same masked-array / NaN / zero-channel
+  handling as `DHO` (previously it silently returned zeros for failed pixels);
+  its `p0` and `bounds` are now optional. Per-pixel diagnostics go through the
+  `brillouinpy.analysis.fitmodel` logger instead of `print()`; a wrong-length
+  `p0` now raises a `UserWarning` instead of printing.
+
+### Changed (breaking)
+- **DHO / Lorentzian fit models, parameter conventions made explicit.** These
+  change the meaning and, for the Lorentzian, the values of fitted parameters -
+  refit any data whose parameters were stored from an earlier version.
+  - The shared trailing parameter formerly called `Asymmetry` is renamed
+    `axis_shift` (it was always a rigid shift of the frequency axis, `x -
+    axis_shift`, never an asymmetry). Affects `DHO`/`Lorentzian` results,
+    `estimate_p0`, and the `io.export` parameter names. No compatibility alias.
+  - `LineWidth` is now documented as the **half width at half maximum** (HWHM,
+    `Gamma / 2`); the FWHM is `2 * LineWidth`. The DHO formula is unchanged;
+    this only pins down a convention that was previously implicit.
+  - `Background` is now added **once** for multi-mode models (`_DHO_2/_DHO_3`,
+    `_Lorentzian_2/_Lorentzian_3`) instead of once per mode, matching the
+    IRF-convolved model. A quantitative background fitted with an older version
+    was the true value divided by the number of modes.
+  - `Lorentzian` is now an actual Lorentzian doublet (two Lorentzians of HWHM
+    `LineWidth` at `axis_shift +/- freqShift`) rather than an unnormalised
+    DHO-shaped variant.
+- **`analysis.mechanics`** now converts `LineWidth` (HWHM) to the FWHM internally,
+  so `loss_tangent`, `loss_modulus` and `longitudinal_viscosity` are a factor of
+  two larger than before and now equal `tan(delta) = Gamma / shift` etc.
+  directly.
+- **`io.export`** writes the FWHM (`2 * LineWidth`) into brim / HDF5_BLS
+  `width` / `linewidth` fields, which use the FWHM convention.
+
 ## [0.3.1] - 2026-09-03
 
 Documentation and repository-workflow changes only; no code changes.

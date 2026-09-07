@@ -37,7 +37,7 @@ if __name__ == '__main__':
         preprocessed_image = single_peak_image(nx = 50, ny = 50)
 
     # p0 must have length (expected_peaks * 3) + 2: for each peak
-    # [Amplitude, Frequency shift (GHz), FWHM (GHz)], followed by [Background, Asymmetry].
+    # [Amplitude, Frequency shift (GHz), LineWidth = HWHM (GHz)], then [Background, axis_shift].
     # Instead of guessing it by hand, estimate_p0() derives it from peak detection on the
     # mean spectrum - much faster convergence than the flat [1, 1, ...] fallback curve_fit
     # would otherwise start from.
@@ -51,7 +51,7 @@ if __name__ == '__main__':
         bounds=None,  # give bounds if you get unreasonable results or strongly overlapping peaks
     )
     fitted_parameters, covariances = dho_fit.apply(preprocessed_image)
-    # fitted_parameters has shape (x, y, 5): [Amplitude, FreqShift, LineWidth, Background, Asymmetry]
+    # fitted_parameters has shape (x, y, 5): [Amplitude, FreqShift, LineWidth (HWHM), Background, axis_shift]
 
     # A 2-peak fit works the same way, just with expected_peaks=2 (estimate_p0 then
     # returns a matching 8-element p0):

@@ -1,3 +1,4 @@
+import copy
 from numbers import Number
 from typing import Tuple
 import numpy as np
@@ -60,10 +61,15 @@ class IRF_Remover(PreprocessingStep):
         For instance:
             - None - only the IRF gets detected, saved and removed from the spectral data
             - 10 - the IRF and additional 10 channels get removed
+    store_irf : bool, optional
+        If ``True`` (default), the detected per-pixel IRF region is attached to
+        the returned object as its ``instrument_response_function`` (a
+        ``(*spatial, B)`` array, zero outside the detected IRF extent), for a
+        later ``brillouinpy.analysis.fitmodel.DHO(irf='auto')`` fit.
     """
-    def __init__(self, *, offset: Number or None): # type: ignore
+    def __init__(self, *, offset: Number or None, store_irf: bool = True): # type: ignore
 
-        super().__init__(_irf_remove, offset=offset)
+        super().__init__(_irf_remove, offset=offset, store_irf=store_irf)
 
 
 class Deconvoluter_IRF(PreprocessingStep):
@@ -99,10 +105,21 @@ class Deconvoluter_IRF(PreprocessingStep):
         boundary, at the cost of a bit of extra computation. ``None`` or ``0`` disables
         padding. A value comparable to a few times the IRF's width is a reasonable start;
         it must be smaller than the spectrum's length.
+    store_irf : bool, optional
+        Default ``False``. If ``True``, the detected per-pixel IRF region is also
+        attached to the returned object as its ``instrument_response_function``
+        (a ``(*spatial, B)`` array, zero outside the detected IRF extent), for
+        inspection or plotting. **Do not** then fit with
+        ``brillouinpy.analysis.fitmodel.DHO(irf='auto')``: this step has already
+        deconvolved the IRF out, so a convolution fit on top would correct for it
+        twice. The convolution-fit workflow uses :class:`IRF_Remover` (which only
+        crops the elastic peak) instead - see ``benchmarks/irf_convolution.py``.
     """
 
-    def __init__(self, *, offset: Number or None, iterations: Number or None, padding: Number or None): # type: ignore
-        super().__init__(_deconvolute_irf, offset = offset, iterations = iterations, padding = padding)
+    def __init__(self, *, offset: Number or None, iterations: Number or None, padding: Number or None, # type: ignore
+                 store_irf: bool = False):
+        super().__init__(_deconvolute_irf, offset=offset, iterations=iterations, padding=padding,
+                         store_irf=store_irf)
 
 def _subtract_background(original_intensity_data, original_spectral_axis, background: Spectrum):
     if not np.array_equal(background.spectral_axis, original_spectral_axis):
@@ -130,7 +147,7 @@ def _get_indices_to_leave(spectral_axis, region):
 
     return indices_to_leave
 
-def _irf_remove(intensity_data, spectral_axis, offset):
+def _irf_remove(intensity_data, spectral_axis, offset, store_irf=True):
     corrected_intensity_data = np.copy(intensity_data)
     spectral_response = np.zeros(intensity_data.shape)
 
@@ -140,6 +157,8 @@ def _irf_remove(intensity_data, spectral_axis, offset):
             spectral_response[x, y, start:end] = intensity_data[x, y, start:end]
             corrected_intensity_data[x, y, start-offset:end+offset] = 0
 
+    if store_irf:
+        return corrected_intensity_data, spectral_axis, spectral_response
     return corrected_intensity_data, spectral_axis
 
 def _find_instrumental_response(pixel_spectrum):
@@ -150,12 +169,17 @@ def _find_instrumental_response(pixel_spectrum):
 
     return start, end
 
-def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, padding=None):
+def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, padding=None, store_irf=False):
     '''
     Deconvolute the intensity data with the Instrumental Response Function (IRF) using the Richardson-Lucy algorithm.
     Additionally, the IRF gets removed from the spectral data.
     Works on any spatial dimensionality (0D - a single Spectrum - through the 4D (x, y, z, t,
     spectral) shape returned by prepare_brillouin_data).
+
+    With ``store_irf`` (default), also returns the detected per-pixel IRF region
+    (``spectral_response``, zero outside the detected extent) as a third value,
+    which :meth:`PreprocessingStep._process_object` attaches to the result as its
+    ``instrument_response_function``.
     '''
     corrected_intensity_data = np.copy(np.asarray(intensity_data))
     spectral_response = np.zeros(intensity_data.shape)
@@ -189,4 +213,91 @@ def _deconvolute_irf(intensity_data, spectral_axis, offset, iterations=4, paddin
             idx + (slice(max(0, start - offset), min(intensity_data.shape[-1], end + offset)),)
         ] = np.nan
 
+    if store_irf:
+        return corrected_intensity_data, spectral_axis, spectral_response
     return corrected_intensity_data, spectral_axis
+
+
+def _as_irf_array(irf_measurements, spectral_axis):
+    """Coerce an IRF-measurement input to a ``(N, B)`` array aligned to ``spectral_axis``."""
+    if hasattr(irf_measurements, "flat") and hasattr(irf_measurements, "spectral_data"):
+        arr = np.ma.filled(irf_measurements.flat.spectral_data, np.nan).astype(float)
+    elif isinstance(irf_measurements, (list, tuple)):
+        arr = np.vstack([np.ma.filled(getattr(m, "spectral_data", m), np.nan).astype(float).ravel()
+                         for m in irf_measurements])
+    else:
+        arr = np.asarray(irf_measurements, dtype=float)
+    if arr.ndim == 1:
+        arr = arr[None, :]
+    if arr.shape[-1] != len(spectral_axis):
+        raise ValueError(
+            f"IRF measurements have {arr.shape[-1]} channels but the spectral axis has "
+            f"{len(spectral_axis)}; they must be on the same axis.")
+    return arr
+
+
+def assign_irf(spectral_object, irf_measurements, *, at=None, method='nearest'):
+    """
+    Attach an IRF that was measured *separately* from the acquisition to a spectral
+    object, expanding it to a per-pixel ``instrument_response_function``.
+
+    This is the counterpart to :class:`Deconvoluter_IRF` / :class:`IRF_Remover`'s
+    ``store_irf`` for spectrometers (e.g. VIPA) where the IRF is not recorded on
+    every scan but once, before/after, or a handful of times during the
+    acquisition for drift correction.
+
+    Parameters
+    ----------
+    spectral_object : core.SpectralObject
+        The acquisition to attach the IRF to. A copy is returned; the input is
+        unchanged.
+    irf_measurements : array_like, Spectrum, SpectralContainer or list of Spectrum
+        One or more IRF spectra, on the same spectral axis as ``spectral_object``.
+        Shape ``(B,)`` or ``(N, B)``.
+    at : array_like or None
+        For ``N > 1``: the position of each measurement in the acquisition, as a
+        flattened (row-major) pixel index into ``spectral_object.flat`` (e.g.
+        ``[0, n_pixels // 2, n_pixels - 1]`` for before / middle / after).
+        Ignored - and may be ``None`` - when a single IRF is given, which is then
+        stored as a shared 1-D kernel.
+    method : {'nearest', 'linear'}
+        How to map the measurements onto every pixel: ``'nearest'`` assigns each
+        pixel the closest measurement; ``'linear'`` interpolates channel-wise
+        between the two bracketing measurements (constant extrapolation outside).
+
+    Returns
+    -------
+    core.SpectralObject
+        A copy of ``spectral_object`` with ``instrument_response_function`` set -
+        1-D ``(B,)`` for a single measurement, ``(*spatial, B)`` otherwise. Pass
+        it to ``brillouinpy.analysis.fitmodel.DHO(irf='auto')``.
+    """
+    axis = spectral_object.spectral_axis
+    meas = _as_irf_array(irf_measurements, axis)
+
+    out = copy.deepcopy(spectral_object)
+    if meas.shape[0] == 1:
+        out.instrument_response_function = meas[0]
+        return out
+
+    if at is None:
+        raise ValueError("at= is required when more than one IRF measurement is given.")
+    at = np.asarray(at, dtype=float)
+    if at.shape[0] != meas.shape[0]:
+        raise ValueError(f"at has {at.shape[0]} entries but {meas.shape[0]} IRF measurements were given.")
+
+    n_pixels = int(np.prod(spectral_object.shape))
+    pixels = np.arange(n_pixels, dtype=float)
+    if method == 'nearest':
+        nearest = np.argmin(np.abs(pixels[:, None] - at[None, :]), axis=1)
+        per_pixel = meas[nearest]
+    elif method == 'linear':
+        order = np.argsort(at)
+        per_pixel = np.column_stack([
+            np.interp(pixels, at[order], meas[order, b]) for b in range(meas.shape[1])
+        ])
+    else:
+        raise ValueError(f"method must be 'nearest' or 'linear', got {method!r}.")
+
+    out.instrument_response_function = per_pixel.reshape(*spectral_object.shape, meas.shape[1])
+    return out

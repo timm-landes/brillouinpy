@@ -9,7 +9,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='BrillouinPy',
-    version='0.3.1',
+    version='0.4.0',
     # Finds both 'brillouinpy' (the real package) and 'brillouinanalyzer' (a thin
     # backwards-compatibility shim for the package's former name) automatically.
     packages=find_packages(),

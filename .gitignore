@@ -13,6 +13,16 @@ pp_data/
 # Local/untracked scratch scripts (e.g. examples/run_pipeline_local.py)
 examples/*_local.py
 
+# Benchmarks: the scripts, figures and results.json are tracked; the written-up
+# report prose (and the script that assembles it), the internal design note, and
+# stray partial-run artefacts are not - readers draw their own conclusions from
+# the raw results.
+benchmarks/**/__pycache__/
+benchmarks/report/method_comparison.md
+benchmarks/report/generate_report.py
+benchmarks/segmented_fit_design.md
+benchmarks/report/results_cd.json
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.

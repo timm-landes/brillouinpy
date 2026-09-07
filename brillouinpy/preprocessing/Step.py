@@ -8,6 +8,7 @@ doesn't need it).
 """
 from typing import Union, Callable
 import copy
+import warnings
 from typing import final, List
 import numpy as np
 
@@ -81,9 +82,15 @@ class PreprocessingStep:
             original_mask = None
             spectral_data = new_spectral_object.spectral_data
 
-        # Process the data
-        preprocessed_spectral_data, preprocessed_spectral_axis = self(
-            spectral_data, new_spectral_object.spectral_axis, **self.kwargs)
+        # Process the data. A method may return (data, axis) or, if it detects an
+        # instrument response function (e.g. IRF_Remover / Deconvoluter_IRF with
+        # store_irf=True), (data, axis, irf) - the latter is stored on the output.
+        result = self(spectral_data, new_spectral_object.spectral_axis, **self.kwargs)
+        if len(result) == 3:
+            preprocessed_spectral_data, preprocessed_spectral_axis, detected_irf = result
+        else:
+            preprocessed_spectral_data, preprocessed_spectral_axis = result
+            detected_irf = None
 
         # Restore masked array properties
         if original_mask is not None:
@@ -95,6 +102,18 @@ class PreprocessingStep:
 
         new_spectral_object.spectral_data = preprocessed_spectral_data
         new_spectral_object.spectral_axis = preprocessed_spectral_axis
+
+        if detected_irf is not None:
+            new_spectral_object.instrument_response_function = np.asarray(detected_irf)
+        # A step that changed the number of spectral channels (e.g. Cropper)
+        # invalidates a previously stored, channel-aligned IRF.
+        irf = new_spectral_object.instrument_response_function
+        if irf is not None and irf.shape[-1] != len(preprocessed_spectral_axis):
+            warnings.warn(
+                "The spectral axis length changed; the stored instrument_response_function no "
+                "longer aligns to it and has been dropped. Re-detect it or pass irf= to the fit "
+                "explicitly.", stacklevel=2)
+            new_spectral_object.instrument_response_function = None
 
         return new_spectral_object
 

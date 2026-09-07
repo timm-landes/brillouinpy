@@ -8,6 +8,13 @@ Created on Mon Feb 17 15:31:47 2025
 # from .spectralcontainer import SpectralImageContainer
 # from .preprocessing import SpectralImageProcessor
 # from .analyzer import SpectralAnalyzer
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+try:
+    __version__ = _pkg_version("BrillouinPy")
+except PackageNotFoundError:  # running from a source tree that was never installed
+    __version__ = "0.0.0+unknown"
+
 from .core import Spectrum, SpectralImage, SpectralVolume, SpectralContainer
 from . import utils
 from . import preprocessing

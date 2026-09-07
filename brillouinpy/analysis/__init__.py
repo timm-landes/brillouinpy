@@ -1,7 +1,12 @@
 from . import fitmodel
+from . import phasor
+from . import segmented
+from . import mechanics
+from .segmented import segmented_fit, SegmentedFitResult
 from .Step import variance_explained
 
-__all__ = ["cluster", "decompose", "unmix", "fitmodel", "variance_explained"]
+__all__ = ["cluster", "decompose", "unmix", "fitmodel", "phasor", "segmented",
+           "mechanics", "segmented_fit", "SegmentedFitResult", "variance_explained"]
 
 
 def __getattr__(name):
