@@ -14,8 +14,9 @@ Method: Elsayad, K. (2019), "Spectral Phasor Analysis for Brillouin
 Microspectroscopy", Front. Phys. 7:62. https://doi.org/10.3389/fphy.2019.00062
 
 Uses ``two_region_image``: two materials meeting at a hard edge, each pixel a
-pure spectrum (no mixing). See ``12_method_limitations.py`` for how phasor
-analysis compares to fitting/unmixing/clustering as the two shifts get closer.
+pure spectrum (no mixing). See ``12_segmented_fit.py`` and the tutorial page
+"Multi-component and mixed images" for how phasor analysis compares to
+fitting / unmixing / clustering as the two shifts get closer.
 """
 import matplotlib.pyplot as plt
 import numpy as np

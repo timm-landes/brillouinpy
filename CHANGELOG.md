@@ -11,6 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   lineshape (`model='lorentzian'`) instead of the DHO (`model='dho'`, default).
   `SegmentedFitResult` is unchanged (same parameter layout; `linewidth` is the
   HWHM either way).
+- **Tutorial: new "Multi-component and mixed images" page** covering the three
+  spatial scales of a Brillouin image (phonon wavelength / voxel / structure,
+  after Prevedel et al. 2019), why fitting the maximum peak count everywhere
+  fails, `segmented_fit`, `estimate_peak_count`, `DHO(expected_peaks='auto')` and
+  how they compare to the model-free methods. The "Fitting spectra" page gains
+  sections on the parameter conventions (HWHM, `axis_shift`), `DHO` vs
+  `Lorentzian`, and `max_workers`.
 
 ### Changed
 - **`fitmodel` internals consolidated.** The pixel-wise fit now runs through a

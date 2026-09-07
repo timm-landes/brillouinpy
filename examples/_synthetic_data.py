@@ -137,8 +137,8 @@ def two_region_image(nx=40, ny=40, n_channels=250, freq_shift_a=5.6, freq_shift_
 
     Unlike :func:`two_material_image` (a smooth per-pixel mixture, made for
     unmixing), this matches "two tissues side by side" and is meant for the
-    phasor / segmentation examples and the method-limitation assay
-    (``12_method_limitations.py``): move ``freq_shift_a``/``freq_shift_b`` close
+    phasor / segmentation examples and the method-comparison assay
+    (``benchmarks/``): move ``freq_shift_a``/``freq_shift_b`` close
     together and/or raise ``noise`` to find where each analysis method stops
     resolving the two regions.
 
