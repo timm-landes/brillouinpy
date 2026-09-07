@@ -23,6 +23,12 @@ All shift/linewidth inputs are in **GHz** (the fit's own units); ``wavelength``
 is in **metres**, ``scattering_angle`` in **degrees**, ``density`` in
 **kg/m^3**. Results: velocity in m/s, moduli in Pa, viscosity in Pa*s.
 
+``linewidth`` is expected to be the :class:`~brillouinpy.analysis.fitmodel.DHO`
+fit's ``LineWidth``, i.e. the **half width at half maximum** (HWHM). Where a
+physical linewidth enters (loss tangent, loss modulus, viscosity) it is
+converted to the FWHM (``Gamma = 2 * LineWidth``) internally, so
+``loss_tangent = Gamma / shift = tan(delta)`` directly.
+
 Optional first-order uncertainty propagation: pass ``shift_uncertainty`` /
 ``linewidth_uncertainty`` (e.g. the square root of the fit covariance's
 diagonal) and the function returns ``(value, uncertainty)`` instead of just
@@ -36,6 +42,9 @@ __all__ = [
     "loss_tangent", "hypersound_velocity", "storage_modulus", "loss_modulus",
     "longitudinal_viscosity", "from_dho_fit", "MechanicalProperties",
 ]
+
+
+_HWHM_TO_FWHM = 2.0
 
 
 def _q_factor(refractive_index, wavelength, scattering_angle):
@@ -57,18 +66,20 @@ def _maybe_with_uncertainty(value, rel_variance_terms):
 
 def loss_tangent(shift, linewidth, *, shift_uncertainty=None, linewidth_uncertainty=None):
     """
-    ``tan(delta) = linewidth / shift`` - the loss tangent of the longitudinal
-    modulus (``M'' / M'``) for a damped-harmonic-oscillator lineshape.
+    ``tan(delta) = Gamma / shift`` with ``Gamma = 2 * linewidth`` the FWHM - the
+    loss tangent of the longitudinal modulus (``M'' / M'``) for a
+    damped-harmonic-oscillator lineshape. ``linewidth`` is the DHO fit's
+    ``LineWidth`` (HWHM).
 
     Needs no material constants or scattering geometry: the shift and linewidth
     scale identically with all of them, so their ratio is invariant. This is the
     one mechanical quantity a bare Brillouin fit gives you unambiguously.
     """
     shift = np.abs(np.asarray(shift, dtype=float))
-    linewidth = np.abs(np.asarray(linewidth, dtype=float))
-    value = linewidth / shift
+    fwhm = _HWHM_TO_FWHM * np.abs(np.asarray(linewidth, dtype=float))
+    value = fwhm / shift
     return _maybe_with_uncertainty(value, [
-        None if linewidth_uncertainty is None else np.asarray(linewidth_uncertainty) / linewidth,
+        None if linewidth_uncertainty is None else _HWHM_TO_FWHM * np.asarray(linewidth_uncertainty) / fwhm,
         None if shift_uncertainty is None else np.asarray(shift_uncertainty) / shift,
     ])
 
@@ -104,16 +115,17 @@ def storage_modulus(shift, *, density, refractive_index, wavelength, scattering_
 def loss_modulus(shift, linewidth, *, density, refractive_index, wavelength, scattering_angle,
                  shift_uncertainty=None, linewidth_uncertainty=None):
     """
-    Longitudinal loss modulus ``M'' = M' * tan(delta) = rho * V^2 * linewidth / shift``
-    (imaginary part of the complex longitudinal modulus), in Pa.
+    Longitudinal loss modulus ``M'' = M' * tan(delta) = rho * V^2 * Gamma / shift``
+    with ``Gamma = 2 * linewidth`` the FWHM (imaginary part of the complex
+    longitudinal modulus), in Pa. ``linewidth`` is the DHO fit's ``LineWidth`` (HWHM).
     """
     shift = np.abs(np.asarray(shift, dtype=float))
-    linewidth = np.abs(np.asarray(linewidth, dtype=float))
+    fwhm = _HWHM_TO_FWHM * np.abs(np.asarray(linewidth, dtype=float))
     v = shift * 1e9 * _q_factor(refractive_index, wavelength, scattering_angle)
-    value = density * v ** 2 * linewidth / shift
+    value = density * v ** 2 * fwhm / shift
     return _maybe_with_uncertainty(value, [
         None if shift_uncertainty is None else np.asarray(shift_uncertainty) / shift,
-        None if linewidth_uncertainty is None else np.asarray(linewidth_uncertainty) / linewidth,
+        None if linewidth_uncertainty is None else _HWHM_TO_FWHM * np.asarray(linewidth_uncertainty) / fwhm,
     ])
 
 
@@ -121,18 +133,20 @@ def longitudinal_viscosity(linewidth, *, density, refractive_index, wavelength, 
                            linewidth_uncertainty=None):
     """
     Apparent longitudinal (bulk + shear) viscosity
-    ``eta_L = rho * linewidth * lambda^2 / (8 pi n^2 sin^2(theta/2))``, in Pa*s.
+    ``eta_L = rho * Gamma * lambda^2 / (8 pi n^2 sin^2(theta/2))`` with
+    ``Gamma = 2 * linewidth`` the FWHM, in Pa*s. ``linewidth`` is the DHO fit's
+    ``LineWidth`` (HWHM).
 
     From ``eta_L = rho * Gamma_omega / q^2`` with the scattering wavevector
     ``q = 4 pi n sin(theta/2) / lambda``; for fixed material constants and
     geometry it depends only on the linewidth (the shift dependence cancels), so
     the shift is not an argument here.
     """
-    linewidth = np.abs(np.asarray(linewidth, dtype=float))
+    fwhm = _HWHM_TO_FWHM * np.abs(np.asarray(linewidth, dtype=float))
     k = _q_factor(refractive_index, wavelength, scattering_angle)
-    value = density * k ** 2 * (linewidth * 1e9) / (2.0 * np.pi)
+    value = density * k ** 2 * (fwhm * 1e9) / (2.0 * np.pi)
     return _maybe_with_uncertainty(value, [
-        None if linewidth_uncertainty is None else np.asarray(linewidth_uncertainty) / linewidth,
+        None if linewidth_uncertainty is None else _HWHM_TO_FWHM * np.asarray(linewidth_uncertainty) / fwhm,
     ])
 
 

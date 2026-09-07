@@ -16,47 +16,58 @@ from brillouinpy.core import Spectrum, SpectralImage
 
 
 def test_dho1_peaks_near_freq_shift():
-    # The model is symmetric about Asymmetry, so it peaks at both +freqShift and -freqShift;
+    # The model is symmetric about axis_shift, so it peaks at both +freqShift and -freqShift;
     # restrict to the positive half to check the location of one of them.
     x = np.linspace(0, 20, 2001)
-    y = _DHO_1(x, I0=2.0, freqShift=5.0, LineWidth=0.3, Background=1.0, Asymmetry=0.0)
+    y = _DHO_1(x, I0=2.0, freqShift=5.0, LineWidth=0.3, Background=1.0, axis_shift=0.0)
 
     assert x[np.argmax(y)] == pytest.approx(5.0, abs=0.05)
 
 
+def test_dho1_linewidth_is_hwhm():
+    # LineWidth is the half width at half maximum: the full width at half the
+    # peak height above background is 2 * LineWidth.
+    x = np.linspace(0, 20, 400001)
+    peak = _DHO_1(np.array([6.0]), I0=2.0, freqShift=6.0, LineWidth=0.5, Background=1.0, axis_shift=0.0)[0]
+    y = _DHO_1(x, I0=2.0, freqShift=6.0, LineWidth=0.5, Background=1.0, axis_shift=0.0)
+    half = y >= 1.0 + (peak - 1.0) / 2.0
+    fwhm = x[half][-1] - x[half][0]
+    assert fwhm == pytest.approx(2 * 0.5, abs=0.02)
+
+
 def test_dho1_approaches_background_far_from_peak():
-    y_far = _DHO_1(np.array([1000.0]), I0=2.0, freqShift=5.0, LineWidth=0.3, Background=1.0, Asymmetry=0.0)
+    y_far = _DHO_1(np.array([1000.0]), I0=2.0, freqShift=5.0, LineWidth=0.3, Background=1.0, axis_shift=0.0)
 
     assert y_far[0] == pytest.approx(1.0, abs=1e-3)
 
 
-def test_dho2_is_sum_of_two_dho1():
+def test_dho2_shares_a_single_background():
     x = np.linspace(-20, 20, 50)
     params = dict(I0=1.0, freqShift=5.0, LineWidth=0.3, I02=2.0, freqShift2=8.0, LineWidth2=0.5,
-                  Background=0.5, Asymmetry=0.1)
+                  Background=0.5, axis_shift=0.1)
 
     combined = _DHO_2(x, **params)
     expected = (
         _DHO_1(x, params["I0"], params["freqShift"], params["LineWidth"],
-               params["Background"], params["Asymmetry"])
+               params["Background"], params["axis_shift"])
         + _DHO_1(x, params["I02"], params["freqShift2"], params["LineWidth2"],
-                 params["Background"], params["Asymmetry"])
+                 0.0, params["axis_shift"])
     )
 
     assert np.allclose(combined, expected)
 
 
-def test_dho3_is_dho2_plus_dho1():
+def test_dho3_is_dho2_plus_one_backgroundless_mode():
     x = np.linspace(-20, 20, 50)
     params = dict(I0=1.0, freqShift=5.0, LineWidth=0.3, I02=2.0, freqShift2=8.0, LineWidth2=0.5,
-                  I03=0.5, freqShift3=12.0, LineWidth3=0.2, Background=0.5, Asymmetry=0.0)
+                  I03=0.5, freqShift3=12.0, LineWidth3=0.2, Background=0.5, axis_shift=0.0)
 
     combined = _DHO_3(x, **params)
     expected = (
         _DHO_2(x, params["I0"], params["freqShift"], params["LineWidth"], params["I02"], params["freqShift2"],
-               params["LineWidth2"], params["Background"], params["Asymmetry"])
+               params["LineWidth2"], params["Background"], params["axis_shift"])
         + _DHO_1(x, params["I03"], params["freqShift3"], params["LineWidth3"],
-                 params["Background"], params["Asymmetry"])
+                 0.0, params["axis_shift"])
     )
 
     assert np.allclose(combined, expected)
@@ -65,13 +76,22 @@ def test_dho3_is_dho2_plus_dho1():
 def test_lorentzian1_peaks_near_freq_shift():
     # Same symmetry consideration as the DHO model above.
     x = np.linspace(0, 20, 2001)
-    y = _Lorentzian_1(x, I0=2.0, freqShift=5.0, LineWidth=0.3, Background=1.0, Asymmetry=0.0)
+    y = _Lorentzian_1(x, I0=2.0, freqShift=5.0, LineWidth=0.3, Background=1.0, axis_shift=0.0)
 
     assert x[np.argmax(y)] == pytest.approx(5.0, abs=0.05)
 
 
+def test_lorentzian1_linewidth_is_hwhm():
+    x = np.linspace(0, 20, 400001)
+    peak = _Lorentzian_1(np.array([6.0]), I0=2.0, freqShift=6.0, LineWidth=0.5, Background=1.0, axis_shift=0.0)[0]
+    y = _Lorentzian_1(x, I0=2.0, freqShift=6.0, LineWidth=0.5, Background=1.0, axis_shift=0.0)
+    half = y >= 1.0 + (peak - 1.0) / 2.0
+    fwhm = x[half][-1] - x[half][0]
+    assert fwhm == pytest.approx(2 * 0.5, abs=0.03)
+
+
 def test_dho_fit_recovers_known_parameters():
-    true_params = dict(I0=5.0, freqShift=6.0, LineWidth=0.4, Background=1.0, Asymmetry=0.0)
+    true_params = dict(I0=5.0, freqShift=6.0, LineWidth=0.4, Background=1.0, axis_shift=0.0)
     axis = np.linspace(-20, 20, 400)
     intensity = _DHO_1(axis, **true_params)
 
@@ -87,9 +107,9 @@ def test_dho_fit_recovers_known_parameters():
 
 
 def test_estimate_p0_single_peak():
-    # Restricted to the positive half: the DHO model is symmetric about Asymmetry and would
+    # Restricted to the positive half: the DHO model is symmetric about axis_shift and would
     # otherwise also peak at -freqShift (see test_dho1_peaks_near_freq_shift).
-    true_params = dict(I0=5.0, freqShift=6.0, LineWidth=0.4, Background=1.0, Asymmetry=0.0)
+    true_params = dict(I0=5.0, freqShift=6.0, LineWidth=0.4, Background=1.0, axis_shift=0.0)
     axis = np.linspace(0, 20, 400)
     intensity = _DHO_1(axis, **true_params)
 
@@ -103,7 +123,7 @@ def test_estimate_p0_single_peak():
 
 def test_estimate_p0_two_peaks_recover_positions():
     true_params = dict(I0=1.0, freqShift=5.0, LineWidth=0.3, I02=2.0, freqShift2=12.0, LineWidth2=0.5,
-                        Background=0.5, Asymmetry=0.0)
+                        Background=0.5, axis_shift=0.0)
     axis = np.linspace(0, 20, 800)
     intensity = _DHO_2(axis, **true_params)
 
@@ -119,7 +139,7 @@ def test_estimate_p0_two_peaks_recover_positions():
 def test_estimate_p0_falls_back_when_peaks_overlap():
     # A single, unresolved broad peak: expecting 2 peaks must not raise.
     axis = np.linspace(0, 20, 400)
-    intensity = _DHO_1(axis, I0=5.0, freqShift=10.0, LineWidth=3.0, Background=1.0, Asymmetry=0.0)
+    intensity = _DHO_1(axis, I0=5.0, freqShift=10.0, LineWidth=3.0, Background=1.0, axis_shift=0.0)
 
     spectrum = Spectrum(intensity, axis)
     p0 = estimate_p0(spectrum, expected_peaks=2)

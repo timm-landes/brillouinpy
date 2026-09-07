@@ -204,7 +204,7 @@ if __name__ == '__main__':
     dho_fit = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=[0.005, 8.5, 1, 0, 0], bounds=None)
     fitted_parameters, _ = dho_fit.apply(preprocessed_image)
 
-    mean_amplitude, mean_shift, mean_linewidth, mean_bg, mean_asym = (
+    mean_amplitude, mean_shift, mean_linewidth, mean_bg, mean_axis_shift = (
         fitted_parameters[..., i].mean() for i in range(5)
     )
     plt.figure(figsize=(5, 4))
@@ -212,7 +212,7 @@ if __name__ == '__main__':
     plt.plot(
         preprocessed_image.spectral_axis,
         bp.analysis.fitmodel._DHO_1(
-            preprocessed_image.spectral_axis, mean_amplitude, mean_shift, mean_linewidth, mean_bg, mean_asym
+            preprocessed_image.spectral_axis, mean_amplitude, mean_shift, mean_linewidth, mean_bg, mean_axis_shift
         ),
         label='Mean DHO fit', color='red',
     )

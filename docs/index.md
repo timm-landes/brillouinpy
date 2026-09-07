@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     model = bp.analysis.fitmodel.DHO(
         expected_peaks=1,
-        p0=[20, 8, 0.5, 0, 0],  # [amplitude, shift (GHz), width, background, asymmetry]
+        p0=[20, 8, 0.5, 0, 0],  # [amplitude, shift (GHz), HWHM (GHz), background, axis_shift]
         bounds=([0, 5, 0.1, -5, -5], [100, 15, 10, 5, 5]),
     )
     fit_result, metrics = model.apply(pp_brillouin_data)

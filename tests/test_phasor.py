@@ -9,7 +9,7 @@ from brillouinpy.core import Spectrum, SpectralImage
 def _dho_spectrum(freq_shift, linewidth=0.6, axis=None):
     axis = np.linspace(0.5, 20, 400) if axis is None else axis
     return axis, _DHO_1(axis, I0=5.0, freqShift=freq_shift, LineWidth=linewidth,
-                        Background=0.05, Asymmetry=0.0)
+                        Background=0.05, axis_shift=0.0)
 
 
 def test_phasor_shape_matches_input():

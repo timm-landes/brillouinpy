@@ -4,97 +4,61 @@ Created on Thu Feb 20 13:14:03 2025
 
 @author: Timm
 """
+import logging
+import os
+import warnings
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, fftconvolve, peak_prominences, peak_widths
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
-import os
-
-from multiprocessing import shared_memory
 
 from .FitStep import FitStep
 
+_logger = logging.getLogger(__name__)
 
-# Worker-Globals
-_DHO3_DATA = None
-_DHO3_SPECTRAL_AXIS = None
-_DHO3_EXPECTED_PEAKS = None
-_DHO3_P0 = None
-_DHO3_BOUNDS = None
-_DHO3_FIT_FUNC = None
-_DHO3_SHM = None
+#: Largest number of Brillouin modes the fixed-count lineshape models cover.
+MAX_EXPECTED_PEAKS = 3
 
 
-def _init_dho3_worker(shm_name, shape, dtype, spectral_axis, expected_peaks, p0, bounds, fit_func):
-    global _DHO3_DATA, _DHO3_SPECTRAL_AXIS, _DHO3_EXPECTED_PEAKS, _DHO3_P0, _DHO3_BOUNDS, _DHO3_FIT_FUNC, _DHO3_SHM
-
-    _DHO3_SHM = shared_memory.SharedMemory(name=shm_name)
-    _DHO3_DATA = np.ndarray(shape, dtype=dtype, buffer=_DHO3_SHM.buf)
-    _DHO3_SPECTRAL_AXIS = spectral_axis
-    _DHO3_EXPECTED_PEAKS = expected_peaks
-    _DHO3_P0 = p0
-    _DHO3_BOUNDS = bounds
-    _DHO3_FIT_FUNC = fit_func
-
-
-def _fit_dho3_worker(idx):
-    intensity_data_slice = _DHO3_DATA[idx + (slice(None),)]
-    return _fitDHO2(
-        idx,
-        _DHO3_SPECTRAL_AXIS,
-        intensity_data_slice,
-        _DHO3_EXPECTED_PEAKS,
-        _DHO3_P0,
-        _DHO3_BOUNDS,
-        _DHO3_FIT_FUNC,
-    )
-
-
-def _fit_concurrent_DHO3(intensity_data, spectral_axis, expected_peaks, p0=None, bounds=None):
-    variables = int(expected_peaks * 3 + 2)
-
-    if p0 is not None and len(p0) != variables:
-        p0 = None
-        print("Length of p0 does not match the model. Fallback to p0 = None")
-
-    fit_results = np.full(intensity_data.shape[:-1] + (variables,), np.nan)
-    cov_results = np.full(intensity_data.shape[:-1] + (variables, variables), np.nan)
-
-    fit_func = {1: _DHO_1, 2: _DHO_2, 3: _DHO_3}[expected_peaks]
-    spectral_axis = spectral_axis[0]
-
-    # Masken im Spektrum behalten, aber als NaN speichern, damit curve_fit sie ignoriert
-    data = np.asarray(np.ma.filled(intensity_data, np.nan), dtype=np.float64)
-    spatial_shape = data.shape[:-1]
-    indices = list(np.ndindex(spatial_shape))
-
-    max_workers = max(1, int(os.cpu_count() * 0.25))
-    chunksize = max(1, len(indices) // (max_workers * 4))
-
-    shm = shared_memory.SharedMemory(create=True, size=data.nbytes)
+def _model_funcs(model):
+    """``{n_peaks: model_function}`` for a lineshape family. Evaluated lazily so
+    the model functions further down this module are already bound."""
     try:
-        shared_data = np.ndarray(data.shape, dtype=data.dtype, buffer=shm.buf)
-        shared_data[:] = data
+        return {
+            "dho": {1: _DHO_1, 2: _DHO_2, 3: _DHO_3},
+            "lorentzian": {1: _Lorentzian_1, 2: _Lorentzian_2, 3: _Lorentzian_3},
+        }[model]
+    except KeyError:
+        raise ValueError(f"model must be 'dho' or 'lorentzian', got {model!r}.") from None
 
-        with ProcessPoolExecutor(
-            max_workers=max_workers,
-            initializer=_init_dho3_worker,
-            initargs=(shm.name, data.shape, data.dtype, spectral_axis, expected_peaks, p0, bounds, fit_func),
-        ) as executor:
-            for idx, popt, pcov in tqdm(
-                executor.map(_fit_dho3_worker, indices, chunksize=chunksize),
-                total=len(indices),
-                desc="Fitting Spectral data",
-            ):
-                fit_results[idx] = popt
-                cov_results[idx] = pcov
 
-    finally:
-        shm.close()
-        shm.unlink()
+def _resolve_max_workers(max_workers):
+    """Worker-process count for a pixel-wise fit. ``None`` -> a quarter of the
+    visible CPUs (keeps the machine usable during a long fit); an explicit value
+    is clamped to at least 1. Pass an int on an HPC node or in a CPU-limited
+    container, where ``os.cpu_count()`` is misleading."""
+    if max_workers is None:
+        return max(1, int((os.cpu_count() or 4) * 0.25))
+    return max(1, int(max_workers))
 
-    return fit_results, cov_results
+
+def _prep_pixel_spectrum(intensity_data_slice):
+    """One pixel's spectrum as a plain float array with masked / zero channels set
+    to NaN (``curve_fit(nan_policy='omit')`` then drops them). Returns ``None`` if
+    the pixel has no usable channel."""
+    if np.ma.is_masked(intensity_data_slice):
+        if np.ma.getmaskarray(intensity_data_slice).all():
+            return None
+        y = np.ma.filled(intensity_data_slice, np.nan).astype(float)
+    else:
+        y = np.asarray(intensity_data_slice, dtype=float).copy()
+    y[y == 0] = np.nan
+    if np.all(np.isnan(y)):
+        return None
+    return y
+
 
 def estimate_p0(spectral_object, expected_peaks):
     """
@@ -102,9 +66,9 @@ def estimate_p0(spectral_object, expected_peaks):
 
     Runs peak detection once on the mean spectrum of ``spectral_object`` and derives, for each
     expected peak, an amplitude/frequency-shift/linewidth guess from the detected peak's
-    height/position/FWHM, plus a shared background and asymmetry guess. Returned in the
+    height/position/FWHM, plus a shared background and axis-shift guess. Returned in the
     parameter order the fit models expect: ``[I0, freqShift, LineWidth, ...,  Background,
-    Asymmetry]``.
+    axis_shift]``.
 
     If fewer than ``expected_peaks`` distinct peaks are found (e.g. an overlapping doublet
     showing up as a single broad peak), the remaining slots fall back to evenly spaced
@@ -190,10 +154,11 @@ def _estimate_p0_from_mean(intensity, axis, expected_peaks):
         width_samples = detected_widths.get(peak_idx, fallback_width_samples)
         I0 = float(max(intensity[peak_idx] - background, spacing))
         freqShift = float(axis[peak_idx])
-        LineWidth = float(max(width_samples * spacing, spacing))
+        # peak_widths / the fallback give a FWHM in samples; LineWidth is the HWHM.
+        LineWidth = float(max(0.5 * width_samples * spacing, spacing))
         p0.extend([I0, freqShift, LineWidth])
 
-    p0.extend([background, 0.0])  # Background, Asymmetry
+    p0.extend([background, 0.0])  # Background, axis_shift
 
     return p0
 
@@ -273,7 +238,7 @@ def _auto_bounds(axis, p0, n_peaks, shift_window=3.0):
 
 def _pad_auto_params(popt, n_peaks, max_peaks):
     """Pad a length-``3n+2`` parameter vector to ``3*max_peaks+2`` with NaN peak
-    triplets, keeping the trailing [Background, Asymmetry] last."""
+    triplets, keeping the trailing [Background, axis_shift] last."""
     popt = list(np.asarray(popt, dtype=float))
     return popt[:3 * n_peaks] + [np.nan] * (3 * (max_peaks - n_peaks)) + popt[3 * n_peaks:]
 
@@ -293,14 +258,8 @@ def _fitDHO_auto(idx, spectral_axis, intensity_data_slice, p0_by_count, bounds_b
     nan_params = np.full(variables, np.nan)
     nan_cov = np.full((variables, variables), np.nan)
 
-    if np.ma.is_masked(intensity_data_slice):
-        if np.ma.getmaskarray(intensity_data_slice).all():
-            return idx, nan_params, nan_cov
-        y = intensity_data_slice.filled(np.nan)
-    else:
-        y = np.asarray(intensity_data_slice, dtype=float).copy()
-    y[y == 0] = np.nan
-    if np.all(np.isnan(y)):
+    y = _prep_pixel_spectrum(intensity_data_slice)
+    if y is None:
         return idx, nan_params, nan_cov
 
     noise_variance = _estimate_noise_variance(y)
@@ -331,7 +290,7 @@ def _fitDHO_auto(idx, spectral_axis, intensity_data_slice, p0_by_count, bounds_b
 
 
 def _fit_concurrent_DHO_auto(intensity_data, spectral_axis, *, max_peaks=3, criterion="bic",
-                             min_improvement=6.0, min_peak_fraction=0.25, irf=None):
+                             min_improvement=6.0, min_peak_fraction=0.25, irf=None, max_workers=None):
     if max_peaks not in (2, 3):
         raise ValueError(f"expected_peaks='auto' needs max_peaks in (2, 3), got {max_peaks}.")
     axis = spectral_axis[0]
@@ -339,7 +298,7 @@ def _fit_concurrent_DHO_auto(intensity_data, spectral_axis, *, max_peaks=3, crit
     spatial_shape = data.shape[:-1]
     variables = 3 * max_peaks + 2
 
-    base_funcs = {1: _DHO_1, 2: _DHO_2, 3: _DHO_3}
+    base_funcs = _model_funcs("dho")
     if irf is not None:
         irf_arr = np.asarray(irf) if not isinstance(irf, (tuple, list, str)) else irf
         if isinstance(irf_arr, np.ndarray) and irf_arr.ndim > 1:
@@ -363,8 +322,8 @@ def _fit_concurrent_DHO_auto(intensity_data, spectral_axis, *, max_peaks=3, crit
 
     fit_results = np.full(spatial_shape + (variables,), np.nan)
     cov_results = np.full(spatial_shape + (variables, variables), np.nan)
-    print("Starting of Multiprocessing can take up to 10 seconds.")
-    with ProcessPoolExecutor(max_workers=max(1, int(os.cpu_count() * 0.25))) as executor:
+    _logger.info("Starting multiprocessing pool (first dispatch can take a few seconds).")
+    with ProcessPoolExecutor(max_workers=_resolve_max_workers(max_workers)) as executor:
         tasks = [executor.submit(_fitDHO_auto, idx, axis, data[idx + (slice(None),)],
                                  p0_by_count, bounds_by_count, fit_funcs, criterion,
                                  min_improvement, min_peak_fraction, max_peaks)
@@ -429,7 +388,7 @@ def estimate_peak_count(spectral_object, *, criterion="bic", candidates=(1, 2, 3
     mean = spectral_object.mean
     axis = np.asarray(mean.spectral_axis)
     y = np.ma.filled(mean.spectral_data, np.nan).astype(float)
-    fit_funcs = {1: _DHO_1, 2: _DHO_2, 3: _DHO_3}
+    fit_funcs = _model_funcs("dho")
     noise_variance = _estimate_noise_variance(y)
 
     entries, scores = {}, {}
@@ -573,10 +532,13 @@ def irf_kernel(irf, spectral_axis):
 
 
 class _ConvolvedModel:
-    """Picklable wrapper turning a bare lineshape ``f(x, *peak_params, Background, Asymmetry)``
-    into ``conv(f(., *peak_params, 0, Asymmetry), kernel) + Background``, evaluated on a stored
+    """Picklable wrapper turning a bare lineshape ``f(x, *peak_params, Background, axis_shift)``
+    into ``conv(f(., *peak_params, 0, axis_shift), kernel) + Background``, evaluated on a stored
     uniform grid and interpolated to whatever sample points ``curve_fit`` passes (which may be
-    a subset of the grid, e.g. with the elastic-peak channels dropped)."""
+    a subset of the grid, e.g. with the elastic-peak channels dropped).
+
+    ``Background`` is passed as 0 into the intrinsic lineshape and added once after the
+    convolution, so it is counted exactly once - matching the plain (non-convolved) models."""
 
     def __init__(self, base_func, kernel, full_axis):
         self.base_func = base_func
@@ -598,8 +560,18 @@ class _ConvolvedModel:
 
 class DHO(FitStep):
     """
-    Fit of one or multiple density distributions of Damped Harmonic Oscillators (DHO)
-    I0 * 4 * LineWidth * freqShift**2 /(np.pi*(((x-Asymmetry)**2 - freqShift**2)**2 + 4*(LineWidth*(x-Asymmetry))**2)) + Background
+    Fit of one or multiple damped-harmonic-oscillator (DHO) modes::
+
+        I0 * 4 * LineWidth * freqShift**2
+            / (np.pi * ((xs**2 - freqShift**2)**2 + 4 * (LineWidth * xs)**2)) + Background
+
+    with ``xs = x - axis_shift``. ``LineWidth`` is the **HWHM** (half width at
+    half maximum, Gamma / 2; the FWHM is ``2 * LineWidth``); the peak height is
+    ``I0 / (pi * LineWidth)``; ``Background`` is a single shared additive
+    constant; ``axis_shift`` (formerly ``Asymmetry``) rigidly shifts the
+    frequency axis. One mode is a symmetric Stokes/anti-Stokes doublet, so
+    ``expected_peaks`` counts modes. See the module-level conventions for the
+    full parameter layout.
 
     Parameters
     ----------
@@ -656,105 +628,98 @@ class DHO(FitStep):
         :class:`~brillouinpy.preprocessing.misc.IRF_Remover`) so they are excluded from the
         residual; the convolved model itself is evaluated on the full axis. ``None`` (default)
         keeps the plain, unconvolved fit.
-    **kwargs :
+    max_workers : int or None, optional
+        Number of worker processes for the pixel-wise fit. ``None`` (default) uses
+        a quarter of the visible CPUs; set it explicitly on an HPC node or in a
+        CPU-limited container.
 
     """
-    def __init__(self, *, expected_peaks, p0=None, bounds=None, irf=None,
+    def __init__(self, *, expected_peaks, p0=None, bounds=None, irf=None, max_workers=None,
                  max_peaks=3, criterion='bic', min_improvement=6.0, min_peak_fraction=0.25):
         if isinstance(expected_peaks, str) and expected_peaks == 'auto':
             super().__init__(_fit_concurrent_DHO_auto, max_peaks=max_peaks, criterion=criterion,
-                             min_improvement=min_improvement, min_peak_fraction=min_peak_fraction, irf=irf)
+                             min_improvement=min_improvement, min_peak_fraction=min_peak_fraction,
+                             irf=irf, max_workers=max_workers)
         else:
-            super().__init__(_fit_concurrent_DHO2, expected_peaks=expected_peaks, p0=p0, bounds=bounds, irf=irf)
+            super().__init__(_fit_concurrent, expected_peaks=expected_peaks, p0=p0, bounds=bounds,
+                             irf=irf, model="dho", max_workers=max_workers)
 
 
 class Lorentzian(FitStep):
     """
-    Fit of one or multiple Lorentzian lines
-    I0/((((x-Asymmetry)**2 - freqShift**2)**2 + (LineWidth*(x-Asymmetry))**2)) + Background
-
+    Fit of one or multiple Lorentzian doublets: for each mode, two Lorentzians of
+    HWHM ``LineWidth`` centred at ``axis_shift +/- freqShift`` (peak height
+    ``I0 / (pi * LineWidth)`` each), plus one shared ``Background``. Same
+    parameter conventions, flat layout, ``irf`` handling and return values as
+    :class:`DHO` (see the module notes and the ``DHO`` docstring).
 
     Parameters
     ----------
     expected_peaks : int
-        The number of peaks to fit.
-    p0 : list[floats]
-        The initial guess
-    bounds : list[list[floats], list[floats]] or None
-        Boundaries for the plot
-    **kwargs :
-
+        The number of modes (symmetric peak pairs) to fit.
+    p0 : list[float] or None
+        Initial guess, length ``expected_peaks * 3 + 2``. ``None`` starts from ones
+        (see :func:`estimate_p0` for a better guess).
+    bounds : tuple or None
+        ``(lo, hi)`` parameter bounds passed to ``scipy.optimize.curve_fit``.
+    irf : array-like, tuple, ``'auto'`` or None, optional
+        Instrument response function - as for :class:`DHO`.
+    max_workers : int or None, optional
+        Worker processes for the pixel-wise fit (see :class:`DHO`).
     """
-    def __init__(self, *, expected_peaks, p0, bounds):
-        super().__init__(_fit_concurrent_lorentzian, expected_peaks=expected_peaks, p0=p0, bounds=bounds)
+    def __init__(self, *, expected_peaks, p0=None, bounds=None, irf=None, max_workers=None):
+        super().__init__(_fit_concurrent, expected_peaks=expected_peaks, p0=p0, bounds=bounds,
+                         irf=irf, model="lorentzian", max_workers=max_workers)
 
 
-def _fitDHO(x, y, z, t, spectral_axis, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs):
-    # Convert masked values to nan
-    if np.ma.is_masked(intensity_data_slice):
-        # Check if all values are masked
-        if np.ma.getmask(intensity_data_slice).all():
-            return x, y, z, t, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
-        intensity_axis = intensity_data_slice.filled(np.nan)
-    else:
-        intensity_axis = intensity_data_slice.copy()
-    intensity_axis[intensity_axis == 0] = np.nan
+def _fit_pixel(idx, spectral_axis, intensity_data_slice, n_params, fit_func, p0, bounds):
+    """Fit one pixel's spectrum with ``fit_func``. Returns ``(idx, popt, pcov)``;
+    an all-masked / empty pixel or a non-converging fit yields NaN arrays of the
+    right shape."""
+    nan_params = np.full(n_params, np.nan)
+    nan_cov = np.full((n_params, n_params), np.nan)
 
-    # If all values are NaN, return NaN results
-    if np.all(np.isnan(intensity_axis)):
-        return x, y, z, t, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
+    y = _prep_pixel_spectrum(intensity_data_slice)
+    if y is None:
+        return idx, nan_params, nan_cov
 
-    if p0 is None:
-        p0 = [1] * (expected_peaks * 3 + 2)  # Default initial guesses
-    if bounds is None:
-        bounds = (0, np.inf)  # No negative values allowed
+    p0 = [1.0] * n_params if p0 is None else p0
+    bounds = (0, np.inf) if bounds is None else bounds
 
     try:
-        # Use nan_policy='omit' to handle NaN values
-        popt, pcov = curve_fit(fit_funcs[expected_peaks], spectral_axis, intensity_axis, p0=p0, bounds=bounds, nan_policy='omit')
-        return x, y, z, t, popt, pcov
-    except RuntimeError:
-        print(f"Fit not successful for pixel ({x},{y},{z},{t})")
-        return x, y, z, t, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
-
-def _fitDHO2(idx, spectral_axis, intensity_data_slice, expected_peaks, p0, bounds, fit_func):
-    # Convert masked values to nan
-    if np.ma.is_masked(intensity_data_slice):
-        if np.ma.getmask(intensity_data_slice).all():
-            return idx, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
-        intensity_axis = intensity_data_slice.filled(np.nan)
-    else:
-        intensity_axis = intensity_data_slice.copy()
-    intensity_axis[intensity_axis == 0] = np.nan
-
-    if np.all(np.isnan(intensity_axis)):
-        return idx, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
-
-    if p0 is None:
-        p0 = [1] * (expected_peaks * 3 + 2)
-    if bounds is None:
-        bounds = (0, np.inf)
-
-    try:
-        popt, pcov = curve_fit(fit_func, spectral_axis, intensity_axis, p0=p0, bounds=bounds, nan_policy='omit')
+        popt, pcov = curve_fit(fit_func, spectral_axis, y, p0=p0, bounds=bounds, nan_policy="omit")
         return idx, popt, pcov
     except RuntimeError:
-        print(f"Fit not successful for pixel {idx}")
-        return idx, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
+        _logger.debug("fit did not converge for pixel %s", idx)
+        return idx, nan_params, nan_cov
 
-def _fit_concurrent_DHO2(intensity_data, spectral_axis, expected_peaks, p0=None, bounds=None, irf=None):
-    variables = int(expected_peaks * 3 + 2)
+
+def _fit_concurrent(intensity_data, spectral_axis, expected_peaks, p0=None, bounds=None,
+                    irf=None, *, model="dho", max_workers=None):
+    """Pixel-wise least-squares fit of a fixed number of modes across a stacked
+    spectral image; backs :class:`DHO` and :class:`Lorentzian`.
+
+    ``model`` picks the lineshape family (``'dho'`` / ``'lorentzian'``). ``irf`` is
+    ``None``, a parametric spec / 1-D kernel (one convolved model for every pixel)
+    or a per-pixel ``(*spatial, B)`` kernel array (a pixel with no usable kernel
+    falls back to the plain model)."""
+    fit_funcs = _model_funcs(model)
+    if expected_peaks not in fit_funcs:
+        raise ValueError(f"expected_peaks must be 1..{MAX_EXPECTED_PEAKS}, got {expected_peaks!r}.")
+    n_params = int(expected_peaks * 3 + 2)
     spatial_shape = intensity_data.shape[:-1]
-    fit_results = np.zeros(spatial_shape + (variables,))
-    cov_results = np.empty(spatial_shape + (variables, variables))
+    fit_results = np.full(spatial_shape + (n_params,), np.nan)
+    cov_results = np.full(spatial_shape + (n_params, n_params), np.nan)
 
-    fit_funcs = {1: _DHO_1, 2: _DHO_2, 3: _DHO_3}
     base_func = fit_funcs[expected_peaks]
     spectral_axis = spectral_axis[0]
 
-    # irf may be None, a parametric spec / 1-D kernel (one model for every pixel),
-    # or a per-pixel (*spatial, B) array (a kernel built per pixel; a pixel with no
-    # detectable IRF falls back to the plain model).
+    if p0 is not None and len(p0) != n_params:
+        warnings.warn(
+            f"p0 has {len(p0)} entries but the {expected_peaks}-mode '{model}' model needs "
+            f"{n_params}; ignoring it and starting curve_fit from ones.", stacklevel=2)
+        p0 = None
+
     irf_arr = np.asarray(irf) if (irf is not None and not isinstance(irf, (tuple, list, str))) else irf
     per_pixel_irf = isinstance(irf_arr, np.ndarray) and irf_arr.ndim > 1
     if irf is None:
@@ -772,130 +737,106 @@ def _fit_concurrent_DHO2(intensity_data, spectral_axis, expected_peaks, p0=None,
         except ValueError:
             return base_func  # no usable IRF for this pixel
 
-    print('Starting of Multiprocessing can take up to 10 seconds.')
-    tasks = []
-    with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.25))) as executor:
-        for idx in np.ndindex(spatial_shape):
-            intensity_data_slice = intensity_data[idx + (slice(None),)]
-            task = executor.submit(_fitDHO2, idx, spectral_axis, intensity_data_slice, expected_peaks,
-                                   p0, bounds, _pixel_fit_func(idx))
-            tasks.append(task)
-
-        for future in tqdm(as_completed(tasks), total=len(tasks), desc='Fitting Spectral data'):
+    _logger.info("Starting multiprocessing pool (first dispatch can take a few seconds).")
+    with ProcessPoolExecutor(max_workers=_resolve_max_workers(max_workers)) as executor:
+        tasks = [
+            executor.submit(_fit_pixel, idx, spectral_axis, intensity_data[idx + (slice(None),)],
+                            n_params, _pixel_fit_func(idx), p0, bounds)
+            for idx in np.ndindex(spatial_shape)
+        ]
+        for future in tqdm(as_completed(tasks), total=len(tasks), desc="Fitting spectral data"):
             idx, popt, pcov = future.result()
             fit_results[idx] = popt
             cov_results[idx] = pcov
 
     return fit_results, cov_results
 
-def _fitLorentzian(x, y, X, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs):
-    # Convert masked values to nan
-    if np.ma.is_masked(intensity_data_slice):
-        Y = intensity_data_slice.filled(np.nan)
-    else:
-        Y = intensity_data_slice.copy()
-    Y[Y == 0] = np.nan
 
-    if p0 is None:
-        p0 = [1] * (expected_peaks * 3 + 2)  # Default initial guesses
-    if bounds is None:
-        bounds = (0, np.inf)  # No negative values allowed
-
-    try:
-        # Use nan_policy='omit' to handle NaN values
-        popt, pcov = curve_fit(fit_funcs[expected_peaks], X, Y, p0=p0, bounds=bounds, nan_policy='omit')
-        return x, y, popt, pcov
-    except RuntimeError:
-        print(f"Fit not successful for pixel ({x},{y})")
-        return x, y, np.full(expected_peaks * 3 + 2, np.nan), np.full((expected_peaks * 3 + 2, expected_peaks * 3 + 2), np.nan)
-
-
-def _fit_concurrent_DHO(intensity_data, spectral_axis, expected_peaks, p0=None, bounds=None):
-    variables = int(expected_peaks * 3 + 2)
-    if p0 is not None and len(p0) != variables:
-        p0 = None
-        print('Length of p0 does not match the model. Fallback to p0 = None')
-    fit_results = np.zeros((intensity_data.shape[0], intensity_data.shape[1], intensity_data.shape[2], intensity_data.shape[3], variables))
-    cov_results = np.empty((intensity_data.shape[0], intensity_data.shape[1], intensity_data.shape[2], intensity_data.shape[3], variables, variables))
-
-    fit_funcs = {1: _DHO_1, 2: _DHO_2, 3: _DHO_3}
-    spectral_axis = spectral_axis[0]
-    print('Starting of Multiprocessing can take up to 10 seconds.')
-    tasks = []
-    with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.25))) as executor:
-        for x in range(intensity_data.shape[0]):
-            for y in range(intensity_data.shape[1]):
-                for z in range(intensity_data.shape[2]):
-                    for t in range(intensity_data.shape[3]):
-                            intensity_data_slice = intensity_data[x, y, z, t, :]
-                            # Skip if all values are masked
-                            # if np.ma.is_masked(intensity_data_slice) and np.ma.getmask(intensity_data_slice).all():
-                            #     fit_results[x, y, z, t, :] = np.nan
-                            #     cov_results[x, y, z, t, :] = np.nan
-                            #     continue
-                            task = executor.submit(_fitDHO, x, y, z, t,  spectral_axis, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs)
-                            tasks.append(task)
-
-        # Use tqdm to display a progress bar
-        for future in tqdm(as_completed(tasks), total=len(tasks), desc='Fitting Spectral data'):
-            x, y, z, t, popt, pcov = future.result()
-            fit_results[x, y, z, t, :] = popt
-            cov_results[x, y, z, t, :, :] = pcov
-
-    return fit_results, cov_results
-
-def _fit_concurrent_lorentzian(intensity_data, spectral_axis, expected_peaks, p0=None, bounds=None):
-    variables = int(expected_peaks * 3 + 2)
-    if p0 is not None and len(p0) != variables:
-        p0 = None
-        print('Length of p0 does not match the model. Fallback to p0 = None')
-    fit_results = np.zeros((intensity_data.shape[0], intensity_data.shape[1], variables))
-    cov_results = np.empty((intensity_data.shape[0], intensity_data.shape[1], variables, variables))
-
-    fit_funcs = {1: _Lorentzian_1, 2: _Lorentzian_2, 3: _Lorentzian_3}
-    X = spectral_axis[0]
-    print('Starting of Multiprocessing can take up to 10 seconds.')
-    tasks = []
-    with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.25))) as executor:
-        for x in range(intensity_data.shape[0]):
-            for y in range(intensity_data.shape[1]):
-                intensity_data_slice = intensity_data[x, y, :]
-                # Skip if all values are masked
-                if np.ma.is_masked(intensity_data_slice) and np.ma.getmask(intensity_data_slice).all():
-                    fit_results[x, y, :] = np.nan
-                    cov_results[x, y, :, :] = np.nan
-                    continue
-                task = executor.submit(_fitLorentzian, x, y, X, intensity_data_slice, expected_peaks, p0, bounds, fit_funcs)
-                tasks.append(task)
-
-        # Use tqdm to display a progress bar
-        for future in tqdm(as_completed(tasks), total=len(tasks), desc='Fitting Spectral data'):
-            x, y, popt, pcov = future.result()
-            fit_results[x, y, :] = popt
-            cov_results[x, y, :, :] = pcov
-
-    return fit_results, cov_results
+# --------------------------------------------------------------------------- #
+# Lineshape models
+#
+# Parameter conventions shared by every model function below and by the
+# parameter vectors :class:`DHO` / :class:`Lorentzian` return:
+#
+# * ``I0``         - peak-area-like amplitude. The peak *height* above the
+#                    background is ``I0 / (pi * LineWidth)`` for both the DHO and
+#                    the Lorentzian model.
+# * ``freqShift``  - Brillouin shift nu_B (GHz). One mode is a *doublet*: peaks
+#                    at ``axis_shift +/- freqShift``. ``expected_peaks`` counts
+#                    modes, so ``expected_peaks=1`` fits one Stokes/anti-Stokes
+#                    pair from a single ``freqShift``.
+# * ``LineWidth``  - **half width at half maximum** (HWHM), i.e. Gamma / 2.
+#                    The full width at half maximum is ``2 * LineWidth``.
+#                    ``mechanics`` converts this to the FWHM internally where a
+#                    physical linewidth is needed (loss tangent, viscosity).
+# * ``Background`` - additive constant, counted **once** for the whole model
+#                    (not once per peak).
+# * ``axis_shift`` - rigid shift of the frequency axis (GHz); the doublet is
+#                    symmetric about this value. Named ``Asymmetry`` up to 0.3.1.
+#
+# Flat parameter order: ``[I0, freqShift, LineWidth] * n_peaks`` then the shared
+# ``[Background, axis_shift]``.
+# --------------------------------------------------------------------------- #
 
 
-def _DHO_1(x, I0, freqShift, LineWidth, Background, Asymmetry):
-    return I0 * 4 * LineWidth * freqShift**2 /(np.pi*(((x-Asymmetry)**2 - freqShift**2)**2 + 4*(LineWidth*(x-Asymmetry))**2)) + Background
+def _dho_line(xs, I0, freqShift, LineWidth):
+    """Bare single-mode damped-harmonic-oscillator doublet (no background) on the
+    already axis-shifted coordinate ``xs = x - axis_shift``. ``LineWidth`` is the
+    HWHM; the peak height is ``I0 / (pi * LineWidth)``."""
+    return I0 * 4 * LineWidth * freqShift ** 2 / (
+        np.pi * ((xs ** 2 - freqShift ** 2) ** 2 + 4 * (LineWidth * xs) ** 2)
+    )
 
 
-def _DHO_2(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2, Background, Asymmetry):
-    return _DHO_1(x, I0, freqShift, LineWidth, Background, Asymmetry) + _DHO_1(x, I02, freqShift2, LineWidth2, Background, Asymmetry)
+def _lorentz_line(xs, I0, freqShift, LineWidth):
+    """Bare single-mode Lorentzian doublet (no background) on ``xs = x -
+    axis_shift``: two area-normalised Lorentzians of HWHM ``LineWidth`` centred at
+    ``+/- freqShift``, scaled by ``I0`` (so the peak height is ``I0 / (pi *
+    LineWidth)``, matching :func:`_dho_line`)."""
+    hw = LineWidth
+    return (I0 / np.pi) * (hw / ((xs - freqShift) ** 2 + hw ** 2)
+                           + hw / ((xs + freqShift) ** 2 + hw ** 2))
 
 
-def _DHO_3(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2, I03, freqShift3, LineWidth3, Background, Asymmetry):
-    return _DHO_2(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2, Background, Asymmetry) + _DHO_1(x, I03, freqShift3, LineWidth3, Background, Asymmetry)
+def _DHO_1(x, I0, freqShift, LineWidth, Background, axis_shift):
+    """One-mode DHO doublet. See the module conventions above: ``LineWidth`` is
+    the HWHM and ``Background`` is a single additive constant."""
+    return _dho_line(x - axis_shift, I0, freqShift, LineWidth) + Background
 
 
-def _Lorentzian_1(x, I0, freqShift, LineWidth, Background, Asymmetry):
-    return I0 * LineWidth /((((x-Asymmetry)**2 - freqShift**2)**2 + (LineWidth*(x-Asymmetry))**2)) + Background
+def _DHO_2(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2, Background, axis_shift):
+    """Two-mode DHO model. Shared single ``Background`` and ``axis_shift``."""
+    xs = x - axis_shift
+    return (_dho_line(xs, I0, freqShift, LineWidth)
+            + _dho_line(xs, I02, freqShift2, LineWidth2) + Background)
 
 
-def _Lorentzian_2(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2, Background, Asymmetry):
-    return _Lorentzian_1(x, I0, freqShift, LineWidth, Background, Asymmetry) + _Lorentzian_1(x, I02, freqShift2, LineWidth2, Background, Asymmetry)
+def _DHO_3(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2,
+           I03, freqShift3, LineWidth3, Background, axis_shift):
+    """Three-mode DHO model. Shared single ``Background`` and ``axis_shift``."""
+    xs = x - axis_shift
+    return (_dho_line(xs, I0, freqShift, LineWidth)
+            + _dho_line(xs, I02, freqShift2, LineWidth2)
+            + _dho_line(xs, I03, freqShift3, LineWidth3) + Background)
 
 
-def _Lorentzian_3(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2, I03, freqShift3, LineWidth3, Background, Asymmetry):
-    return _Lorentzian_2(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2, Background, Asymmetry) + _Lorentzian_1(x, I03, freqShift3, LineWidth3, Background, Asymmetry)
+def _Lorentzian_1(x, I0, freqShift, LineWidth, Background, axis_shift):
+    """One-mode Lorentzian doublet. Same conventions as :func:`_DHO_1`
+    (``LineWidth`` is the HWHM, ``Background`` counted once)."""
+    return _lorentz_line(x - axis_shift, I0, freqShift, LineWidth) + Background
+
+
+def _Lorentzian_2(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2, Background, axis_shift):
+    """Two-mode Lorentzian model. Shared single ``Background`` and ``axis_shift``."""
+    xs = x - axis_shift
+    return (_lorentz_line(xs, I0, freqShift, LineWidth)
+            + _lorentz_line(xs, I02, freqShift2, LineWidth2) + Background)
+
+
+def _Lorentzian_3(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2,
+                  I03, freqShift3, LineWidth3, Background, axis_shift):
+    """Three-mode Lorentzian model. Shared single ``Background`` and ``axis_shift``."""
+    xs = x - axis_shift
+    return (_lorentz_line(xs, I0, freqShift, LineWidth)
+            + _lorentz_line(xs, I02, freqShift2, LineWidth2)
+            + _lorentz_line(xs, I03, freqShift3, LineWidth3) + Background)

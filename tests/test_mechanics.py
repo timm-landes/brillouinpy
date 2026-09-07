@@ -7,20 +7,21 @@ from brillouinpy.analysis import mechanics
 WATER = dict(refractive_index=1.33, wavelength=532e-9, scattering_angle=180.0)
 RHO_WATER = 998.0
 SHIFT_WATER = 7.46      # GHz, measured
-LINEWIDTH_WATER = 0.6   # GHz FWHM
+LINEWIDTH_WATER = 0.5   # GHz HWHM (the DHO fit's LineWidth); FWHM = 1.0
 
 
-def test_loss_tangent_is_ratio_and_needs_nothing():
-    assert mechanics.loss_tangent(8.0, 1.0) == pytest.approx(0.125)
+def test_loss_tangent_uses_the_fwhm():
+    # loss_tangent = (2 * linewidth) / shift, linewidth being the HWHM
+    assert mechanics.loss_tangent(8.0, 1.0) == pytest.approx(0.25)
     # invariant to shift/linewidth scaling by the same factor
-    assert mechanics.loss_tangent(16.0, 2.0) == pytest.approx(0.125)
+    assert mechanics.loss_tangent(16.0, 2.0) == pytest.approx(0.25)
 
 
 def test_loss_tangent_uncertainty_propagation():
     val, unc = mechanics.loss_tangent(8.0, 1.0, shift_uncertainty=0.08, linewidth_uncertainty=0.05)
-    assert val == pytest.approx(0.125)
-    # relative error = sqrt((0.05/1)^2 + (0.08/8)^2)
-    assert unc == pytest.approx(0.125 * np.hypot(0.05, 0.01))
+    assert val == pytest.approx(0.25)
+    # relative error = sqrt((0.05/1)^2 + (0.08/8)^2), scale-invariant under HWHM->FWHM
+    assert unc == pytest.approx(0.25 * np.hypot(0.05, 0.01))
 
 
 def test_hypersound_velocity_of_water():
@@ -42,7 +43,7 @@ def test_loss_modulus_equals_storage_times_loss_tangent():
 
 def test_longitudinal_viscosity_of_water_and_linear_in_linewidth():
     eta = mechanics.longitudinal_viscosity(LINEWIDTH_WATER, density=RHO_WATER, **WATER)
-    assert eta == pytest.approx(4e-3, rel=0.3)  # a few mPa*s
+    assert eta == pytest.approx(6e-3, rel=0.4)  # a few mPa*s
     assert mechanics.longitudinal_viscosity(2 * LINEWIDTH_WATER, density=RHO_WATER, **WATER) \
         == pytest.approx(2 * eta, rel=1e-9)
 
@@ -70,7 +71,7 @@ def test_from_dho_fit_only_loss_tangent_without_constants():
     result = mechanics.from_dho_fit(params)
 
     assert result.loss_tangent.shape == (3, 4)
-    np.testing.assert_allclose(result.loss_tangent, 0.6 / 7.46)
+    np.testing.assert_allclose(result.loss_tangent, 2 * 0.6 / 7.46)
     assert result.storage_modulus is None
     assert result.hypersound_velocity is None
     assert result.loss_tangent_uncertainty is None
@@ -102,5 +103,5 @@ def test_from_dho_fit_peak_selection():
     params[..., 1], params[..., 2] = 7.0, 0.5
     params[..., 4], params[..., 5] = 9.0, 1.0
 
-    assert mechanics.from_dho_fit(params, peak=0).loss_tangent[0, 0] == pytest.approx(0.5 / 7.0)
-    assert mechanics.from_dho_fit(params, peak=1).loss_tangent[0, 0] == pytest.approx(1.0 / 9.0)
+    assert mechanics.from_dho_fit(params, peak=0).loss_tangent[0, 0] == pytest.approx(2 * 0.5 / 7.0)
+    assert mechanics.from_dho_fit(params, peak=1).loss_tangent[0, 0] == pytest.approx(2 * 1.0 / 9.0)

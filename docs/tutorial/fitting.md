@@ -14,7 +14,7 @@ right setting instead (see below):
 ```python
 dho_fit = bp.analysis.fitmodel.DHO(
     expected_peaks=1,
-    p0=[0.005, 8.5, 1, 0, 0],  # [Amplitude, FreqShift (GHz), FWHM (GHz), Background, Asymmetry]
+    p0=[0.005, 8.5, 1, 0, 0],  # [Amplitude, FreqShift (GHz), LineWidth = HWHM (GHz), Background, axis_shift]
     bounds=None,
 )
 fitted_parameters, covariances = dho_fit.apply(preprocessed_image)
@@ -32,8 +32,8 @@ individual peaks in the plot - `expected_peaks=1` is correct for the single-mode
 data used here, even though it visibly produces two peaks (see the note on the
 [tutorial overview](index.md)). For `expected_peaks > 1` (e.g. two overlapping
 materials each contributing their own mode), `p0`/`bounds` grow to length
-`expected_peaks * 3 + 2` (one `[Amplitude, FreqShift, FWHM]` triplet per mode,
-followed by the shared `[Background, Asymmetry]`) - one triplet per doublet found
+`expected_peaks * 3 + 2` (one `[Amplitude, FreqShift, LineWidth]` triplet per mode,
+with `LineWidth` the HWHM, followed by the shared `[Background, axis_shift]`) - one triplet per doublet found
 in the variance spectrum, roughly centred on the peak positions read off the mean
 spectrum.
 

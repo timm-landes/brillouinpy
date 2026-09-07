@@ -15,9 +15,11 @@ import numpy as np
 import brillouinpy as bp
 
 
-def _dho(x, amplitude, freq_shift, linewidth, background=0.0, asymmetry=0.0):
+def _dho(x, amplitude, freq_shift, linewidth, background=0.0, axis_shift=0.0):
+    # Mirrors brillouinpy.analysis.fitmodel._dho_line: ``linewidth`` is the HWHM.
+    xs = x - axis_shift
     return amplitude * 4 * linewidth * freq_shift ** 2 / (
-        np.pi * (((x - asymmetry) ** 2 - freq_shift ** 2) ** 2 + 4 * (linewidth * (x - asymmetry)) ** 2)
+        np.pi * ((xs ** 2 - freq_shift ** 2) ** 2 + 4 * (linewidth * xs) ** 2)
     ) + background
 
 

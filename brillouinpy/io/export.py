@@ -18,7 +18,7 @@ def _dho_parameter_names(expected_peaks: int) -> list:
     for i in range(expected_peaks):
         suffix = "" if i == 0 else f"_{i + 1}"
         names += [f"I0{suffix}", f"freqShift{suffix}", f"LineWidth{suffix}"]
-    names += ["Background", "Asymmetry"]
+    names += ["Background", "axis_shift"]
     return names
 
 
@@ -173,7 +173,7 @@ def to_hdf5_bls(
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
         ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
         is expected to hold, per fitted peak, the triplet (I0, freqShift,
-        LineWidth), followed by a single shared (Background, Asymmetry) pair.
+        LineWidth), followed by a single shared (Background, axis_shift) pair.
     expected_peaks : int, optional
         Number of fitted peaks in ``fit_result``. Required if ``fit_result`` is
         given and ``parameter_names`` isn't.
@@ -240,7 +240,8 @@ def to_hdf5_bls(
                     name_group=f"Treat_{i}",
                     amplitude=np.asarray(fit_result[..., 3 * i]),
                     shift=np.asarray(fit_result[..., 3 * i + 1]),
-                    linewidth=np.asarray(fit_result[..., 3 * i + 2]),
+                    # brillouinpy's LineWidth is the HWHM; HDF5_BLS uses the FWHM.
+                    linewidth=np.asarray(2.0 * fit_result[..., 3 * i + 2]),
                 )
 
             for j, name in enumerate(parameter_names[3 * n_peaks:]):
@@ -438,7 +439,7 @@ def to_brim(
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
         ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
         is expected to hold, per fitted peak, the triplet (I0, freqShift,
-        LineWidth), followed by a single shared (Background, Asymmetry) pair. Since
+        LineWidth), followed by a single shared (Background, axis_shift) pair. Since
         brillouinpy's peak models fit one symmetric peak per mode, the same
         values are written for both the "AntiStokes" and "Stokes" sides.
     expected_peaks : int, optional
@@ -556,7 +557,8 @@ def to_brim(
                 {
                     "amplitude": _spatial_map_to_zyx(fit_result[..., 3 * i]), "amplitude_units": "a.u.",
                     "shift": _spatial_map_to_zyx(fit_result[..., 3 * i + 1]), "shift_units": "GHz",
-                    "width": _spatial_map_to_zyx(fit_result[..., 3 * i + 2]), "width_units": "GHz",
+                    # brillouinpy's LineWidth is the HWHM; brim/HDF5_BLS use the FWHM.
+                    "width": _spatial_map_to_zyx(2.0 * fit_result[..., 3 * i + 2]), "width_units": "GHz",
                     "offset": background, "offset_units": "a.u.",
                 }
                 for i in range(expected_peaks)
