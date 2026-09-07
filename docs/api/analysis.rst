@@ -21,6 +21,10 @@ Analysis
    :members:
    :show-inheritance:
 
+.. automodule:: brillouinpy.analysis.mechanics
+   :members:
+   :show-inheritance:
+
 .. automodule:: brillouinpy.analysis.decompose
    :members:
    :show-inheritance:
