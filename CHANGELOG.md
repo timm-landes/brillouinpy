@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-07
+
+Bundles everything on `develop` since 0.3.1: spectral phasor analysis, VCA/NMF/PCA/k-means
+exploratory tools, `segmented_fit`, IRF-convolution fitting, automatic peak-count
+selection, and the `analysis.mechanics` module - plus a review-driven cleanup of
+the `DHO`/`Lorentzian` fit models. **Breaking:** the fit models' parameter
+conventions are now pinned down (`Asymmetry` → `axis_shift`, `LineWidth` is the
+HWHM, `Background` counted once, real Lorentzian doublet) and the derived
+`analysis.mechanics` / `io.export` linewidths change accordingly - refit any data
+whose fit parameters were stored with 0.3.x. See below.
+
 ### Added
 - **`segmented_fit(..., model=...)`.** The segmented fit can now use a Lorentzian
   lineshape (`model='lorentzian'`) instead of the DHO (`model='dho'`, default).
