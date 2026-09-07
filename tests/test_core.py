@@ -262,6 +262,57 @@ def test_metadata_and_px_size_carry_through_slicing_and_reductions():
     assert image.tolist()[0].metadata == md
 
 
+def test_instrument_response_function_validation_and_axis_sort():
+    axis = np.array([20.0, 0.0, -20.0])  # unsorted
+    irf_1d = np.array([1.0, 2.0, 3.0])
+    img = SpectralImage(np.random.rand(2, 2, 3), axis,
+                        instrument_response_function=irf_1d)
+    # sorted alongside the spectral axis
+    assert np.array_equal(img.spectral_axis, [-20.0, 0.0, 20.0])
+    assert np.array_equal(img.instrument_response_function, [3.0, 2.0, 1.0])
+
+    with pytest.raises(ValueError):  # wrong channel count
+        SpectralImage(np.random.rand(2, 2, 3), np.linspace(-1, 1, 3),
+                      instrument_response_function=np.ones(4))
+    with pytest.raises(ValueError):  # per-pixel shape mismatch
+        SpectralImage(np.random.rand(2, 2, 3), np.linspace(-1, 1, 3),
+                      instrument_response_function=np.ones((3, 3, 3)))
+
+
+def test_per_pixel_irf_follows_spatial_operations():
+    axis = np.linspace(-20, 20, 8)
+    irf = np.random.rand(4, 3, 8)
+    image = SpectralImage(np.random.rand(4, 3, 8), axis, instrument_response_function=irf)
+
+    assert image[1].instrument_response_function.shape == (3, 8)
+    np.testing.assert_array_equal(image[1].instrument_response_function, irf[1])
+    assert image.flat.instrument_response_function.shape == (12, 8)
+    # mean/variance collapse the per-pixel IRF to the mean IRF
+    np.testing.assert_allclose(image.mean.instrument_response_function,
+                               irf.reshape(-1, 8).mean(axis=0))
+    assert image.tolist()[0].instrument_response_function.shape == (8,)
+
+    volume = SpectralVolume.from_image_stack([image, image])
+    assert volume.instrument_response_function.shape == (4, 3, 2, 8)
+    assert volume.layer(0).instrument_response_function.shape == (4, 3, 8)
+
+
+def test_shared_irf_passes_through_unchanged_and_survives_pickle():
+    axis = np.linspace(-20, 20, 8)
+    kernel = np.hanning(8)
+    image = SpectralImage(np.random.rand(4, 3, 8), axis, instrument_response_function=kernel)
+
+    np.testing.assert_array_equal(image[0].instrument_response_function, kernel)
+    np.testing.assert_array_equal(image.flat.instrument_response_function, kernel)
+
+    restored = pickle.loads(pickle.dumps(image))
+    np.testing.assert_array_equal(restored.instrument_response_function, kernel)
+
+    legacy = SpectralImage(np.random.rand(3, 3, 8), axis)
+    del legacy.__dict__["instrument_response_function"]
+    assert pickle.loads(pickle.dumps(legacy)).instrument_response_function is None
+
+
 def test_metadata_survives_pickle_and_legacy_pickle_without_attrs(tmp_path):
     axis = np.linspace(-20, 20, 10)
     image = SpectralImage(np.random.rand(3, 3, 10), axis, metadata={"a": 1})

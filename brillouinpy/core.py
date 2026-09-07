@@ -25,11 +25,17 @@ from scipy.signal import find_peaks
 from . import utils
 
 
+#: Sentinel for "carry this forward from the source object" vs. an explicit
+#: ``None`` (which means "drop it") in derivation helpers.
+_UNSET = object()
+
+
 def _empty_px_size() -> dict:
     return {"x": None, "y": None, "z": None}
 
 
-def _create_data(spectral_data, spectral_axis, *, metadata=None, px_size_um=None, channels=None):
+def _create_data(spectral_data, spectral_axis, *, metadata=None, px_size_um=None, channels=None,
+                 instrument_response_function=None):
     if len(spectral_data.shape) == 1:
         cls = Spectrum
     elif len(spectral_data.shape) == 3:
@@ -38,7 +44,26 @@ def _create_data(spectral_data, spectral_axis, *, metadata=None, px_size_um=None
         cls = SpectralVolume
     else:
         cls = SpectralContainer
-    return cls(spectral_data, spectral_axis, metadata=metadata, px_size_um=px_size_um, channels=channels)
+    return cls(spectral_data, spectral_axis, metadata=metadata, px_size_um=px_size_um, channels=channels,
+              instrument_response_function=instrument_response_function)
+
+
+def _stack_irf(sources):
+    """Combine the per-source instrument response functions when stacking. Returns
+    a stacked ``(N, B)`` array if every source carries a grid-conformant per-pixel
+    IRF, the shared 1-D kernel if every source carries the same one, else ``None``."""
+    irfs = [getattr(s, "instrument_response_function", None) for s in sources]
+    if any(irf is None for irf in irfs):
+        return None
+    irfs = [np.asarray(irf) for irf in irfs]
+    if all(irf.ndim == 1 for irf in irfs):
+        return irfs[0].copy() if all(np.array_equal(irf, irfs[0]) for irf in irfs) else None
+    try:
+        return np.vstack([irf.reshape(-1, irf.shape[-1]) if irf.ndim > 1
+                          else np.broadcast_to(irf, (s.flat.shape[0], irf.shape[-1]))
+                          for irf, s in zip(irfs, sources)])
+    except ValueError:
+        return None
 
 
 class SpectralContainer:
@@ -70,6 +95,19 @@ class SpectralContainer:
         this object's is "grid-conformant" and follows along through spatial
         operations (indexing, ``flat``, stacking); one that doesn't is passed
         through untouched. See :attr:`channels_grid_conformant`.
+    instrument_response_function : array_like, optional
+        The spectrometer's instrument response function, aligned to
+        ``spectral_axis``: either a 1-D array of shape ``(B,)`` shared by every
+        pixel (e.g. a VIPA IRF measured once), or a grid-conformant
+        ``(*spatial, B)`` array giving a per-pixel IRF (e.g. a tandem
+        Fabry-Perot elastic peak detected on every scan by
+        :class:`brillouinpy.preprocessing.misc.Deconvoluter_IRF`). ``None`` if
+        unknown. Carried forward through spatial operations (``flat``, indexing,
+        stacking follow it; ``mean``/``variance`` collapse it to the mean IRF)
+        and consumed by :class:`brillouinpy.analysis.fitmodel.DHO` with
+        ``irf='auto'``. For an IRF measured a few times over the course of an
+        acquisition (VIPA drift correction), expand it to a per-pixel array with
+        :func:`brillouinpy.preprocessing.misc.assign_irf` first.
 
     Example
     ----------
@@ -89,7 +127,8 @@ class SpectralContainer:
     #: which accepts any dimensionality; set on the shape-specific subclasses.
     _required_ndim = None
 
-    def __init__(self, spectral_data, spectral_axis, *, metadata=None, px_size_um=None, channels=None):
+    def __init__(self, spectral_data, spectral_axis, *, metadata=None, px_size_um=None, channels=None,
+                 instrument_response_function=None):
         # Convert to masked array if it isn't already one
         if np.ma.is_masked(spectral_data):
             self.spectral_data = spectral_data
@@ -97,7 +136,9 @@ class SpectralContainer:
             self.spectral_data = np.ma.asarray(spectral_data)
 
         self.spectral_axis = np.asarray(spectral_axis)
-        self.instrument_response_function = None
+        self.instrument_response_function = (
+            None if instrument_response_function is None
+            else np.asarray(instrument_response_function))
         self.metadata = {} if metadata is None else dict(metadata)
         self.channels = {} if channels is None else dict(channels)
         self.px_size_um = _empty_px_size()
@@ -115,10 +156,23 @@ class SpectralContainer:
             raise ValueError(
                 f"The last dimension of the data ({self.spectral_data.shape[-1]}) must match the axis provided ({len(self.spectral_axis)}).")
 
+        irf = self.instrument_response_function
+        if irf is not None:
+            if irf.shape[-1] != len(self.spectral_axis):
+                raise ValueError(
+                    f"instrument_response_function's last dimension ({irf.shape[-1]}) must match the "
+                    f"spectral axis ({len(self.spectral_axis)}).")
+            if irf.ndim != 1 and irf.shape[:-1] != self.spectral_data.shape[:-1]:
+                raise ValueError(
+                    f"a per-pixel instrument_response_function must be 1-D (shape (B,), shared) or "
+                    f"match the data's spatial shape; got {irf.shape} for data {self.spectral_data.shape}.")
+
         # Order data and axis by shift number values
         sorted_indices = self.spectral_axis.argsort()
         self.spectral_data = self.spectral_data[..., sorted_indices]
         self.spectral_axis = self.spectral_axis[sorted_indices]
+        if self.instrument_response_function is not None:
+            self.instrument_response_function = self.instrument_response_function[..., sorted_indices]
 
     def __setstate__(self, state):
         # Backwards compatibility: pickles written before metadata/px_size_um
@@ -151,12 +205,35 @@ class SpectralContainer:
         conformant = self.channels_grid_conformant
         return {name: op(ch) if conformant[name] else ch for name, ch in self.channels.items()}
 
-    def _derive(self, spectral_data, spectral_axis=None, *, keep_px_size=True, channels=None):
+    def _child_irf(self, *, key=None, flatten=False, reduce=None):
+        """Carry :attr:`instrument_response_function` through a spatial operation. A
+        shared 1-D kernel passes through unchanged (it broadcasts); a per-pixel
+        ``(*spatial, B)`` array is sliced (``key``), flattened to ``(-1, B)``
+        (``flatten``) or collapsed to a single 1-D kernel (``reduce='mean'``)."""
+        irf = self.instrument_response_function
+        if irf is None:
+            return None
+        irf = np.asarray(irf)
+        if irf.ndim <= 1:
+            return irf.copy()
+        if reduce == 'mean':
+            return np.nanmean(irf.reshape(-1, irf.shape[-1]), axis=0)
+        if flatten:
+            return irf.reshape(-1, irf.shape[-1]).copy()
+        if key is not None:
+            return np.asarray(irf[key])
+        return irf.copy()
+
+    def _derive(self, spectral_data, spectral_axis=None, *, keep_px_size=True, channels=None,
+                instrument_response_function=_UNSET):
         """
         Build a derived object of the appropriate type for ``spectral_data``,
-        carrying this object's metadata (and, by default, pixel size) forward.
-        ``channels`` defaults to a deep copy of this object's channels; pass an
-        explicit dict when a spatial operation has transformed them.
+        carrying this object's metadata (and, by default, pixel size and IRF)
+        forward. ``channels`` defaults to a deep copy of this object's channels;
+        pass an explicit dict when a spatial operation has transformed them.
+        ``instrument_response_function`` defaults to this object's, carried as-is;
+        pass an explicit value (or ``None``) when a spatial operation transforms
+        or invalidates it.
         """
         return _create_data(
             spectral_data,
@@ -164,6 +241,8 @@ class SpectralContainer:
             metadata=copy.deepcopy(self.metadata),
             px_size_um=dict(self.px_size_um) if keep_px_size else None,
             channels=copy.deepcopy(self.channels) if channels is None else channels,
+            instrument_response_function=(self._child_irf() if instrument_response_function is _UNSET
+                                          else instrument_response_function),
         )
 
     @staticmethod
@@ -258,6 +337,7 @@ class SpectralContainer:
 
         return cls(np.vstack([obj.flat.spectral_data for obj in stack]), stack[0].spectral_axis,
                    channels=cls._stack_channels(stack, SpectralContainer.from_stack),
+                   instrument_response_function=_stack_irf(stack),
                    **cls._inherited_kwargs(stack[0]))
 
     @property
@@ -271,7 +351,8 @@ class SpectralContainer:
         """
         return SpectralContainer(self.spectral_data.reshape(-1, self.spectral_length), self.spectral_axis,
                                  metadata=copy.deepcopy(self.metadata), px_size_um=dict(self.px_size_um),
-                                 channels=self._map_channels(lambda ch: ch.flat))
+                                 channels=self._map_channels(lambda ch: ch.flat),
+                                 instrument_response_function=self._child_irf(flatten=True))
 
     @property
     def shape(self) -> tuple[int]:
@@ -293,7 +374,8 @@ class SpectralContainer:
         Returns the mean spectrum in the spectral object.
         """
         return Spectrum(np.nanmean(self.flat.spectral_data, axis=0), self.spectral_axis,
-                        metadata=copy.deepcopy(self.metadata))
+                        metadata=copy.deepcopy(self.metadata),
+                        instrument_response_function=self._child_irf(reduce='mean'))
 
     @property
     def variance(self) -> Spectrum:
@@ -301,7 +383,8 @@ class SpectralContainer:
         Returns the mean spectrum in the spectral object.
         """
         return Spectrum(np.nanvar(self.flat.spectral_data, axis=0), self.spectral_axis,
-                        metadata=copy.deepcopy(self.metadata))
+                        metadata=copy.deepcopy(self.metadata),
+                        instrument_response_function=self._child_irf(reduce='mean'))
 
     # TODO: spatial vs spectral indexing
     def __getitem__(self, key):
@@ -336,7 +419,8 @@ class SpectralContainer:
             return spectral_data_slice
         else:
             return self._derive(spectral_data_slice,
-                                channels=self._map_channels(lambda ch: ch[key]))
+                                channels=self._map_channels(lambda ch: ch[key]),
+                                instrument_response_function=self._child_irf(key=key))
 
     def band(self, spectral_band: Number) -> np.ndarray:
         """Returns a spectral slice across the closest spectral band in the axis to the one given."""
@@ -359,9 +443,12 @@ class SpectralContainer:
         Returns the spectral object as a list of Spectrum objects.
         """
         unfolded_spectral_data = self.spectral_data.reshape(-1, self.spectral_length)
+        irf = self._child_irf(flatten=True)
+        irf_rows = irf if (irf is not None and irf.ndim == 2) else [irf] * len(unfolded_spectral_data)
 
-        return [Spectrum(spectral_data, self.spectral_axis, metadata=copy.deepcopy(self.metadata))
-                for spectral_data in unfolded_spectral_data]
+        return [Spectrum(spectral_data, self.spectral_axis, metadata=copy.deepcopy(self.metadata),
+                         instrument_response_function=irf_row)
+                for spectral_data, irf_row in zip(unfolded_spectral_data, irf_rows)]
 
 
 class Spectrum(SpectralContainer):
@@ -459,9 +546,21 @@ class SpectralVolume(SpectralContainer):
         if not utils.is_aligned(image_stack):
             raise ValueError("Cannot create a spectral volume out of unaligned spectral images. Spectral axes must match.")
 
+        irfs = [im.instrument_response_function for im in image_stack]
+        if any(x is None for x in irfs):
+            stacked_irf = None
+        elif all(np.asarray(x).ndim == 1 for x in irfs):
+            stacked_irf = irfs[0] if all(np.array_equal(x, irfs[0]) for x in irfs) else None
+        elif all(np.asarray(x).ndim == 3 and np.asarray(x).shape[:2] == im.shape
+                 for x, im in zip(irfs, image_stack)):
+            stacked_irf = np.stack([np.asarray(x) for x in irfs], axis=2)  # (nx, ny, nz, B)
+        else:
+            stacked_irf = None
+
         return cls(np.dstack([image.spectral_data[..., np.newaxis, :] for image in image_stack]),
                    image_stack[0].spectral_axis,
                    channels=cls._stack_channels(image_stack, SpectralVolume.from_image_stack),
+                   instrument_response_function=stacked_irf,
                    **cls._inherited_kwargs(image_stack[0]))
 
     # def plot(self, bands, **kwargs):
@@ -491,9 +590,12 @@ class SpectralVolume(SpectralContainer):
             raise ValueError(
                 f"The layer index must be between 0 and {self.shape[-1] - 1} inclusively. Got {layer_index} instead.")
 
+        irf = self.instrument_response_function
+        layer_irf = None if irf is None else (irf if irf.ndim == 1 else np.asarray(irf)[..., layer_index, :])
         return SpectralImage(self.spectral_data[..., layer_index, :], self.spectral_axis,
                              metadata=copy.deepcopy(self.metadata),
-                             px_size_um={"x": self.px_size_um.get("x"), "y": self.px_size_um.get("y")})
+                             px_size_um={"x": self.px_size_um.get("x"), "y": self.px_size_um.get("y")},
+                             instrument_response_function=layer_irf)
 
 
 # for typing

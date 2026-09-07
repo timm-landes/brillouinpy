@@ -36,7 +36,8 @@ if __name__ == '__main__':
     os.makedirs(OUT_DIR, exist_ok=True)
 
     import brillouinpy as bp
-    from _synthetic_data import single_peak_image, image_with_irf, two_material_image
+    from _synthetic_data import (single_peak_image, image_with_irf, two_material_image,
+                                 irf_broadened_image)
 
     # -----------------------------------------------------------------------
     # 1. Loading data
@@ -232,5 +233,37 @@ if __name__ == '__main__':
     plt.colorbar(label='Linewidth (GHz)')
     plt.title('Linewidth')
     savefig('09_fit_maps.png')
+
+    # -----------------------------------------------------------------------
+    # 14. Plain fit vs. IRF-convolution fit (synthetic panel only; the
+    #     real-data panel needs a measurement and ships as a static asset)
+    # -----------------------------------------------------------------------
+    irf_image, true_lw_map, irf_info = irf_broadened_image(
+        nx=40, ny=40, component_shift=6.5, irf_fwhm=0.8, irf_shape='gaussian',
+        intrinsic_linewidth_background=0.9, intrinsic_linewidth_blob=0.45,
+        elastic_amplitude=1.5, noise_model='poisson', peak_photons=500,
+    )
+    irf_prepared = bp.preprocessing.misc.IRF_Remover(offset=6, store_irf=True).apply(irf_image)
+    irf_p0, irf_bounds = [3e-3, 6.5, 1.0, 1e-4, 0.0], ([0, 5, 0.05, -1e-2, -1], [1, 8, 5, 1e-1, 1])
+    irf_plain, _ = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=irf_p0, bounds=irf_bounds).apply(irf_prepared)
+    irf_param, _ = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=irf_p0, bounds=irf_bounds,
+                                            irf=('gaussian', irf_info['irf_fwhm'])).apply(irf_prepared)
+    irf_auto, _ = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=irf_p0, bounds=irf_bounds,
+                                           irf='auto').apply(irf_prepared)
+
+    plt.figure(figsize=(15, 3.4), layout='constrained')
+    for i, (m, t) in enumerate([
+        (true_lw_map, 'True intrinsic'),
+        (np.abs(irf_plain[..., 2]), 'Plain fit'),
+        (np.abs(irf_param[..., 2]), "irf=('gaussian', 0.8)"),
+        (np.abs(irf_auto[..., 2]), "irf='auto'"),
+    ]):
+        ax = plt.subplot(1, 4, i + 1)
+        im = ax.imshow(m, vmin=0.3, vmax=1.4)
+        ax.set_title(f'{t}\nlinewidth (GHz)', fontsize=9)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        plt.colorbar(im, ax=ax, fraction=0.046)
+    savefig('14_irf_fit_synthetic.png')
 
     print('Done.')

@@ -1,6 +1,7 @@
 import numpy as np
+import pytest
 
-from brillouinpy.preprocessing.misc import Deconvoluter_IRF
+from brillouinpy.preprocessing.misc import Deconvoluter_IRF, IRF_Remover, assign_irf
 from brillouinpy.core import Spectrum, SpectralImage, SpectralContainer
 
 
@@ -77,3 +78,66 @@ def test_deconvoluter_irf_padding_reduces_edge_artefact():
 
     # Padding changes the result near the edge - it isn't silently ignored.
     assert not np.allclose(unpadded.spectral_data[:5], padded.spectral_data[:5])
+
+
+# --- IRF carried on the container ---------------------------------------------
+
+def test_irf_remover_store_irf_attaches_per_pixel_irf():
+    data, axis = _spectrum_with_irf()
+    image = SpectralImage(np.tile(data, (3, 3, 1)), axis)
+
+    result = IRF_Remover(offset=2, store_irf=True).apply(image)
+
+    irf = result.instrument_response_function
+    assert irf is not None and irf.shape == image.spectral_data.shape
+    # non-zero only around the detected IRF region
+    assert np.count_nonzero(irf[1, 1]) > 0
+    assert np.count_nonzero(irf[1, 1, :30]) == 0
+
+    # opt-out
+    assert IRF_Remover(offset=2, store_irf=False).apply(image).instrument_response_function is None
+    # Deconvoluter_IRF does not store it by default (would be a double correction)
+    assert Deconvoluter_IRF(offset=2, iterations=4, padding=None).apply(
+        image).instrument_response_function is None
+
+
+def test_cropper_would_invalidate_stored_irf(recwarn):
+    from brillouinpy.preprocessing.misc import Cropper
+    data, axis = _spectrum_with_irf()
+    image = SpectralImage(np.tile(data, (2, 2, 1)), axis,
+                          instrument_response_function=np.tile(data, (2, 2, 1)))
+
+    result = Cropper(region=(-10, 10)).apply(image)
+
+    assert result.instrument_response_function is None
+    assert any("instrument_response_function" in str(w.message) for w in recwarn)
+
+
+def test_assign_irf_single_measurement_is_shared():
+    axis = np.linspace(-20, 20, 40)
+    image = SpectralImage(np.random.rand(3, 4, 40), axis)
+    irf = np.hanning(40)
+
+    result = assign_irf(image, irf)
+
+    assert result.instrument_response_function.shape == (40,)
+    np.testing.assert_array_equal(result.instrument_response_function, irf)
+    assert image.instrument_response_function is None  # input untouched
+
+
+def test_assign_irf_multiple_measurements_expand_to_per_pixel():
+    axis = np.linspace(-20, 20, 40)
+    image = SpectralImage(np.random.rand(4, 5, 40), axis)  # 20 pixels
+    meas = np.stack([np.full(40, 1.0), np.full(40, 3.0)])
+
+    nearest = assign_irf(image, meas, at=[0, 19], method='nearest')
+    assert nearest.instrument_response_function.shape == (4, 5, 40)
+    flat = nearest.instrument_response_function.reshape(20, 40)
+    assert flat[0, 0] == 1.0 and flat[-1, 0] == 3.0
+
+    linear = assign_irf(image, meas, at=[0, 19], method='linear')
+    mid = linear.instrument_response_function.reshape(20, 40)[10, 0]
+    assert 1.0 < mid < 3.0
+
+    with pytest.raises(ValueError):  # missing at=
+        assign_irf(image, meas)

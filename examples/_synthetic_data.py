@@ -476,22 +476,33 @@ def irf_broadened_image(nx=30, ny=30, n_channels=300, component_shift=6.5,
     intrinsic_linewidth_map = (intrinsic_linewidth_background
                                + weight * (intrinsic_linewidth_blob - intrinsic_linewidth_background))
 
+    elastic_zero = None
     if elastic_amplitude > 0:
-        # A narrow elastic / Rayleigh line at zero shift, shaped like the IRF itself
-        # (that is what it physically is) and scaled to elastic_amplitude x the Brillouin
-        # peak height. Placed at the central channel.
-        peak_height = float(spectral_data.max())
-        centre = n_channels // 2
+        # An elastic / Rayleigh line at zero shift that is *the IRF itself* (same
+        # kernel that broadened the Brillouin lines), scaled to elastic_amplitude
+        # x the Brillouin peak height - so a fit that recovers the kernel from
+        # this peak (DHO(irf='auto')) sees the same broadening the lines carry.
+        # A finite window (a real detector does not capture infinite Lorentzian
+        # wings) flanked by a thin exact-zero band lets
+        # brillouinpy.preprocessing.misc._find_instrumental_response locate it
+        # (the zeros survive Poisson sampling; with noise_model='gaussian' they
+        # don't). Kept well clear of the +/- component_shift Brillouin peaks.
+        centre = int(np.argmin(np.abs(spectral_axis)))
         half = kernel.size // 2
-        lo, hi = max(0, centre - half), min(n_channels, centre + half + 1)
-        elastic = np.zeros(n_channels)
-        elastic[lo:hi] = kernel[half - (centre - lo):half + (hi - centre)]
-        elastic *= elastic_amplitude * peak_height / elastic.max()
-        spectral_data = spectral_data + elastic[None, None, :]
+        core = kernel / kernel.max()
+        lo, hi = centre - half, centre + half + 1
+        peak_height = float(spectral_data.max())
+        spectral_data[..., lo:hi] += elastic_amplitude * peak_height * core[None, None, :]
+        elastic_zero = (slice(max(0, lo - 3), lo), slice(hi, min(n_channels, hi + 3)))
+        for band in elastic_zero:
+            spectral_data[..., band] = 0.0
 
     photon_scale = peak_photons / spectral_data.max()
     spectral_data = _add_noise(spectral_data, rng, noise_model=noise_model,
                                noise=noise, photon_scale=photon_scale)
+    if elastic_zero is not None:
+        for band in elastic_zero:
+            spectral_data[..., band] = 0.0
 
     info = {'irf_fwhm': irf_fwhm, 'irf_shape': irf_shape,
             'component_shift': component_shift, 'irf_kernel': kernel}

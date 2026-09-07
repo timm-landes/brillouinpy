@@ -257,11 +257,34 @@ def irf_kernel(irf, spectral_axis):
         if kernel.size < 3:
             raise ValueError(f"a measured irf needs at least 3 samples, got {kernel.size}.")
         kernel = np.nan_to_num(kernel, nan=0.0)
-        kernel = np.clip(kernel - kernel.min(), 0.0, None)
+        nz = np.flatnonzero(kernel > kernel.min())
+        if nz.size < 3:
+            raise ValueError("measured irf has no usable samples.")
+        # Restrict to the detected support (a detected elastic-peak region is
+        # otherwise mostly zeros spanning the whole spectrum).
+        kernel = kernel[nz[0]:nz[-1] + 1]
+        # Subtract a *linear* baseline through the support's two ends: a detected
+        # elastic peak sits on the sloping inner wing of the Brillouin doublet,
+        # not a flat pedestal, and leaving that in makes the kernel too broad
+        # (the fit then over-corrects the linewidth).
+        idx = np.arange(kernel.size, dtype=float)
+        e = max(1, kernel.size // 8)
+        ends_x = np.concatenate([idx[:e], idx[-e:]])
+        ends_y = np.concatenate([kernel[:e], kernel[-e:]])
+        slope, intercept = np.polyfit(ends_x, ends_y, 1)
+        kernel = np.clip(kernel - (slope * idx + intercept), 0.0, None)
+        # Drop channels below a small fraction of the peak (residual baseline noise
+        # in the shoulders - kept low so genuine Lorentzian wings survive), then
+        # trim to a symmetric window about the peak so it is centred.
+        kernel[kernel < 0.005 * kernel.max()] = 0.0
+        nz = np.flatnonzero(kernel > 0)
+        if nz.size < 3:
+            raise ValueError("measured irf has no usable samples after baseline subtraction.")
+        kernel = kernel[nz[0]:nz[-1] + 1]
         peak = int(np.argmax(kernel))
         reach = min(peak, kernel.size - 1 - peak)
         if reach < 1:
-            raise ValueError("measured irf peak is at the very edge of the sample; give a wider window.")
+            raise ValueError("measured irf peak is at the very edge of its support; give a wider window.")
         kernel = kernel[peak - reach:peak + reach + 1]
 
     total = kernel.sum()
@@ -307,16 +330,25 @@ class DHO(FitStep):
         The initial guess
     bounds : list[list[floats], list[floats]] or None
         Boundaries for the plot
-    irf : array-like, tuple or None, optional
+    irf : array-like, tuple, ``'auto'`` or None, optional
         Instrument response function. If given, the model fitted to each spectrum is the
         intrinsic DHO lineshape *convolved with the IRF* plus a background, so the fitted
         ``LineWidth`` is the intrinsic Brillouin linewidth with the instrumental broadening
         modelled explicitly - instead of deconvolving the data first (which amplifies noise;
-        contrast :class:`~brillouinpy.preprocessing.misc.Deconvoluter_IRF`). Accepts anything
-        :func:`irf_kernel` accepts: a measured 1-D IRF sample (e.g. the background-subtracted
-        elastic peak) on the spectrum's channel spacing, or a parametric
-        ``('lorentzian'|'gaussian', fwhm)`` / ``('voigt', fwhm_l, fwhm_g)`` spec (GHz). The
-        elastic-peak channels should still be blanked to ``NaN`` (e.g. via
+        contrast :class:`~brillouinpy.preprocessing.misc.Deconvoluter_IRF`).
+
+        - ``'auto'``: use the fitted object's ``instrument_response_function`` attribute
+          (set by :class:`~brillouinpy.preprocessing.misc.Deconvoluter_IRF` /
+          :class:`~brillouinpy.preprocessing.misc.IRF_Remover` with ``store_irf=True``, or
+          by :func:`~brillouinpy.preprocessing.misc.assign_irf`). A per-pixel
+          ``(*spatial, B)`` IRF gives each pixel its own kernel; a shared 1-D one is used
+          everywhere. Falls back to a plain fit (with a warning) if the object carries none.
+        - a 1-D array: a measured IRF sample (e.g. the elastic peak) on the spectrum's
+          channel spacing.
+        - ``('lorentzian'|'gaussian', fwhm)`` / ``('voigt', fwhm_l, fwhm_g)``: a parametric
+          IRF, widths in GHz.
+
+        The elastic-peak channels should still be blanked to ``NaN`` (e.g. via
         :class:`~brillouinpy.preprocessing.misc.IRF_Remover`) so they are excluded from the
         residual; the convolved model itself is evaluated on the full axis. ``None`` (default)
         keeps the plain, unconvolved fit.
@@ -408,16 +440,36 @@ def _fit_concurrent_DHO2(intensity_data, spectral_axis, expected_peaks, p0=None,
     cov_results = np.empty(spatial_shape + (variables, variables))
 
     fit_funcs = {1: _DHO_1, 2: _DHO_2, 3: _DHO_3}
-    fit_func = fit_funcs[expected_peaks]
+    base_func = fit_funcs[expected_peaks]
     spectral_axis = spectral_axis[0]
-    if irf is not None:
-        fit_func = _ConvolvedModel(fit_func, irf_kernel(irf, spectral_axis), spectral_axis)
+
+    # irf may be None, a parametric spec / 1-D kernel (one model for every pixel),
+    # or a per-pixel (*spatial, B) array (a kernel built per pixel; a pixel with no
+    # detectable IRF falls back to the plain model).
+    irf_arr = np.asarray(irf) if (irf is not None and not isinstance(irf, (tuple, list, str))) else irf
+    per_pixel_irf = isinstance(irf_arr, np.ndarray) and irf_arr.ndim > 1
+    if irf is None:
+        shared_fit_func = base_func
+    elif per_pixel_irf:
+        shared_fit_func = None
+    else:
+        shared_fit_func = _ConvolvedModel(base_func, irf_kernel(irf_arr, spectral_axis), spectral_axis)
+
+    def _pixel_fit_func(idx):
+        if not per_pixel_irf:
+            return shared_fit_func
+        try:
+            return _ConvolvedModel(base_func, irf_kernel(irf_arr[idx], spectral_axis), spectral_axis)
+        except ValueError:
+            return base_func  # no usable IRF for this pixel
+
     print('Starting of Multiprocessing can take up to 10 seconds.')
     tasks = []
     with ProcessPoolExecutor(max_workers=max(1,int(os.cpu_count()*0.25))) as executor:
         for idx in np.ndindex(spatial_shape):
             intensity_data_slice = intensity_data[idx + (slice(None),)]
-            task = executor.submit(_fitDHO2, idx, spectral_axis, intensity_data_slice, expected_peaks, p0, bounds, fit_func)
+            task = executor.submit(_fitDHO2, idx, spectral_axis, intensity_data_slice, expected_peaks,
+                                   p0, bounds, _pixel_fit_func(idx))
             tasks.append(task)
 
         for future in tqdm(as_completed(tasks), total=len(tasks), desc='Fitting Spectral data'):

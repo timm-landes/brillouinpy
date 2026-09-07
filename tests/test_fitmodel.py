@@ -187,3 +187,61 @@ def test_convolved_dho_fit_recovers_intrinsic_linewidth():
     assert plain_lw > true_lw + 0.1                       # plain fit is broadened
     assert conv_lw == pytest.approx(true_lw, abs=0.08)    # convolution fit recovers it
     assert float(np.nanmedian(conv[..., 1])) == pytest.approx(true_shift, abs=0.05)
+
+
+def test_dho_irf_auto_reads_container_attribute():
+    import warnings
+
+    rng = np.random.default_rng(2)
+    axis = np.linspace(-15, 15, 400)
+    true_shift, true_lw, amp, bg, irf_fwhm = 6.0, 0.6, 1.0, 0.05, 0.5
+
+    intrinsic = _DHO_1(axis, amp, true_shift, true_lw, 0.0, 0.0)
+    k = irf_kernel(("lorentzian", irf_fwhm), axis)
+    n = k.size
+    broadened = np.convolve(np.pad(intrinsic, n, mode="edge"), k, mode="same")[n:-n] + bg
+    scale = 400.0 / broadened.max()
+    noisy = (rng.poisson(np.clip(np.tile(broadened, (4, 4, 1)) * scale, 0, None)) / scale).astype(float)
+
+    p0 = [amp, true_shift, 1.0, bg, 0.0]
+    bounds = ([0, 3, 0.05, -1, -1], [10, 14, 5, 2, 1])
+
+    # a stored IRF is axis-aligned: embed the kernel at the centre of a full-length array
+    k_full = np.zeros(axis.size)
+    lo = axis.size // 2 - k.size // 2
+    k_full[lo:lo + k.size] = k
+    with_irf = SpectralImage(noisy, axis, instrument_response_function=k_full)
+    auto, _ = DHO(expected_peaks=1, p0=p0, bounds=bounds, irf='auto').apply(with_irf)
+    assert float(np.nanmedian(auto[..., 2])) == pytest.approx(true_lw, abs=0.08)
+
+    # no IRF on the object -> warns and falls back to a plain (broadened) fit
+    without = SpectralImage(noisy, axis)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        fallback, _ = DHO(expected_peaks=1, p0=p0, bounds=bounds, irf='auto').apply(without)
+    assert any("instrument_response_function" in str(w.message) for w in caught)
+    assert float(np.nanmedian(fallback[..., 2])) > true_lw + 0.1
+
+
+def test_dho_per_pixel_irf_falls_back_to_plain_where_absent():
+    rng = np.random.default_rng(3)
+    axis = np.linspace(-15, 15, 300)
+    intrinsic = _DHO_1(axis, 1.0, 6.0, 0.6, 0.0, 0.05)
+    k = irf_kernel(("lorentzian", 0.5), axis)
+    n = k.size
+    broadened = np.convolve(np.pad(intrinsic, n, mode="edge"), k, mode="same")[n:-n]
+    scale = 400.0 / broadened.max()
+    noisy = (rng.poisson(np.clip(np.tile(broadened, (3, 3, 1)) * scale, 0, None)) / scale).astype(float)
+
+    # per-pixel IRF: real kernel everywhere except one all-zero pixel
+    per_pixel = np.zeros((3, 3, axis.size))
+    lo = axis.size // 2 - k.size // 2
+    per_pixel[..., lo:lo + k.size] = k
+    per_pixel[0, 0] = 0.0
+
+    image = SpectralImage(noisy, axis, instrument_response_function=per_pixel)
+    params, _ = DHO(expected_peaks=1, p0=[1.0, 6.0, 1.0, 0.05, 0.0],
+                    bounds=([0, 3, 0.05, -1, -1], [10, 14, 5, 2, 1]), irf='auto').apply(image)
+
+    assert np.isfinite(params[0, 0, 2])          # the no-IRF pixel still fits (plain)
+    assert params[1, 1, 2] == pytest.approx(0.6, abs=0.1)  # an IRF pixel recovers the intrinsic width
