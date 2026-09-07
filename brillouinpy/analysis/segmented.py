@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Hierarchical, additive multi-component DHO fitting.
+Hierarchical, additive multi-component peak fitting (DHO or Lorentzian).
 
 Motivation (see ``benchmarks/`` for the full evidence): running a multi-peak
 :class:`~brillouinpy.analysis.fitmodel.DHO` fit *everywhere* on an image that
@@ -13,8 +13,9 @@ persistent fraction of pixels overlapping a genuine component's feature
 range, not rare outliers a threshold can reject.
 
 :func:`segmented_fit` implements the workflow that does work: classify first
-with a cheap, model-free classifier, then fit only as many DHO peaks as each
-class actually contains, anchoring peaks already identified in an earlier
+with a cheap, model-free classifier, then fit only as many peaks (DHO by
+default, or Lorentzian) as each class actually contains, anchoring peaks
+already identified in an earlier
 stage (both their shift *and* their amplitude/linewidth, the latter seeding
 the newly added peak so the optimiser is not left guessing from a generic,
 whole-window amplitude estimate once two or more peaks are already pinned
@@ -91,9 +92,11 @@ class SegmentedFitResult:
         self.stage_linewidth = stage_linewidth
 
 
-def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_bounds, anchor_tolerance):
-    """Fit ``expected_peaks`` DHO peaks restricted to ``keep`` pixels (all
-    others set to NaN, which the DHO fit already skips for free). Peaks
+def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_bounds,
+               anchor_tolerance, model):
+    """Fit ``expected_peaks`` ``model`` peaks (``'dho'`` or ``'lorentzian'``)
+    restricted to ``keep`` pixels (all others set to NaN, which the fit already
+    skips for free). Peaks
     ``0 .. len(anchor_shifts) - 1`` have their shift bounded to
     ``anchor_shifts[i] +/- anchor_tolerance`` and their amplitude/linewidth
     p0 seeded from ``anchor_seeds[i]``; the last peak is free, seeded from
@@ -144,7 +147,8 @@ def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_b
         p0 = np.array(p0)
     p0 = np.clip(p0, lo, hi)
 
-    params, _ = fitmodel.DHO(expected_peaks=expected_peaks, p0=list(p0), bounds=(lo, hi)).apply(restricted)
+    fit_cls = {"dho": fitmodel.DHO, "lorentzian": fitmodel.Lorentzian}[model]
+    params, _ = fit_cls(expected_peaks=expected_peaks, p0=list(p0), bounds=(lo, hi)).apply(restricted)
     params = np.asarray(params)
     amps = np.abs(params[..., 0:3 * expected_peaks:3])
     shifts = np.abs(params[..., 1:3 * expected_peaks:3])
@@ -152,10 +156,12 @@ def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_b
     return amps, shifts, widths
 
 
-def segmented_fit(image, n_components, *, classifier='kmeans', shift_bounds=(3.0, 14.0), anchor_tolerance=0.4):
+def segmented_fit(image, n_components, *, classifier='kmeans', model='dho',
+                  shift_bounds=(3.0, 14.0), anchor_tolerance=0.4):
     """
     Classify ``image`` into ``n_components`` nested-additive classes, then fit
-    exactly the number of :class:`~brillouinpy.analysis.fitmodel.DHO` peaks
+    exactly the number of :class:`~brillouinpy.analysis.fitmodel.DHO` /
+    :class:`~brillouinpy.analysis.fitmodel.Lorentzian` peaks (see ``model``)
     each class actually contains - the recommended workflow for a sample
     where a constant background/medium spectrum is present everywhere and one
     or more further components are *added* on top in progressively smaller
@@ -186,6 +192,12 @@ def segmented_fit(image, n_components, *, classifier='kmeans', shift_bounds=(3.0
         and must return an integer label map (same spatial shape as
         ``image``) with values ``0 .. n_components - 1``, already ordered
         from fewest to most components.
+    model : {'dho', 'lorentzian'}, optional
+        Lineshape fitted at each stage. ``'dho'`` (default) uses
+        :class:`~brillouinpy.analysis.fitmodel.DHO`, ``'lorentzian'``
+        :class:`~brillouinpy.analysis.fitmodel.Lorentzian`. Both share the same
+        parameter layout, so ``SegmentedFitResult`` is unchanged; ``linewidth``
+        is the HWHM either way.
     shift_bounds : tuple[float, float], optional
         ``(low, high)`` GHz bounds every fitted shift is constrained to - a
         realistic spectrometer range. Default ``(3.0, 14.0)``.
@@ -216,6 +228,9 @@ def segmented_fit(image, n_components, *, classifier='kmeans', shift_bounds=(3.0
             f"got n_components={n_components}."
         )
 
+    if model not in ("dho", "lorentzian"):
+        raise ValueError(f"model must be 'dho' or 'lorentzian', got {model!r}.")
+
     if classifier == 'kmeans':
         labels = _default_classifier(image, n_components)
     elif callable(classifier):
@@ -234,7 +249,7 @@ def segmented_fit(image, n_components, *, classifier='kmeans', shift_bounds=(3.0
         keep = labels == stage
         if np.any(keep):
             amps, shifts, widths = _fit_stage(image, keep, stage + 1, anchor_shifts, anchor_seeds,
-                                              shift_bounds, anchor_tolerance)
+                                              shift_bounds, anchor_tolerance, model)
             new_amp, new_shift, new_width = amps[..., stage], shifts[..., stage], widths[..., stage]
             shift = np.where(keep, new_shift, shift)
             linewidth = np.where(keep, new_width, linewidth)

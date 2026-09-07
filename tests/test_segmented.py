@@ -27,7 +27,8 @@ def test_segmented_fit_rejects_unsupported_component_count(n_components):
         bp.analysis.segmented_fit(image, n_components=n_components)
 
 
-def test_segmented_fit_two_components_recovers_labels_and_shift():
+@pytest.mark.parametrize("model", ["dho", "lorentzian"])
+def test_segmented_fit_two_components_recovers_labels_and_shift(model):
     import brillouinpy as bp
 
     image, label_map, _ = additive_blob_image(
@@ -35,7 +36,7 @@ def test_segmented_fit_two_components_recovers_labels_and_shift():
         noise_model="poisson", peak_photons=400, edge="sharp", seed=1,
     )
 
-    result = bp.analysis.segmented_fit(image, n_components=2)
+    result = bp.analysis.segmented_fit(image, n_components=2, model=model)
 
     assert result.labels.shape == image.shape
     assert set(np.unique(result.labels)) <= {0, 1}
@@ -96,3 +97,11 @@ def test_segmented_fit_rejects_bad_classifier_argument():
     image, _, _ = additive_blob_image(nx=6, ny=6, n_channels=60)
     with pytest.raises(ValueError):
         bp.analysis.segmented_fit(image, n_components=2, classifier="spectral-clustering")
+
+
+def test_segmented_fit_rejects_bad_model_argument():
+    import brillouinpy as bp
+
+    image, _, _ = additive_blob_image(nx=6, ny=6, n_channels=60)
+    with pytest.raises(ValueError, match="model"):
+        bp.analysis.segmented_fit(image, n_components=2, model="voigt")

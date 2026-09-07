@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **`segmented_fit(..., model=...)`.** The segmented fit can now use a Lorentzian
+  lineshape (`model='lorentzian'`) instead of the DHO (`model='dho'`, default).
+  `SegmentedFitResult` is unchanged (same parameter layout; `linewidth` is the
+  HWHM either way).
+
 ### Changed
 - **`fitmodel` internals consolidated.** The pixel-wise fit now runs through a
   single `_fit_concurrent` (lineshape family selected by `model=`) plus the
