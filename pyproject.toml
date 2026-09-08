@@ -1,3 +1,55 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "BrillouinPy"
+version = "0.4.0"
+description = "Brillouin light scattering data analysis (formerly BrillouinAnalyzer), architecturally inspired by RamanSPy (see NOTICE.md)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "BSD-3-Clause"
+license-files = ["LICENSE", "NOTICE.md", "THIRD_PARTY_LICENSES/*"]
+authors = [
+    { name = "Timm Landes", email = "timm.landes@hot.uni-hannover.de" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "tqdm",
+    "matplotlib",
+    "scikit-image",
+    "scikit-learn",
+    "tifffile",
+]
+
+[project.optional-dependencies]
+# 'brim' export/import (io.export.to_brim/from_brim) needs Python >= 3.11
+brim = ["brimfile"]
+hdf5_bls = ["HDF5_BLS"]
+# Only the PPI / FIPPI / NFINDR endmember-extraction methods in analysis.unmix
+# need this; VCA and all abundance methods are pure NumPy/SciPy.
+unmix-eea = ["pysptools"]
+
+[project.urls]
+Homepage = "https://github.com/timm-landes/brillouinpy"
+Repository = "https://github.com/timm-landes/brillouinpy"
+# LUH-internal development mirror, only reachable from within the Leibniz
+# University Hannover network/SSO - not usable by external contributors.
+"GitLab (LUH-internal mirror)" = "https://gitlab.uni-hannover.de/phytophotonics/brillouinpy"
+
+[tool.setuptools.packages.find]
+# 'brillouinpy' (the real package) and 'brillouinanalyzer' (a thin
+# backwards-compatibility shim for the package's former name).
+include = ["brillouinpy*", "brillouinanalyzer*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
