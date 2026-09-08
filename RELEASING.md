@@ -16,7 +16,7 @@ git pull
 ruff check . && pytest tests/ -v          # must be green
 ```
 
-- Bump `version=` in [`setup.py`](setup.py).
+- Bump `version` in [`pyproject.toml`](pyproject.toml) (`[project]` table).
 - In [`CHANGELOG.md`](CHANGELOG.md): rename the `## [Unreleased]` heading to
   `## [X.Y.Z] - YYYY-MM-DD`, add a one-line summary under it, and consolidate the
   `### Added` / `### Changed` / `### Fixed` subsections. Leave a fresh, empty

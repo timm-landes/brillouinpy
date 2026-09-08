@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **Packaging moved to PEP 621.** `setup.py` is removed; all metadata now lives
+  in `pyproject.toml` (`[build-system]` + `[project]`). `requires-python` is
+  `>=3.10` (was an inconsistent `>=3.8`), the license is declared as the SPDX
+  expression `BSD-3-Clause`, and `LICENSE` / `NOTICE.md` / `THIRD_PARTY_LICENSES`
+  ship as metadata license files. `pysptools` is no longer a hard dependency: it
+  only backs the optional `PPI`/`FIPPI`/`NFINDR` endmember extractors and is now
+  the `brillouinpy[unmix-eea]` extra (VCA and all abundance methods are pure
+  NumPy/SciPy and unaffected).
+- `LICENSE` is now a verbatim BSD-3-Clause text (the trailing third-party
+  reference block moved wholly into `NOTICE.md`) so automated license detection
+  recognises it.
+
 ## [0.4.0] - 2026-09-07
 
 Bundles everything on `develop` since 0.3.1: spectral phasor analysis, VCA/NMF/PCA/k-means
