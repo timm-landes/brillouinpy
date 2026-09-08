@@ -133,8 +133,9 @@ peak positions.
 
 `analysis.unmix` also provides `NFINDR`, `PPI` and `FIPPI` with the exact same
 interface. VCA is used in the example because it's implemented natively in
-`brillouinpy`, whereas the other three delegate to the
-[pysptools](https://pysptools.sourceforge.io/) package - as of pysptools 0.15.0
+`brillouinpy`, whereas the other three delegate to the optional
+[pysptools](https://pysptools.sourceforge.io/) package (`pip install
+brillouinpy[unmix-eea]`) - as of pysptools 0.15.0
 together with scipy >= 1.13, that dependency calls a private scipy API that has
 since been removed, so those three currently fail with `AttributeError: module
 'scipy.linalg' has no attribute '_flinalg'`. If your environment has an
