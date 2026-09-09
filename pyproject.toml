@@ -24,7 +24,7 @@ dependencies = [
     "numpy",
     "scipy",
     "tqdm",
-    "matplotlib",
+    "matplotlib>=3.7",
     "scikit-image",
     "scikit-learn",
     "tifffile",

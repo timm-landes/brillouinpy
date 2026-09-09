@@ -30,6 +30,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   rest is bundled into `Experiment.Info` so nothing is lost.
 - **`to_hdf5_bls`** no longer masks a validation error (e.g. a `fit_result`
   without `expected_peaks`) with a `WrapperError_Save` from the cleanup path.
+- **`brillouinpy.plot`** used `plt.cm.get_cmap()`, removed in matplotlib 3.9, in
+  `plot.image`/`plot.volume`/`plot.spectra` - every default-colour plot raised on
+  matplotlib >= 3.9. Switched to `plt.get_cmap()`; `matplotlib>=3.7` is now the
+  declared lower bound.
+- **`plot.peak_dist`** raised `TypeError` when given a single spectral object
+  (as its own docstring/signature allow) instead of a list; it now wraps a bare
+  object like the other plot functions.
 
 ### CI / tests
 - CI now runs the test suite on Python 3.10, 3.11 and 3.12 (was 3.12 only), and
@@ -39,6 +46,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - New `tests/test_analysis_fit_deprecation.py` locks in the backwards
   compatibility of the old `brillouinpy.analysis.fitmodel` / `.lineshapes` /
   `.segmented` / `.FitStep` import paths.
+- New `tests/test_plot_smoke.py` calls every public `brillouinpy.plot` function
+  once on the Agg backend (the plot module previously had no coverage - that's
+  where the `plt.cm.get_cmap` and `peak_dist` bugs above were hiding).
 - Added a `Documentation` URL (GitHub Pages site) to the project metadata.
 
 ### Changed
