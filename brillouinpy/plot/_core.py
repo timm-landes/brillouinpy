@@ -199,9 +199,10 @@ def spectra_plot_wrapper(plotting_function, genus, plot_type, yscale = 'log', **
 
 
     elif plot_type == "stacked":
-        ax = stacked_plots(plotting_function, genus, **kwargs)
-        ax.set_yscale(yscale)
-        return ax
+        fig = stacked_plots(plotting_function, genus, **kwargs)
+        for ax in fig.axes:
+            ax.set_yscale(yscale)
+        return fig
 
     elif plot_type == "separate":
         axs = []

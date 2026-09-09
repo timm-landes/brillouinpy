@@ -37,6 +37,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`plot.peak_dist`** raised `TypeError` when given a single spectral object
   (as its own docstring/signature allow) instead of a list; it now wraps a bare
   object like the other plot functions.
+- **`plot.spectra` / `plot.mean_spectra` with `plot_type="stacked"`** raised
+  `AttributeError` (`Figure` has no `set_yscale`); the y-scale is now applied to
+  each stacked sub-axes.
 
 ### CI / tests
 - CI now runs the test suite on Python 3.10, 3.11 and 3.12 (was 3.12 only), and
@@ -46,9 +49,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - New `tests/test_analysis_fit_deprecation.py` locks in the backwards
   compatibility of the old `brillouinpy.analysis.fitmodel` / `.lineshapes` /
   `.segmented` / `.FitStep` import paths.
-- New `tests/test_plot_smoke.py` calls every public `brillouinpy.plot` function
-  once on the Agg backend (the plot module previously had no coverage - that's
-  where the `plt.cm.get_cmap` and `peak_dist` bugs above were hiding).
+- New `tests/test_plot_smoke.py` (every public `brillouinpy.plot` function, all
+  `plot_type`s, on the Agg backend) and `tests/test_plot_core.py` (the internal
+  `plot._core` helpers). The plot modules previously had no coverage - that's
+  where the `plt.cm.get_cmap`, `peak_dist` and `plot_type="stacked"` bugs above
+  were hiding.
 - Added a `Documentation` URL (GitHub Pages site) to the project metadata.
 
 ### Changed

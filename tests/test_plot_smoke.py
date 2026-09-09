@@ -55,6 +55,11 @@ def test_spectra_multiple_groups(spectrum):
     assert out is not None
 
 
+@pytest.mark.parametrize("plot_type", ["single", "separate", "stacked", "single stacked"])
+def test_spectra_every_plot_type(spectrum, plot_type):
+    assert plot.spectra([spectrum, spectrum], plot_type=plot_type, yscale="linear") is not None
+
+
 def test_mean_spectra(spectral_image):
     assert plot.mean_spectra(spectral_image, yscale="linear") is not None
 
