@@ -21,6 +21,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `estimate_p0` gained a `model=` keyword (default `'dho'`, unchanged behaviour;
   the `*_elastic` families get an extra trailing `0.0`).
 
+### Fixed
+- **`to_brim` no longer crashes on a flat metadata dict.** It expected
+  `spectral_object.metadata` to be keyed by brim categories, so a plain vendor /
+  `META.json` dict (e.g. attached by a loader) raised `KeyError` on the first
+  non-category key. Such a dict is now normalised: well-known keys (`Date`,
+  `Sample`, laser wavelength/power, ...) are mapped onto the brim schema and the
+  rest is bundled into `Experiment.Info` so nothing is lost.
+
 ### Changed
 - **Fitting reorganised into the `brillouinpy.analysis.fit` subpackage.** The
   lineshape models moved out of the old `fitmodel` module into
