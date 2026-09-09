@@ -189,6 +189,7 @@ def to_hdf5_bls(
         Overwrite ``filepath`` if it already exists, by default False.
     """
     wrapper = _open_hdf5_bls(None)
+    saved = False
     try:
         wrapper.create_group("Measure", parent_group="Brillouin", brillouin_type="Measure")
         wrapper.add_PSD(np.ma.filled(spectral_object.spectral_data, np.nan), parent_group="Brillouin/Measure")
@@ -252,8 +253,19 @@ def to_hdf5_bls(
                 )
 
         wrapper.save_as_hdf5(filepath, overwrite=overwrite)
+        saved = True
     finally:
-        wrapper.close()
+        if saved:
+            wrapper.close()
+        else:
+            # We bailed out before save_as_hdf5 (e.g. a ValueError on a bad
+            # fit_result). A plain wrapper.close() then raises
+            # WrapperError_Save and masks the real error - drop the unsaved
+            # temp file instead and let the original exception propagate.
+            try:
+                wrapper.close(delete_temp_file=True)
+            except Exception:
+                pass
 
 
 def fit_to_tiff(

@@ -28,6 +28,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   non-category key. Such a dict is now normalised: well-known keys (`Date`,
   `Sample`, laser wavelength/power, ...) are mapped onto the brim schema and the
   rest is bundled into `Experiment.Info` so nothing is lost.
+- **`to_hdf5_bls`** no longer masks a validation error (e.g. a `fit_result`
+  without `expected_peaks`) with a `WrapperError_Save` from the cleanup path.
+
+### CI / tests
+- CI now runs the test suite on Python 3.10, 3.11 and 3.12 (was 3.12 only), and
+  installs `brimfile` / `HDF5_BLS` on 3.11+ so `tests/test_export_brim.py` and
+  the new `tests/test_export_hdf5_bls.py` actually run instead of skipping
+  everywhere. Added a `test` extra (`pip install ".[test]"`).
+- New `tests/test_analysis_fit_deprecation.py` locks in the backwards
+  compatibility of the old `brillouinpy.analysis.fitmodel` / `.lineshapes` /
+  `.segmented` / `.FitStep` import paths.
+- Added a `Documentation` URL (GitHub Pages site) to the project metadata.
 
 ### Changed
 - **Fitting reorganised into the `brillouinpy.analysis.fit` subpackage.** The
