@@ -150,7 +150,7 @@ def phasor_estimates(image):
 def bounded_fit_estimates(image):
     """The informatively-bounded, informed-p0 single-DHO fit used throughout
     this benchmark suite (shift bounded to a realistic spectrometer range, p0
-    from :func:`brillouinpy.analysis.fitmodel.estimate_p0`)."""
+    from :func:`brillouinpy.analysis.fit.core.estimate_p0`)."""
     _, shifts, widths = _fit_dho_raw(image, expected_peaks=1)
     return shifts[..., 0].ravel(), widths[..., 0].ravel()
 
@@ -173,7 +173,7 @@ def naive_fit_estimates(image):
         shift_guess = abs(float(axis[np.argmax(y)]))
         p0 = np.clip([max(y.max() - np.median(y), 1e-6), shift_guess, 1.0, max(np.median(y), 0.0), 0.0], lo, hi)
         try:
-            popt, _ = curve_fit(bp.analysis.fitmodel._DHO_1, axis, y, p0=list(p0), bounds=(lo, hi), maxfev=5000)
+            popt, _ = curve_fit(bp.analysis.fit.core._DHO_1, axis, y, p0=list(p0), bounds=(lo, hi), maxfev=5000)
             shifts[i] = abs(popt[1])
             widths[i] = abs(popt[2])
         except Exception:

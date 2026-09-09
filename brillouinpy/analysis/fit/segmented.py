@@ -3,7 +3,7 @@
 Hierarchical, additive multi-component peak fitting (DHO or Lorentzian).
 
 Motivation (see ``benchmarks/`` for the full evidence): running a multi-peak
-:class:`~brillouinpy.analysis.fitmodel.DHO` fit *everywhere* on an image that
+:class:`~brillouinpy.analysis.fit.core.DHO` fit *everywhere* on an image that
 mixes background-only and background+component pixels is unreliable - a
 second (or third) peak is rank-deficient wherever its own amplitude -> 0, so
 the fit either fails outright or plants a spurious narrow spike on a noise
@@ -23,7 +23,7 @@ elsewhere in the spectrum).
 """
 import numpy as np
 
-from . import fitmodel
+from . import core
 
 __all__ = ["segmented_fit", "SegmentedFitResult"]
 
@@ -117,7 +117,7 @@ def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_b
         lo[1 + 3 * i], hi[1 + 3 * i] = a - anchor_tolerance, a + anchor_tolerance
 
     if expected_peaks == 1:
-        p0 = np.asarray(fitmodel.estimate_p0(restricted, expected_peaks=1), dtype=float)
+        p0 = np.asarray(core.estimate_p0(restricted, expected_peaks=1), dtype=float)
         p0[1] = abs(p0[1])  # peak detection may land on the anti-Stokes side
     else:
         stokes_mean = restricted.mean
@@ -147,7 +147,8 @@ def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_b
         p0 = np.array(p0)
     p0 = np.clip(p0, lo, hi)
 
-    fit_cls = {"dho": fitmodel.DHO, "lorentzian": fitmodel.Lorentzian}[model]
+    fit_cls = {"dho": core.DHO, "lorentzian": core.Lorentzian,
+               "gaussian": core.Gaussian}[model]
     params, _ = fit_cls(expected_peaks=expected_peaks, p0=list(p0), bounds=(lo, hi)).apply(restricted)
     params = np.asarray(params)
     amps = np.abs(params[..., 0:3 * expected_peaks:3])
@@ -160,8 +161,8 @@ def segmented_fit(image, n_components, *, classifier='kmeans', model='dho',
                   shift_bounds=(3.0, 14.0), anchor_tolerance=0.4):
     """
     Classify ``image`` into ``n_components`` nested-additive classes, then fit
-    exactly the number of :class:`~brillouinpy.analysis.fitmodel.DHO` /
-    :class:`~brillouinpy.analysis.fitmodel.Lorentzian` peaks (see ``model``)
+    exactly the number of :class:`~brillouinpy.analysis.fit.core.DHO` /
+    :class:`~brillouinpy.analysis.fit.core.Lorentzian` peaks (see ``model``)
     each class actually contains - the recommended workflow for a sample
     where a constant background/medium spectrum is present everywhere and one
     or more further components are *added* on top in progressively smaller
@@ -192,10 +193,11 @@ def segmented_fit(image, n_components, *, classifier='kmeans', model='dho',
         and must return an integer label map (same spatial shape as
         ``image``) with values ``0 .. n_components - 1``, already ordered
         from fewest to most components.
-    model : {'dho', 'lorentzian'}, optional
+    model : {'dho', 'lorentzian', 'gaussian'}, optional
         Lineshape fitted at each stage. ``'dho'`` (default) uses
-        :class:`~brillouinpy.analysis.fitmodel.DHO`, ``'lorentzian'``
-        :class:`~brillouinpy.analysis.fitmodel.Lorentzian`. Both share the same
+        :class:`~brillouinpy.analysis.fit.core.DHO`, ``'lorentzian'``
+        :class:`~brillouinpy.analysis.fit.core.Lorentzian`, ``'gaussian'``
+        :class:`~brillouinpy.analysis.fit.core.Gaussian`. They share the same
         parameter layout, so ``SegmentedFitResult`` is unchanged; ``linewidth``
         is the HWHM either way.
     shift_bounds : tuple[float, float], optional
@@ -213,23 +215,23 @@ def segmented_fit(image, n_components, *, classifier='kmeans', model='dho',
     --------
     Two components (a constant background plus one added inclusion)::
 
-        result = brillouinpy.analysis.segmented_fit(image, n_components=2)
+        result = brillouinpy.analysis.fit.segmented_fit(image, n_components=2)
         result.labels      # 0 = background-only, 1 = background + inclusion
         result.shift       # background shift where labels==0, inclusion shift where labels==1
 
     Three nested components (medium / cytoplasm / nucleus)::
 
-        result = brillouinpy.analysis.segmented_fit(image, n_components=3)
+        result = brillouinpy.analysis.fit.segmented_fit(image, n_components=3)
     """
     if n_components not in (2, 3):
         raise ValueError(
             f"segmented_fit only supports n_components in (2, 3) - brillouinpy's DHO fit engine "
-            f"(brillouinpy.analysis.fitmodel) only has closed-form models for one to three peaks, "
+            f"(brillouinpy.analysis.fit.core) only has closed-form models for one to three peaks, "
             f"got n_components={n_components}."
         )
 
-    if model not in ("dho", "lorentzian"):
-        raise ValueError(f"model must be 'dho' or 'lorentzian', got {model!r}.")
+    if model not in ("dho", "lorentzian", "gaussian"):
+        raise ValueError(f"model must be 'dho', 'lorentzian' or 'gaussian', got {model!r}.")
 
     if classifier == 'kmeans':
         labels = _default_classifier(image, n_components)

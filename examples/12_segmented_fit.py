@@ -12,7 +12,7 @@ third DHO peak is rank-deficient wherever its amplitude -> 0, so the fit fails
 or plants a spurious spike on noise, and no post-hoc filter on the result
 rescues it.
 
-:func:`brillouinpy.analysis.segmented_fit` does the workflow that works:
+:func:`brillouinpy.analysis.fit.segmented_fit` does the workflow that works:
 classify first with a cheap, model-free classifier (k-means on the raw
 spectra, ordered by total intensity), then fit exactly as many DHO peaks as
 each class actually contains, anchoring the peaks already identified in an

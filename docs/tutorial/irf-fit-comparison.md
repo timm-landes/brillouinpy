@@ -40,7 +40,7 @@ For `'auto'`, something has to put the IRF on the object first:
 
   ```python
   prepared = bp.preprocessing.misc.IRF_Remover(offset=6, store_irf=True).apply(image)
-  params, _ = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=p0, bounds=bounds,
+  params, _ = bp.analysis.fit.DHO(expected_peaks=1, p0=p0, bounds=bounds,
                                        irf='auto').apply(prepared)
   ```
 

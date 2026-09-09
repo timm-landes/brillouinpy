@@ -31,12 +31,12 @@ from _synthetic_data import two_mode_image
 if __name__ == '__main__':
     image, true_shift_b, info = two_mode_image(nx=30, ny=30)
 
-    best, scores = bp.analysis.fitmodel.estimate_peak_count(image, return_scores=True)
+    best, scores = bp.analysis.fit.estimate_peak_count(image, return_scores=True)
     print(f"estimate_peak_count (whole image): {best}")
     print("  BIC per candidate:", {k: round(v, 1) for k, v in scores.items()})
 
-    params, _ = bp.analysis.fitmodel.DHO(expected_peaks='auto', max_peaks=3).apply(image)
-    counts = bp.analysis.fitmodel.fitted_peak_count(params)
+    params, _ = bp.analysis.fit.DHO(expected_peaks='auto', max_peaks=3).apply(image)
+    counts = bp.analysis.fit.fitted_peak_count(params)
     print(f"per-pixel mode counts: {np.bincount(counts.ravel(), minlength=4)[1:]} (1 / 2 / 3 modes)")
 
     # Both modes are fitted per pixel: separate them by shift (mode A ~6 GHz is the

@@ -43,7 +43,7 @@ if __name__ == '__main__':
     if os.path.exists(fit_path):
         fitted_parameters = np.load(fit_path)
     else:
-        fitted_parameters, _ = bp.analysis.fitmodel.DHO(
+        fitted_parameters, _ = bp.analysis.fit.DHO(
             expected_peaks=1, p0=[0.005, 8.5, 1, 0, 0], bounds=None,
         ).apply(preprocessed_image)
         fitted_parameters = np.ma.filled(fitted_parameters, np.nan)

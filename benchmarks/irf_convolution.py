@@ -14,7 +14,7 @@ has to be removed. Two ways:
   Deconvoluter_IRF``): Richardson-Lucy deconvolution with the measured elastic
   peak as the point-spread function, then a plain DHO fit. RL is iterative,
   non-linear and amplifies high-frequency noise.
-- **Fit the convolved model** (``brillouinpy.analysis.fitmodel.DHO(irf=...)``,
+- **Fit the convolved model** (``brillouinpy.analysis.fit.core.DHO(irf=...)``,
   added alongside this script): leave the data untouched and fit
   ``(DHO * IRF) + background``, so the fitted ``LineWidth`` is the intrinsic
   linewidth with the instrumental broadening in the forward model.
@@ -70,13 +70,13 @@ def _p0_bounds():
 
 def _fit_plain(image):
     p0, bounds = _p0_bounds()
-    params, _ = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=p0, bounds=bounds).apply(image)
+    params, _ = bp.analysis.fit.DHO(expected_peaks=1, p0=p0, bounds=bounds).apply(image)
     return np.asarray(params)
 
 
 def _fit_conv(image, kernel):
     p0, bounds = _p0_bounds()
-    params, _ = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=p0, bounds=bounds, irf=kernel).apply(image)
+    params, _ = bp.analysis.fit.DHO(expected_peaks=1, p0=p0, bounds=bounds, irf=kernel).apply(image)
     return np.asarray(params)
 
 

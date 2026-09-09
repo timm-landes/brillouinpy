@@ -4,9 +4,9 @@ Example 9 - Fitting Brillouin spectra
 ======================================
 
 Shows how to fit every spectrum in a :class:`brillouinpy.SpectralImage` with a
-peak model - :class:`~brillouinpy.analysis.fitmodel.DHO` (Damped Harmonic
+peak model - :class:`~brillouinpy.analysis.fit.core.DHO` (Damped Harmonic
 Oscillator, the physically correct lineshape for Brillouin peaks) or
-:class:`~brillouinpy.analysis.fitmodel.Lorentzian` - and how to read the
+:class:`~brillouinpy.analysis.fit.core.Lorentzian` - and how to read the
 resulting per-pixel parameter maps.
 
 Note: fitting runs on a process pool and is CPU-bound; for a small dataset like the
@@ -19,7 +19,7 @@ data on its own. ``expected_peaks`` can be read off the variance-spectrum peaks
 found in ``04_classical_analysis.py``, or the endmembers/components/cluster
 centres from ``05_unmix_vca.py`` through ``08_cluster_kmeans.py``; a matching
 ``p0`` can then be estimated automatically with
-:func:`~brillouinpy.analysis.fitmodel.estimate_p0` instead of guessing it by hand.
+:func:`~brillouinpy.analysis.fit.core.estimate_p0` instead of guessing it by hand.
 """
 import os
 
@@ -41,11 +41,11 @@ if __name__ == '__main__':
     # Instead of guessing it by hand, estimate_p0() derives it from peak detection on the
     # mean spectrum - much faster convergence than the flat [1, 1, ...] fallback curve_fit
     # would otherwise start from.
-    p0 = bp.analysis.fitmodel.estimate_p0(preprocessed_image, expected_peaks=1)
+    p0 = bp.analysis.fit.estimate_p0(preprocessed_image, expected_peaks=1)
     print(f"Estimated p0: {p0}")
 
     # Fit a single-peak DHO model to every spectrum.
-    dho_fit = bp.analysis.fitmodel.DHO(
+    dho_fit = bp.analysis.fit.DHO(
         expected_peaks=1,
         p0=p0,
         bounds=None,  # give bounds if you get unreasonable results or strongly overlapping peaks
@@ -55,12 +55,12 @@ if __name__ == '__main__':
 
     # A 2-peak fit works the same way, just with expected_peaks=2 (estimate_p0 then
     # returns a matching 8-element p0):
-    # p0_2peaks = bp.analysis.fitmodel.estimate_p0(preprocessed_image, expected_peaks=2)
-    # dho_fit_2peaks = bp.analysis.fitmodel.DHO(expected_peaks=2, p0=p0_2peaks, bounds=None)
+    # p0_2peaks = bp.analysis.fit.estimate_p0(preprocessed_image, expected_peaks=2)
+    # dho_fit_2peaks = bp.analysis.fit.DHO(expected_peaks=2, p0=p0_2peaks, bounds=None)
     # fitted_parameters, covariances = dho_fit_2peaks.apply(preprocessed_image)
 
     # A Lorentzian model can be used the same way instead:
-    # lor_fit = bp.analysis.fitmodel.Lorentzian(expected_peaks=1, p0=[1500, 9, 1, 0, 0], bounds=None)
+    # lor_fit = bp.analysis.fit.Lorentzian(expected_peaks=1, p0=[1500, 9, 1, 0, 0], bounds=None)
     # fitted_parameters, covariances = lor_fit.apply(preprocessed_image)
 
     # Visually check the fit against the mean spectrum
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     bp.plot.mean_spectra(preprocessed_image, title='Fit vs. data', yscale='linear')
     plt.plot(
         preprocessed_image.spectral_axis,
-        bp.analysis.fitmodel._DHO_1(
+        bp.analysis.fit.core._DHO_1(
             preprocessed_image.spectral_axis, mean_amplitude, mean_shift, mean_linewidth, mean_bg, mean_asym
         ),
         label='Mean DHO fit', color='red',

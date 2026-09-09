@@ -14,24 +14,28 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks, fftconvolve, peak_prominences, peak_widths
 from tqdm import tqdm
 
-from .FitStep import FitStep
+from .step import FitStep
+from .lineshapes import (  # noqa: F401  (re-exported for backwards compatibility)
+    LINESHAPES,
+    MAX_EXPECTED_PEAKS,
+    Lineshape,
+    _DHO_1,
+    _DHO_2,
+    _DHO_3,
+    _Lorentzian_1,
+    _Lorentzian_2,
+    _Lorentzian_3,
+    _dho_line,
+    _lorentz_line,
+    assemble_model,
+    model_funcs,
+    register_lineshape,
+)
 
 _logger = logging.getLogger(__name__)
 
-#: Largest number of Brillouin modes the fixed-count lineshape models cover.
-MAX_EXPECTED_PEAKS = 3
-
-
-def _model_funcs(model):
-    """``{n_peaks: model_function}`` for a lineshape family. Evaluated lazily so
-    the model functions further down this module are already bound."""
-    try:
-        return {
-            "dho": {1: _DHO_1, 2: _DHO_2, 3: _DHO_3},
-            "lorentzian": {1: _Lorentzian_1, 2: _Lorentzian_2, 3: _Lorentzian_3},
-        }[model]
-    except KeyError:
-        raise ValueError(f"model must be 'dho' or 'lorentzian', got {model!r}.") from None
+#: Deprecated alias - lineshape lookup now lives in :mod:`brillouinpy.analysis.fit.lineshapes`.
+_model_funcs = model_funcs
 
 
 def _resolve_max_workers(max_workers):
@@ -60,7 +64,7 @@ def _prep_pixel_spectrum(intensity_data_slice):
     return y
 
 
-def estimate_p0(spectral_object, expected_peaks):
+def estimate_p0(spectral_object, expected_peaks, model="dho"):
     """
     Estimates an initial parameter guess (``p0``) for :class:`DHO`/:class:`Lorentzian` fits.
 
@@ -83,6 +87,10 @@ def estimate_p0(spectral_object, expected_peaks):
         components found via NMF/VCA.
     expected_peaks : int
         The number of peaks to estimate parameters for (1, 2, or 3).
+    model : str, optional
+        Lineshape family the guess is for (default ``'dho'``). Only affects the
+        length of the shared tail: the ``*_elastic`` families get an extra
+        trailing ``elastic_slope`` guess of ``0.0``.
 
     Returns
     -------
@@ -93,10 +101,11 @@ def estimate_p0(spectral_object, expected_peaks):
         raise ValueError(f"expected_peaks must be 1, 2 or 3, got {expected_peaks}.")
 
     mean_spectrum = spectral_object.mean
-    return _estimate_p0_from_mean(mean_spectrum.spectral_data, mean_spectrum.spectral_axis, expected_peaks)
+    return _estimate_p0_from_mean(mean_spectrum.spectral_data, mean_spectrum.spectral_axis,
+                                  expected_peaks, model=model)
 
 
-def _estimate_p0_from_mean(intensity, axis, expected_peaks):
+def _estimate_p0_from_mean(intensity, axis, expected_peaks, model="dho"):
     """Array-based core of :func:`estimate_p0` - takes a 1-D mean-intensity array
     and its axis directly (so callers that already have the mean spectrum, e.g.
     :func:`_fit_concurrent_DHO_auto`, don't rebuild a spectral object)."""
@@ -158,7 +167,10 @@ def _estimate_p0_from_mean(intensity, axis, expected_peaks):
         LineWidth = float(max(0.5 * width_samples * spacing, spacing))
         p0.extend([I0, freqShift, LineWidth])
 
-    p0.extend([background, 0.0])  # Background, axis_shift
+    # Shared tail: Background, axis_shift, then a 0.0 for any further tail param
+    # (e.g. elastic_slope on the '*_elastic' families).
+    n_tail = len(LINESHAPES[model].tail_params) if model in LINESHAPES else 2
+    p0.extend([background, 0.0] + [0.0] * (n_tail - 2))
 
     return p0
 
@@ -298,7 +310,7 @@ def _fit_concurrent_DHO_auto(intensity_data, spectral_axis, *, max_peaks=3, crit
     spatial_shape = data.shape[:-1]
     variables = 3 * max_peaks + 2
 
-    base_funcs = _model_funcs("dho")
+    base_funcs = model_funcs("dho")
     if irf is not None:
         irf_arr = np.asarray(irf) if not isinstance(irf, (tuple, list, str)) else irf
         if isinstance(irf_arr, np.ndarray) and irf_arr.ndim > 1:
@@ -388,7 +400,7 @@ def estimate_peak_count(spectral_object, *, criterion="bic", candidates=(1, 2, 3
     mean = spectral_object.mean
     axis = np.asarray(mean.spectral_axis)
     y = np.ma.filled(mean.spectral_data, np.nan).astype(float)
-    fit_funcs = _model_funcs("dho")
+    fit_funcs = model_funcs("dho")
     noise_variance = _estimate_noise_variance(y)
 
     entries, scores = {}, {}
@@ -570,8 +582,9 @@ class DHO(FitStep):
     ``I0 / (pi * LineWidth)``; ``Background`` is a single shared additive
     constant; ``axis_shift`` (formerly ``Asymmetry``) rigidly shifts the
     frequency axis. One mode is a symmetric Stokes/anti-Stokes doublet, so
-    ``expected_peaks`` counts modes. See the module-level conventions for the
-    full parameter layout.
+    ``expected_peaks`` counts modes. See
+    :mod:`brillouinpy.analysis.fit.lineshapes` for the full parameter layout and for
+    registering additional lineshape families.
 
     Parameters
     ----------
@@ -635,14 +648,18 @@ class DHO(FitStep):
 
     """
     def __init__(self, *, expected_peaks, p0=None, bounds=None, irf=None, max_workers=None,
-                 max_peaks=3, criterion='bic', min_improvement=6.0, min_peak_fraction=0.25):
+                 elastic=False, max_peaks=3, criterion='bic', min_improvement=6.0,
+                 min_peak_fraction=0.25):
         if isinstance(expected_peaks, str) and expected_peaks == 'auto':
+            if elastic:
+                raise NotImplementedError("expected_peaks='auto' does not support elastic=True.")
             super().__init__(_fit_concurrent_DHO_auto, max_peaks=max_peaks, criterion=criterion,
                              min_improvement=min_improvement, min_peak_fraction=min_peak_fraction,
                              irf=irf, max_workers=max_workers)
         else:
             super().__init__(_fit_concurrent, expected_peaks=expected_peaks, p0=p0, bounds=bounds,
-                             irf=irf, model="dho", max_workers=max_workers)
+                             irf=irf, model="dho_elastic" if elastic else "dho",
+                             max_workers=max_workers)
 
 
 class Lorentzian(FitStep):
@@ -651,7 +668,7 @@ class Lorentzian(FitStep):
     HWHM ``LineWidth`` centred at ``axis_shift +/- freqShift`` (peak height
     ``I0 / (pi * LineWidth)`` each), plus one shared ``Background``. Same
     parameter conventions, flat layout, ``irf`` handling and return values as
-    :class:`DHO` (see the module notes and the ``DHO`` docstring).
+    :class:`DHO` (see :mod:`brillouinpy.analysis.fit.lineshapes` and the ``DHO`` docstring).
 
     Parameters
     ----------
@@ -664,12 +681,72 @@ class Lorentzian(FitStep):
         ``(lo, hi)`` parameter bounds passed to ``scipy.optimize.curve_fit``.
     irf : array-like, tuple, ``'auto'`` or None, optional
         Instrument response function - as for :class:`DHO`.
+    elastic : bool, optional
+        If True, fit ``lorentzian_elastic``: the shared baseline gains a linear
+        ``elastic_slope`` term (last parameter) that absorbs the sloping residual
+        wing of an un-blanked elastic peak. Incompatible with ``irf``.
     max_workers : int or None, optional
         Worker processes for the pixel-wise fit (see :class:`DHO`).
     """
-    def __init__(self, *, expected_peaks, p0=None, bounds=None, irf=None, max_workers=None):
+    def __init__(self, *, expected_peaks, p0=None, bounds=None, irf=None, elastic=False,
+                 max_workers=None):
         super().__init__(_fit_concurrent, expected_peaks=expected_peaks, p0=p0, bounds=bounds,
-                         irf=irf, model="lorentzian", max_workers=max_workers)
+                         irf=irf, model="lorentzian_elastic" if elastic else "lorentzian",
+                         max_workers=max_workers)
+
+
+class Gaussian(FitStep):
+    """
+    Fit of one or multiple Gaussian doublets: for each mode, two Gaussians of
+    HWHM ``LineWidth`` centred at ``axis_shift +/- freqShift`` (peak height
+    ``I0 / (pi * LineWidth)`` each), plus one shared ``Background``. Same
+    parameter conventions, flat layout, ``irf`` handling and return values as
+    :class:`DHO` / :class:`Lorentzian`.
+
+    Parameters
+    ----------
+    expected_peaks : int
+        The number of modes (symmetric peak pairs) to fit.
+    p0 : list[float] or None
+        Initial guess, length ``expected_peaks * 3 + 2`` (one more when
+        ``elastic=True``). ``None`` starts from ones.
+    bounds : tuple or None
+        ``(lo, hi)`` parameter bounds passed to ``scipy.optimize.curve_fit``.
+    irf : array-like, tuple, ``'auto'`` or None, optional
+        Instrument response function - as for :class:`DHO`.
+    elastic : bool, optional
+        Fit ``gaussian_elastic`` (extra trailing ``elastic_slope``). Incompatible
+        with ``irf``.
+    max_workers : int or None, optional
+        Worker processes for the pixel-wise fit (see :class:`DHO`).
+    """
+    def __init__(self, *, expected_peaks, p0=None, bounds=None, irf=None, elastic=False,
+                 max_workers=None):
+        super().__init__(_fit_concurrent, expected_peaks=expected_peaks, p0=p0, bounds=bounds,
+                         irf=irf, model="gaussian_elastic" if elastic else "gaussian",
+                         max_workers=max_workers)
+
+
+class PeakFit(FitStep):
+    """
+    Fit of one or multiple modes of an arbitrary **registered** lineshape family
+    (see :func:`~brillouinpy.analysis.fit.lineshapes.register_lineshape`). Use this
+    for lineshapes you add yourself; :class:`DHO` / :class:`Lorentzian` /
+    :class:`Gaussian` are the convenience wrappers for the built-ins.
+
+    Parameters
+    ----------
+    model : str
+        Name of a family in :data:`brillouinpy.analysis.fit.lineshapes.LINESHAPES`.
+    expected_peaks : int
+        Number of modes (symmetric peak pairs) to fit.
+    p0, bounds, irf, max_workers
+        As for :class:`DHO`. ``irf`` requires the family's baseline to be the
+        standard ``(Background, axis_shift)``.
+    """
+    def __init__(self, *, model, expected_peaks, p0=None, bounds=None, irf=None, max_workers=None):
+        super().__init__(_fit_concurrent, expected_peaks=expected_peaks, p0=p0, bounds=bounds,
+                         irf=irf, model=model, max_workers=max_workers)
 
 
 def _fit_pixel(idx, spectral_axis, intensity_data_slice, n_params, fit_func, p0, bounds):
@@ -703,10 +780,17 @@ def _fit_concurrent(intensity_data, spectral_axis, expected_peaks, p0=None, boun
     ``None``, a parametric spec / 1-D kernel (one convolved model for every pixel)
     or a per-pixel ``(*spatial, B)`` kernel array (a pixel with no usable kernel
     falls back to the plain model)."""
-    fit_funcs = _model_funcs(model)
+    fit_funcs = model_funcs(model)
     if expected_peaks not in fit_funcs:
         raise ValueError(f"expected_peaks must be 1..{MAX_EXPECTED_PEAKS}, got {expected_peaks!r}.")
-    n_params = int(expected_peaks * 3 + 2)
+    n_tail = len(LINESHAPES[model].tail_params)
+    if irf is not None and n_tail != 2:
+        raise NotImplementedError(
+            f"irf convolution is not supported for the '{model}' lineshape (it has a "
+            f"non-standard baseline: {list(LINESHAPES[model].tail_params)}). Blank the "
+            f"elastic-peak channels and fit the non-elastic '{model.replace('_elastic', '')}' "
+            f"family with irf instead.")
+    n_params = int(expected_peaks * 3 + n_tail)
     spatial_shape = intensity_data.shape[:-1]
     fit_results = np.full(spatial_shape + (n_params,), np.nan)
     cov_results = np.full(spatial_shape + (n_params, n_params), np.nan)
@@ -750,93 +834,3 @@ def _fit_concurrent(intensity_data, spectral_axis, expected_peaks, p0=None, boun
             cov_results[idx] = pcov
 
     return fit_results, cov_results
-
-
-# --------------------------------------------------------------------------- #
-# Lineshape models
-#
-# Parameter conventions shared by every model function below and by the
-# parameter vectors :class:`DHO` / :class:`Lorentzian` return:
-#
-# * ``I0``         - peak-area-like amplitude. The peak *height* above the
-#                    background is ``I0 / (pi * LineWidth)`` for both the DHO and
-#                    the Lorentzian model.
-# * ``freqShift``  - Brillouin shift nu_B (GHz). One mode is a *doublet*: peaks
-#                    at ``axis_shift +/- freqShift``. ``expected_peaks`` counts
-#                    modes, so ``expected_peaks=1`` fits one Stokes/anti-Stokes
-#                    pair from a single ``freqShift``.
-# * ``LineWidth``  - **half width at half maximum** (HWHM), i.e. Gamma / 2.
-#                    The full width at half maximum is ``2 * LineWidth``.
-#                    ``mechanics`` converts this to the FWHM internally where a
-#                    physical linewidth is needed (loss tangent, viscosity).
-# * ``Background`` - additive constant, counted **once** for the whole model
-#                    (not once per peak).
-# * ``axis_shift`` - rigid shift of the frequency axis (GHz); the doublet is
-#                    symmetric about this value. Named ``Asymmetry`` up to 0.3.1.
-#
-# Flat parameter order: ``[I0, freqShift, LineWidth] * n_peaks`` then the shared
-# ``[Background, axis_shift]``.
-# --------------------------------------------------------------------------- #
-
-
-def _dho_line(xs, I0, freqShift, LineWidth):
-    """Bare single-mode damped-harmonic-oscillator doublet (no background) on the
-    already axis-shifted coordinate ``xs = x - axis_shift``. ``LineWidth`` is the
-    HWHM; the peak height is ``I0 / (pi * LineWidth)``."""
-    return I0 * 4 * LineWidth * freqShift ** 2 / (
-        np.pi * ((xs ** 2 - freqShift ** 2) ** 2 + 4 * (LineWidth * xs) ** 2)
-    )
-
-
-def _lorentz_line(xs, I0, freqShift, LineWidth):
-    """Bare single-mode Lorentzian doublet (no background) on ``xs = x -
-    axis_shift``: two area-normalised Lorentzians of HWHM ``LineWidth`` centred at
-    ``+/- freqShift``, scaled by ``I0`` (so the peak height is ``I0 / (pi *
-    LineWidth)``, matching :func:`_dho_line`)."""
-    hw = LineWidth
-    return (I0 / np.pi) * (hw / ((xs - freqShift) ** 2 + hw ** 2)
-                           + hw / ((xs + freqShift) ** 2 + hw ** 2))
-
-
-def _DHO_1(x, I0, freqShift, LineWidth, Background, axis_shift):
-    """One-mode DHO doublet. See the module conventions above: ``LineWidth`` is
-    the HWHM and ``Background`` is a single additive constant."""
-    return _dho_line(x - axis_shift, I0, freqShift, LineWidth) + Background
-
-
-def _DHO_2(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2, Background, axis_shift):
-    """Two-mode DHO model. Shared single ``Background`` and ``axis_shift``."""
-    xs = x - axis_shift
-    return (_dho_line(xs, I0, freqShift, LineWidth)
-            + _dho_line(xs, I02, freqShift2, LineWidth2) + Background)
-
-
-def _DHO_3(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2,
-           I03, freqShift3, LineWidth3, Background, axis_shift):
-    """Three-mode DHO model. Shared single ``Background`` and ``axis_shift``."""
-    xs = x - axis_shift
-    return (_dho_line(xs, I0, freqShift, LineWidth)
-            + _dho_line(xs, I02, freqShift2, LineWidth2)
-            + _dho_line(xs, I03, freqShift3, LineWidth3) + Background)
-
-
-def _Lorentzian_1(x, I0, freqShift, LineWidth, Background, axis_shift):
-    """One-mode Lorentzian doublet. Same conventions as :func:`_DHO_1`
-    (``LineWidth`` is the HWHM, ``Background`` counted once)."""
-    return _lorentz_line(x - axis_shift, I0, freqShift, LineWidth) + Background
-
-
-def _Lorentzian_2(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2, Background, axis_shift):
-    """Two-mode Lorentzian model. Shared single ``Background`` and ``axis_shift``."""
-    xs = x - axis_shift
-    return (_lorentz_line(xs, I0, freqShift, LineWidth)
-            + _lorentz_line(xs, I02, freqShift2, LineWidth2) + Background)
-
-
-def _Lorentzian_3(x, I0, freqShift, LineWidth, I02, freqShift2, LineWidth2,
-                  I03, freqShift3, LineWidth3, Background, axis_shift):
-    """Three-mode Lorentzian model. Shared single ``Background`` and ``axis_shift``."""
-    xs = x - axis_shift
-    return (_lorentz_line(xs, I0, freqShift, LineWidth)
-            + _lorentz_line(xs, I02, freqShift2, LineWidth2)
-            + _lorentz_line(xs, I03, freqShift3, LineWidth3) + Background)

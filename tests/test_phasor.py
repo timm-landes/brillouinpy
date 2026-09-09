@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from brillouinpy.analysis.fitmodel import _DHO_1
+from brillouinpy.analysis.fit.core import _DHO_1
 from brillouinpy.analysis.phasor import phasor, phase_to_shift, phasor_cursor
 from brillouinpy.core import Spectrum, SpectralImage
 

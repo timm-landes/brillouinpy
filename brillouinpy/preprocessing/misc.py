@@ -65,7 +65,7 @@ class IRF_Remover(PreprocessingStep):
         If ``True`` (default), the detected per-pixel IRF region is attached to
         the returned object as its ``instrument_response_function`` (a
         ``(*spatial, B)`` array, zero outside the detected IRF extent), for a
-        later ``brillouinpy.analysis.fitmodel.DHO(irf='auto')`` fit.
+        later ``brillouinpy.analysis.fit.DHO(irf='auto')`` fit.
     """
     def __init__(self, *, offset: Number or None, store_irf: bool = True): # type: ignore
 
@@ -110,7 +110,7 @@ class Deconvoluter_IRF(PreprocessingStep):
         attached to the returned object as its ``instrument_response_function``
         (a ``(*spatial, B)`` array, zero outside the detected IRF extent), for
         inspection or plotting. **Do not** then fit with
-        ``brillouinpy.analysis.fitmodel.DHO(irf='auto')``: this step has already
+        ``brillouinpy.analysis.fit.DHO(irf='auto')``: this step has already
         deconvolved the IRF out, so a convolution fit on top would correct for it
         twice. The convolution-fit workflow uses :class:`IRF_Remover` (which only
         crops the elastic peak) instead - see ``benchmarks/irf_convolution.py``.
@@ -270,7 +270,7 @@ def assign_irf(spectral_object, irf_measurements, *, at=None, method='nearest'):
     core.SpectralObject
         A copy of ``spectral_object`` with ``instrument_response_function`` set -
         1-D ``(B,)`` for a single measurement, ``(*spatial, B)`` otherwise. Pass
-        it to ``brillouinpy.analysis.fitmodel.DHO(irf='auto')``.
+        it to ``brillouinpy.analysis.fit.DHO(irf='auto')``.
     """
     axis = spectral_object.spectral_axis
     meas = _as_irf_array(irf_measurements, axis)

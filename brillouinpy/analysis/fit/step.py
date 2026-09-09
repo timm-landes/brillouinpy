@@ -3,8 +3,8 @@ from typing import List, Callable, Union, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from .. import utils
-from .. import core
+from ... import utils
+from ... import core
 
 
 class FitStep:

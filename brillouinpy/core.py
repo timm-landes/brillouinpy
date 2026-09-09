@@ -104,7 +104,7 @@ class SpectralContainer:
         :class:`brillouinpy.preprocessing.misc.Deconvoluter_IRF`). ``None`` if
         unknown. Carried forward through spatial operations (``flat``, indexing,
         stacking follow it; ``mean``/``variance`` collapse it to the mean IRF)
-        and consumed by :class:`brillouinpy.analysis.fitmodel.DHO` with
+        and consumed by :class:`brillouinpy.analysis.fit.core.DHO` with
         ``irf='auto'``. For an IRF measured a few times over the course of an
         acquisition (VIPA drift correction), expand it to a per-pixel array with
         :func:`brillouinpy.preprocessing.misc.assign_irf` first.

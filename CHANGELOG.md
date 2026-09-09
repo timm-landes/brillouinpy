@@ -6,7 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **New `Gaussian` fit model** - a Gaussian doublet with the same interface,
+  parameter layout, `irf=` support and return values as `DHO` / `Lorentzian`;
+  also selectable as `segmented_fit(model='gaussian')`.
+- **`elastic=True`** on `DHO` / `Lorentzian` / `Gaussian` fits the `*_elastic`
+  variant, whose shared baseline is `Background + elastic_slope * (x -
+  axis_shift)` (one extra trailing parameter) to absorb the sloping residual wing
+  of an un-blanked elastic peak. Incompatible with `irf=`.
+- **Lineshape registry.** `fit.lineshapes.register_lineshape(name, core=...)`
+  adds a lineshape family from a single single-mode core function; the 1/2/3-mode
+  model functions are assembled automatically. Fit any registered family with the
+  new generic `fit.PeakFit(model=...)`.
+- `estimate_p0` gained a `model=` keyword (default `'dho'`, unchanged behaviour;
+  the `*_elastic` families get an extra trailing `0.0`).
+
 ### Changed
+- **Fitting reorganised into the `brillouinpy.analysis.fit` subpackage.** The
+  lineshape models moved out of the old `fitmodel` module into
+  `fit.lineshapes`; the fitters (`DHO`, `Lorentzian`, `Gaussian`, `PeakFit`,
+  `estimate_p0`, `estimate_peak_count`, `irf_kernel`) are in `fit.core`;
+  `segmented_fit` is in `fit.segmented`; the `FitStep` base class is in
+  `fit.step`. Everything is re-exported flat, so `bp.analysis.fit.DHO`,
+  `bp.analysis.fit.segmented_fit`, `bp.analysis.segmented_fit` all work. The old
+  paths (`brillouinpy.analysis.fitmodel`, `.segmented`, `.lineshapes`,
+  `.FitStep`) still import as thin re-exports with a `DeprecationWarning` and
+  will be removed in a future release.
 - **Packaging moved to PEP 621.** `setup.py` is removed; all metadata now lives
   in `pyproject.toml` (`[build-system]` + `[project]`). `requires-python` is
   `>=3.10` (was an inconsistent `>=3.8`), the license is declared as the SPDX

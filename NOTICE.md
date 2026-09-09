@@ -32,9 +32,10 @@ are adapted from it - verbatim or near-verbatim unless noted otherwise:
 | `brillouinpy/plot/_core.py` | Whole file | - |
 | `brillouinpy/plot/plot.py` | Partial: the `spectra`/`mean_spectra` structure and the `@scalable` decorator pattern behind `image`/`volume` | `peaks`, `peak_dist` and the rest are original |
 
-`brillouinpy/preprocessing/protocols.py`, `brillouinpy/analysis/fitmodel.py`,
-`brillouinpy/analysis/FitStep.py`, `brillouinpy/export.py`, and the remainder of
-`brillouinpy/utils.py` are original to this package (no RamanSPy content).
+`brillouinpy/preprocessing/protocols.py`, the `brillouinpy/analysis/fit/`
+subpackage (`core.py`, `lineshapes.py`, `segmented.py`, `step.py`),
+`brillouinpy/export.py`, and the remainder of `brillouinpy/utils.py` are original
+to this package (no RamanSPy content).
 
 ## Laadr/VCA (Apache License 2.0)
 

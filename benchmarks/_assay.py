@@ -154,7 +154,7 @@ def _fit_dho_raw(image, expected_peaks, anchor_shifts=None, anchor_seeds=None):
         lo[1 + 3 * i], hi[1 + 3 * i] = a - 0.4, a + 0.4
 
     if expected_peaks == 1 and n_anchored == 0:
-        p0 = np.asarray(bp.analysis.fitmodel.estimate_p0(image, expected_peaks=1), dtype=float)
+        p0 = np.asarray(bp.analysis.fit.estimate_p0(image, expected_peaks=1), dtype=float)
         p0[1] = abs(p0[1])  # peak detection may land on the anti-Stokes side
     else:
         stokes = stokes_side(image).mean
@@ -189,7 +189,7 @@ def _fit_dho_raw(image, expected_peaks, anchor_shifts=None, anchor_seeds=None):
         p0 = np.array(p0)
     p0 = np.clip(p0, lo, hi)
 
-    params, _ = bp.analysis.fitmodel.DHO(expected_peaks=expected_peaks, p0=list(p0), bounds=(lo, hi)).apply(image)
+    params, _ = bp.analysis.fit.DHO(expected_peaks=expected_peaks, p0=list(p0), bounds=(lo, hi)).apply(image)
     params = np.asarray(params)
     amps = np.abs(params[..., 0:3 * expected_peaks:3])       # (..., expected_peaks)
     shifts = np.abs(params[..., 1:3 * expected_peaks:3])
@@ -286,7 +286,7 @@ def dho_fit_segmented(image):
     step).
 
     This is now a thin wrapper over the shipped
-    :func:`brillouinpy.analysis.segmented_fit` (``n_components=2``) - so the
+    :func:`brillouinpy.analysis.fit.segmented_fit` (``n_components=2``) - so the
     numbers these scripts produce validate the real package feature, not a
     benchmark-only reimplementation. The only benchmark-side specialisation is
     the classifier: :func:`_kmeans_background_mask` clusters the *Stokes-window*
@@ -374,7 +374,7 @@ def dho_bgsub_method(image):
     lo = [0.0, 3.0, 0.0, -span, -2.0]
     hi = [np.inf, 14.0, 5.0, span, 2.0]
     p0 = [max(float(np.nanmax(residual[..., win])), span * 1e-3), s0, 0.8, 0.0, 0.0]
-    params, _ = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=p0, bounds=(lo, hi)).apply(
+    params, _ = bp.analysis.fit.DHO(expected_peaks=1, p0=p0, bounds=(lo, hi)).apply(
         bp.SpectralImage(residual, axis))
     params = np.asarray(params)
 
@@ -523,7 +523,7 @@ def dho_fit_segmented_3(image):
     for nucleus pixels) - for scoring against each class's true parameters.
 
     Like :func:`dho_fit_segmented`, this is now a thin wrapper over the shipped
-    :func:`brillouinpy.analysis.segmented_fit` (``n_components=3``), with the
+    :func:`brillouinpy.analysis.fit.segmented_fit` (``n_components=3``), with the
     benchmark's Stokes-window k-means (:func:`_kmeans_ordered_mask`, ordered by
     ascending total intensity) passed in as the classifier so the label map
     matches the standalone ``k-means (raw)`` method.

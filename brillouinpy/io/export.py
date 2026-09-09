@@ -171,7 +171,7 @@ def to_hdf5_bls(
         Additional free-form metadata stored as attributes on the Measure group.
     fit_result : numpy.ndarray of shape (..., n_params), optional
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
-        ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
+        ``brillouinpy.analysis.fit.DHO``/``Lorentzian``). The last axis
         is expected to hold, per fitted peak, the triplet (I0, freqShift,
         LineWidth), followed by a single shared (Background, axis_shift) pair.
     expected_peaks : int, optional
@@ -272,7 +272,7 @@ def fit_to_tiff(
     ----------
     fit_result : numpy.ndarray of shape (x, y, n_params)
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
-        ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``).
+        ``brillouinpy.analysis.fit.DHO``/``Lorentzian``).
     output_directory : str
         Directory the TIFF files are written to. Created if it doesn't exist.
     expected_peaks : int, optional
@@ -437,7 +437,7 @@ def to_brim(
         given as a ``(value, units)`` tuple.
     fit_result : numpy.ndarray of shape (..., n_params), optional
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
-        ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
+        ``brillouinpy.analysis.fit.DHO``/``Lorentzian``). The last axis
         is expected to hold, per fitted peak, the triplet (I0, freqShift,
         LineWidth), followed by a single shared (Background, axis_shift) pair. Since
         brillouinpy's peak models fit one symmetric peak per mode, the same
