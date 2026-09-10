@@ -95,3 +95,13 @@ def test_phasor(spectral_image):
 
 def test_show_is_noop_on_agg():
     plot.show()
+
+
+def test_save_writes_current_figure(spectrum, tmp_path):
+    plot.spectra(spectrum, yscale="linear")
+
+    out_path = tmp_path / "spectrum.png"
+    plot.save(str(out_path))
+
+    assert out_path.exists()
+    assert out_path.stat().st_size > 0

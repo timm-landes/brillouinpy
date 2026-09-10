@@ -118,6 +118,18 @@ def test_plot_species_mean_is_nan_robust(axis):
     assert np.isfinite(ax.lines[0].get_ydata()).all()
 
 
+@pytest.mark.xfail(reason="np.unique(shift_axes, axis=0) chokes on differing-length "
+                           "shift axes instead of raising the intended ValueError - "
+                           "see issue #10", strict=False)
+def test_plot_species_mean_raises_for_differing_length_shift_axes(axis):
+    fig, ax = plt.subplots()
+    short_axis = axis[:-1]
+    species = [_species(axis), (np.ones((2, short_axis.size)), short_axis)]
+
+    with pytest.raises(ValueError):
+        _core.plot_species_mean(species, plot_axis=ax, dist=True)
+
+
 # --------------------------------------------------------------------------- #
 # single_plot / offset_plot / stacked_plots
 # --------------------------------------------------------------------------- #
