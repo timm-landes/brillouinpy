@@ -3,7 +3,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-pytest.importorskip("HDF5_BLS")
+try:
+    import HDF5_BLS  # noqa: F401
+except (ImportError, SyntaxError):
+    pytest.skip(
+        "HDF5_BLS not importable (missing, or incompatible with this Python "
+        "version - e.g. its 3.12+-only f-string syntax on older Pythons)",
+        allow_module_level=True,
+    )
 
 from brillouinpy.io import export
 from brillouinpy.core import SpectralImage, Spectrum
