@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-10
+
 ### Added
 - **New `Gaussian` fit model** - a Gaussian doublet with the same interface,
   parameter layout, `irf=` support and return values as `DHO` / `Lorentzian`;
@@ -40,6 +42,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`plot.spectra` / `plot.mean_spectra` with `plot_type="stacked"`** raised
   `AttributeError` (`Figure` has no `set_yscale`); the y-scale is now applied to
   each stacked sub-axes.
+- **`plot.save`** was defined but never exported from `brillouinpy.plot`, so
+  `plot.save(...)` raised `AttributeError`.
+- **`HDF5_BLS` test/optional dependency** now requires Python >= 3.12 (was
+  `>= 3.11`): the installed package's own code uses a nested same-quote
+  f-string, which is a `SyntaxError` on 3.10/3.11 despite its declared
+  `requires-python = ">=3.6"` - an upstream bug
+  ([bio-brillouin/HDF5_BLS](https://github.com/bio-brillouin/HDF5_BLS)).
+  `tests/test_export_hdf5_bls.py` now skips cleanly instead of failing
+  collection when this happens.
 
 ### CI / tests
 - CI now runs the test suite on Python 3.10, 3.11 and 3.12 (was 3.12 only), and
@@ -49,11 +60,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - New `tests/test_analysis_fit_deprecation.py` locks in the backwards
   compatibility of the old `brillouinpy.analysis.fitmodel` / `.lineshapes` /
   `.segmented` / `.FitStep` import paths.
-- New `tests/test_plot_smoke.py` (every public `brillouinpy.plot` function, all
-  `plot_type`s, on the Agg backend) and `tests/test_plot_core.py` (the internal
-  `plot._core` helpers). The plot modules previously had no coverage - that's
-  where the `plt.cm.get_cmap`, `peak_dist` and `plot_type="stacked"` bugs above
-  were hiding.
+- New `tests/test_plot_smoke.py` (every public `brillouinpy.plot` function,
+  including `save`, all `plot_type`s, on the Agg backend) and
+  `tests/test_plot_core.py` (the internal `plot._core` helpers, including an
+  `xfail(strict=False)` reproducing the `np.unique` ragged-shift-axes case
+  tracked in #10). The plot modules previously had no coverage - that's where
+  the `plt.cm.get_cmap`, `peak_dist`, `plot_type="stacked"` and `plot.save`
+  export bugs above were hiding.
 - Added a `Documentation` URL (GitHub Pages site) to the project metadata.
 
 ### Changed
