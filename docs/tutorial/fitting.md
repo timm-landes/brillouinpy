@@ -2,7 +2,7 @@
 
 *Script: `examples/09_fit_spectra.py`*
 
-`analysis.fitmodel.DHO` fits a Damped Harmonic Oscillator lineshape - the
+`analysis.fit.DHO` fits a Damped Harmonic Oscillator lineshape - the
 physically correct model for a Brillouin peak, describing the material's acoustic
 phonon mode as a damped oscillator driven by thermal fluctuations - to every
 spectrum in a spectral object, in parallel across a process pool. This step goes
@@ -12,7 +12,7 @@ so `expected_peaks=1` here - for the two-doublet data explored in
 right setting instead (see below):
 
 ```python
-dho_fit = bp.analysis.fitmodel.DHO(
+dho_fit = bp.analysis.fit.DHO(
     expected_peaks=1,
     p0=[0.005, 8.5, 1, 0, 0],  # [Amplitude, FreqShift (GHz), LineWidth = HWHM (GHz), Background, axis_shift]
     bounds=None,
@@ -41,12 +41,12 @@ A good `p0` (initial guess) matters: `scipy.optimize.curve_fit` (used internally
 is a local optimiser, so a wildly wrong starting frequency shift or linewidth can
 make it converge on a spurious local minimum, or fail outright and get discarded as
 a `RuntimeError` (the fit logs a debug message per failed pixel via the
-`brillouinpy.analysis.fitmodel` logger and returns `NaN` there; a wrong-length `p0`
+`brillouinpy.analysis.fit.core` logger and returns `NaN` there; a wrong-length `p0`
 raises a `UserWarning` and is ignored). `bounds` can additionally constrain the
 search space (e.g. to keep the frequency shift within a physically plausible range)
 once you have a rough idea of where the fit should land.
 
-Instead of hand-writing `p0`, `analysis.fitmodel.estimate_p0(object, expected_peaks)`
+Instead of hand-writing `p0`, `analysis.fit.estimate_p0(object, expected_peaks)`
 derives one from peak detection on the mean spectrum - the same routine
 `09_fit_spectra.py` uses.
 
@@ -74,13 +74,13 @@ single shared `[Background, axis_shift]` for the whole spectrum:
 physical linewidth is meant, so you never have to double it yourself
 (`examples/15_mechanical_properties.py`, `analysis.mechanics.from_dho_fit`).
 
-## Choosing the lineshape: `DHO` vs `Lorentzian`
+## Choosing the lineshape: `DHO` vs `Lorentzian` vs `Gaussian`
 
-`analysis.fitmodel.Lorentzian` has the exact same interface, return values and
-`irf=` support as `DHO`:
+`analysis.fit.Lorentzian` and `analysis.fit.Gaussian` have the exact
+same interface, return values and `irf=` support as `DHO`:
 
 ```python
-lor_fit = bp.analysis.fitmodel.Lorentzian(expected_peaks=1, p0=p0, bounds=None)
+lor_fit = bp.analysis.fit.Lorentzian(expected_peaks=1, p0=p0, bounds=None)
 ```
 
 - **`DHO`** is the physically correct model for a Brillouin peak: it describes the
@@ -94,9 +94,52 @@ lor_fit = bp.analysis.fitmodel.Lorentzian(expected_peaks=1, p0=p0, bounds=None)
   `DHO` result. The two models return the same parameter layout, so nothing
   downstream changes.
 
-For a spectrum that is IRF-limited, the cleanest option is neither - it is a `DHO`
-fit of the *IRF-convolved* model (`irf=`), covered on
+- **`Gaussian`** (a doublet of two Gaussians of HWHM `LineWidth`) is mostly useful
+  when the measured width is dominated by a Gaussian-like instrument response and
+  you are not modelling the IRF explicitly.
+
+For a spectrum that is IRF-limited, the cleanest option is none of these - it is a
+`DHO` fit of the *IRF-convolved* model (`irf=`), covered on
 [removing the instrument response](irf-fit-comparison.md).
+
+## The elastic peak: `elastic=True`
+
+If the elastic / Rayleigh peak is not blanked, its wing leaves a *sloping*
+background under the Brillouin doublet that a single constant `Background` cannot
+absorb. Passing `elastic=True` to `DHO` / `Lorentzian` / `Gaussian` fits the
+`*_elastic` variant, whose shared baseline is
+`Background + elastic_slope * (x - axis_shift)`; the fitted parameter vector then
+carries one extra trailing value, `elastic_slope`. Blanking the elastic channels
+(`preprocessing.misc.IRF_Remover`) and using the plain model is still preferable
+where possible; `elastic=True` is incompatible with `irf=`.
+
+## Adding your own lineshape
+
+The families above are entries in a registry. To fit a lineshape that is not
+built in, write a single-mode doublet core `f(xs, I0, freqShift, LineWidth)` (on
+the axis-shifted coordinate `xs = x - axis_shift`), register it, and fit it with
+the generic `PeakFit`:
+
+```python
+import numpy as np
+from brillouinpy.analysis.fit import lineshapes, PeakFit
+
+def pseudo_voigt_core(xs, I0, freqShift, LineWidth, eta=0.3):
+    g = lineshapes.LINESHAPES["gaussian"].core(xs, I0, freqShift, LineWidth)
+    l = lineshapes.LINESHAPES["lorentzian"].core(xs, I0, freqShift, LineWidth)
+    return eta * l + (1 - eta) * g
+
+lineshapes.register_lineshape("pseudo_voigt", core=pseudo_voigt_core)
+
+p0 = bp.analysis.fit.estimate_p0(image, expected_peaks=1, model="pseudo_voigt")
+params, cov = PeakFit(model="pseudo_voigt", expected_peaks=1, p0=p0, bounds=(0, np.inf)).apply(image)
+```
+
+The 1/2/3-mode model functions `curve_fit` sees are assembled automatically. The
+`core` (and any custom `baseline`) must be importable module-level functions -
+not lambdas - so they survive being sent to the fit worker processes. A custom
+baseline with extra shared parameters is declared via `tail_params=` (see
+`register_lineshape`), exactly as the `*_elastic` families do.
 
 ## How many modes? (`expected_peaks`)
 

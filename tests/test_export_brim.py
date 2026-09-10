@@ -89,6 +89,41 @@ def test_to_brim_without_metadata_roundtrips_cleanly(tmp_path, image):
     assert "Datetime" in reloaded.metadata["Experiment"]
 
 
+def test_normalise_brim_metadata_maps_flat_dict():
+    out = export._normalise_brim_metadata({
+        "Date": "2025-02-27T19:39:43",
+        "Sample": "Zygospores",
+        "Laser_wavelenght_nm": 532.1,  # sic
+        "Laser_power_mW": 1.01,
+        "Operator": "Timm",
+        "FP1_spacing_mm": 6,
+    })
+    assert out["Experiment"]["Datetime"] == "2025-02-27T19:39:43"
+    assert out["Experiment"]["Sample"] == "Zygospores"
+    assert out["Optics"]["Wavelength"] == (532.1, "nm")
+    assert out["Optics"]["Power"] == (1.01, "mW")
+    # unmapped keys are preserved in Experiment.Info, not dropped
+    assert "Operator: Timm" in out["Experiment"]["Info"]
+    assert "FP1_spacing_mm: 6" in out["Experiment"]["Info"]
+
+
+def test_normalise_brim_metadata_passes_through_categorised_dict():
+    nested = {"Experiment": {"Sample": "s"}, "Optics": {"Wavelength": (532.0, "nm")}}
+    assert export._normalise_brim_metadata(nested) == nested
+
+
+def test_to_brim_accepts_flat_metadata_on_object(tmp_path, image):
+    image.metadata = {"Date": "2025-02-27T19:39:43", "Operator": "Timm", "Nx": 30}
+    filepath = str(tmp_path / "flat_meta.brim.zarr")
+
+    export.to_brim(image, filepath, x_step_um=0.5, y_step_um=0.5)
+    reloaded = export.from_brim(filepath)
+
+    assert reloaded.metadata["Experiment"]["Datetime"][0] == "2025-02-27T19:39:43"
+    assert "Operator: Timm" in reloaded.metadata["Experiment"]["Info"][0]
+    assert "Nx: 30" in reloaded.metadata["Experiment"]["Info"][0]
+
+
 def test_to_brim_writes_explicit_acquisition_datetime(tmp_path, image):
     filepath = str(tmp_path / "dt.brim.zarr")
 

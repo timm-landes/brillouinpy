@@ -145,7 +145,7 @@ if __name__ == '__main__':
     plt.show()
 
     # Fit one damped-harmonic-oscillator doublet per pixel.
-    model = bp.analysis.fitmodel.DHO(
+    model = bp.analysis.fit.DHO(
         expected_peaks=1,
         p0=[20, 8, 0.5, 0, 0],  # [amplitude, shift (GHz), HWHM (GHz), background, axis_shift]
         bounds=([0, 5, 0.1, -5, -5], [100, 15, 10, 5, 5]),

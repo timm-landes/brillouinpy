@@ -2,7 +2,7 @@
 """
 Mechanical quantities derived from a fitted Brillouin peak.
 
-Every function here turns the output of a :class:`~brillouinpy.analysis.fitmodel.DHO`
+Every function here turns the output of a :class:`~brillouinpy.analysis.fit.core.DHO`
 fit - a Brillouin shift and linewidth - into a physical quantity. They are
 grouped by how much you have to know about the sample and the setup:
 
@@ -23,7 +23,7 @@ All shift/linewidth inputs are in **GHz** (the fit's own units); ``wavelength``
 is in **metres**, ``scattering_angle`` in **degrees**, ``density`` in
 **kg/m^3**. Results: velocity in m/s, moduli in Pa, viscosity in Pa*s.
 
-``linewidth`` is expected to be the :class:`~brillouinpy.analysis.fitmodel.DHO`
+``linewidth`` is expected to be the :class:`~brillouinpy.analysis.fit.core.DHO`
 fit's ``LineWidth``, i.e. the **half width at half maximum** (HWHM). Where a
 physical linewidth enters (loss tangent, loss modulus, viscosity) it is
 converted to the FWHM (``Gamma = 2 * LineWidth``) internally, so
@@ -174,7 +174,7 @@ def from_dho_fit(fit_parameters, covariances=None, *, peak=0,
                  refractive_index=None, density=None, wavelength=None, scattering_angle=None):
     """
     Compute every available mechanical quantity from a
-    :meth:`brillouinpy.analysis.fitmodel.DHO.apply` result.
+    :meth:`brillouinpy.analysis.fit.core.DHO.apply` result.
 
     Parameters
     ----------

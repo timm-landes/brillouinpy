@@ -1,4 +1,4 @@
-from .plot import spectra, mean_spectra, peak_dist, image, volume, peaks, phasor, show
+from .plot import spectra, mean_spectra, peak_dist, image, volume, peaks, phasor, show, save
 
 __all__ = [
     "spectra",
@@ -8,5 +8,6 @@ __all__ = [
     "volume",
     "peaks",
     "phasor",
-    "show"
+    "show",
+    "save",
 ]

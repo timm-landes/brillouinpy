@@ -39,7 +39,7 @@ __all__ = [
 
 def __getattr__(name):
     # Lazily import 'plot' (pulls in matplotlib) so that e.g. multiprocessing
-    # fit workers, which only need 'analysis.fitmodel', don't pay for it.
+    # fit workers, which only need 'analysis.fit', don't pay for it.
     if name == "plot":
         import importlib
         module = importlib.import_module(".plot", __name__)

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "BrillouinPy"
-version = "0.4.0"
+version = "0.5.0"
 description = "Brillouin light scattering data analysis (formerly BrillouinAnalyzer), architecturally inspired by RamanSPy (see NOTICE.md)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,7 +24,7 @@ dependencies = [
     "numpy",
     "scipy",
     "tqdm",
-    "matplotlib",
+    "matplotlib>=3.7",
     "scikit-image",
     "scikit-learn",
     "tifffile",
@@ -33,13 +33,25 @@ dependencies = [
 [project.optional-dependencies]
 # 'brim' export/import (io.export.to_brim/from_brim) needs Python >= 3.11
 brim = ["brimfile"]
-hdf5_bls = ["HDF5_BLS"]
+# Needs Python >= 3.12: HDF5_BLS's own code uses nested same-quote f-strings,
+# which is a SyntaxError on 3.10/3.11.
+hdf5_bls = ["HDF5_BLS; python_version >= '3.12'"]
 # Only the PPI / FIPPI / NFINDR endmember-extraction methods in analysis.unmix
 # need this; VCA and all abundance methods are pure NumPy/SciPy.
 unmix-eea = ["pysptools"]
+# Everything needed to run the full test suite. The export backends only ship
+# wheels for Python >= 3.11, so on 3.10 the corresponding tests skip themselves.
+# HDF5_BLS additionally needs >= 3.12: its own code uses nested same-quote
+# f-strings, which is a SyntaxError on 3.10/3.11.
+test = [
+    "pytest",
+    "brimfile; python_version >= '3.11'",
+    "HDF5_BLS; python_version >= '3.12'",
+]
 
 [project.urls]
 Homepage = "https://github.com/timm-landes/brillouinpy"
+Documentation = "https://timm-landes.github.io/brillouinpy/"
 Repository = "https://github.com/timm-landes/brillouinpy"
 # LUH-internal development mirror, only reachable from within the Leibniz
 # University Hannover network/SSO - not usable by external contributors.

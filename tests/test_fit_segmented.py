@@ -12,8 +12,8 @@ def test_segmented_module_does_not_import_sklearn_at_load_time():
     # inside _default_classifier so the DHO fit's multiprocessing workers (which
     # re-import brillouinpy.analysis on spawn) never pay for it.
     sys.modules.pop("sklearn", None)
-    sys.modules.pop("brillouinpy.analysis.segmented", None)
-    import brillouinpy.analysis.segmented  # noqa: F401
+    sys.modules.pop("brillouinpy.analysis.fit.segmented", None)
+    import brillouinpy.analysis.fit.segmented  # noqa: F401
 
     assert "sklearn" not in sys.modules
 

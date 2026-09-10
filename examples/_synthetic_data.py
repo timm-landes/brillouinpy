@@ -16,7 +16,7 @@ import brillouinpy as bp
 
 
 def _dho(x, amplitude, freq_shift, linewidth, background=0.0, axis_shift=0.0):
-    # Mirrors brillouinpy.analysis.fitmodel._dho_line: ``linewidth`` is the HWHM.
+    # Mirrors brillouinpy.analysis.fit.core._dho_line: ``linewidth`` is the HWHM.
     xs = x - axis_shift
     return amplitude * 4 * linewidth * freq_shift ** 2 / (
         np.pi * ((xs ** 2 - freq_shift ** 2) ** 2 + 4 * (linewidth * xs) ** 2)
@@ -91,7 +91,7 @@ def two_mode_image(nx=30, ny=30, n_channels=250, shift_a=6.0, shift_b_range=(10.
     Brillouin modes: mode A at a fixed shift, and mode B whose frequency shift
     ramps linearly across x (a graded stiffness in a second phase). No pixel is
     single-mode, so it is a clean test for automatic peak-count selection
-    (``brillouinpy.analysis.fitmodel.estimate_peak_count`` /
+    (``brillouinpy.analysis.fit.estimate_peak_count`` /
     ``DHO(expected_peaks='auto')``) without the ambiguity a spatially-varying
     number of modes would introduce.
 
@@ -444,13 +444,13 @@ def irf_broadened_image(nx=30, ny=30, n_channels=300, component_shift=6.5,
     """
     A :class:`~brillouinpy.SpectralImage` whose spectra are an intrinsic DHO doublet
     *convolved with a known instrument response function* (IRF) - the case
-    :class:`brillouinpy.analysis.fitmodel.DHO`'s ``irf=`` argument is built for.
+    :class:`brillouinpy.analysis.fit.core.DHO`'s ``irf=`` argument is built for.
 
     Every pixel holds one Brillouin doublet at ``component_shift`` GHz. The intrinsic
     (pre-IRF) linewidth is ``intrinsic_linewidth_background`` outside a centred blob and
     ``intrinsic_linewidth_blob`` inside it, so linewidth recovery can be scored against a
     known two-valued map. The clean spectrum is then convolved with an IRF of full width
-    ``irf_fwhm`` (:func:`brillouinpy.analysis.fitmodel.irf_kernel`), which broadens every
+    ``irf_fwhm`` (:func:`brillouinpy.analysis.fit.core.irf_kernel`), which broadens every
     line - a plain DHO fit sees ``intrinsic + instrumental`` width, an ``irf=``-aware fit
     recovers the intrinsic width.
 
@@ -496,7 +496,7 @@ def irf_broadened_image(nx=30, ny=30, n_channels=300, component_shift=6.5,
         irf_spec = (irf_shape, irf_fwhm)
     else:
         raise ValueError(f"irf_shape must be 'lorentzian', 'gaussian' or 'voigt', got {irf_shape!r}.")
-    kernel = bp.analysis.fitmodel.irf_kernel(irf_spec, spectral_axis)
+    kernel = bp.analysis.fit.irf_kernel(irf_spec, spectral_axis)
 
     def _broadened(linewidth):
         intrinsic = _dho(spectral_axis, 5e-3, component_shift, linewidth)

@@ -329,7 +329,7 @@ def scalable(plotting_function):
             data_to_plot = [data_to_plot]
 
         if kwargs.get("color", None) is None:
-            cmap = plt.cm.get_cmap()  # using matplotlib's default colormap
+            cmap = plt.get_cmap()  # using matplotlib's default colormap
             kwargs["color"] = list(cmap(np.linspace(0, 1, len(data_to_plot))))
 
         save_to = kwargs.get("save_to", None)
@@ -726,8 +726,11 @@ def peak_dist(
         import matplotlib.pyplot as plt
         import brillouinpy as bp
 
-        # plots the peak distributions at 1500cm^-1 of 2 groups of spectra
-        ax = bp.plot.peak_dist([spectrum_1, spectrum_2, spectrum_3], [spectrum_4, spectrum_5], band=1500, labels=["Group A", "Group B"])
+        # plots the peak distribution at 8 GHz of a single group of spectra
+        ax = bp.plot.peak_dist([spectrum_1, spectrum_2, spectrum_3], band=8)
+
+        # plots the peak distributions at 8 GHz of 2 groups of spectra
+        ax = bp.plot.peak_dist([[spectrum_1, spectrum_2, spectrum_3], [spectrum_4, spectrum_5]], band=8, labels=["Group A", "Group B"])
 
         # visualising
         plt.show()  # or bp.plot.show()
@@ -738,6 +741,9 @@ def peak_dist(
     """
     if ax is None:
         fig, ax = plt.subplots()
+
+    if not isinstance(spectra, list):
+        spectra = [spectra]
 
     if isinstance(spectra[0], list):
         peak_values = [

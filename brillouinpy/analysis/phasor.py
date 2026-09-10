@@ -3,7 +3,7 @@
 Spectral phasor analysis (SPA) for Brillouin microspectroscopy.
 
 A model-free alternative to the peak fitting in
-:mod:`~brillouinpy.analysis.fitmodel`. Each spectrum is projected onto the first
+:mod:`~brillouinpy.analysis.fit.core`. Each spectrum is projected onto the first
 (or a higher) harmonic of its discrete Fourier transform, giving a single complex
 number - the *phasor* ``(G, S)``. Spectra with different Brillouin shifts / line
 shapes land at different positions in the phasor plane, so segmentation and
@@ -211,7 +211,7 @@ def phase_to_shift(result: PhasorResult) -> np.ndarray:
     This is a cheap, fit-free shift estimate - exact for an infinitely sharp
     single line, biased for broad or multi-peak spectra. For quantitative work
     still calibrate against a reference or fall back to
-    :class:`~brillouinpy.analysis.fitmodel.DHO`.
+    :class:`~brillouinpy.analysis.fit.core.DHO`.
 
     Parameters
     ----------

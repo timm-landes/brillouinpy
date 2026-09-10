@@ -12,7 +12,7 @@ The usual fix is to deconvolve the data first
 (``brillouinpy.preprocessing.misc.Deconvoluter_IRF``, Richardson-Lucy). This
 example shows the alternative: keep the data and fit the *convolved* model
 ``(DHO * IRF) + background`` by passing ``irf=`` to
-:class:`brillouinpy.analysis.fitmodel.DHO`. The fitted ``LineWidth`` is then the
+:class:`brillouinpy.analysis.fit.core.DHO`. The fitted ``LineWidth`` is then the
 intrinsic linewidth, with the instrumental broadening in the forward model - no
 deconvolution, no iteration count, and stable at low photon counts. See
 ``benchmarks/irf_convolution.py`` for the full comparison.
@@ -54,15 +54,15 @@ if __name__ == '__main__':
     print("per-pixel IRF attached:", pp.instrument_response_function.shape)
 
     # (a) Plain fit on the cropped (still IRF-broadened) data - overestimates linewidth.
-    plain_params, _ = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=p0, bounds=bounds).apply(pp)
+    plain_params, _ = bp.analysis.fit.DHO(expected_peaks=1, p0=p0, bounds=bounds).apply(pp)
 
     # (b) Fit the convolved model, IRF taken from the object.
-    auto_params, _ = bp.analysis.fitmodel.DHO(
+    auto_params, _ = bp.analysis.fit.DHO(
         expected_peaks=1, p0=p0, bounds=bounds, irf='auto',
     ).apply(pp)
 
     # (c) For reference: the exact parametric IRF (the best case).
-    param_params, _ = bp.analysis.fitmodel.DHO(
+    param_params, _ = bp.analysis.fit.DHO(
         expected_peaks=1, p0=p0, bounds=bounds, irf=('gaussian', info['irf_fwhm']),
     ).apply(pp)
 

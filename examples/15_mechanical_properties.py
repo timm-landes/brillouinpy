@@ -27,7 +27,7 @@ from _synthetic_data import single_peak_image
 if __name__ == '__main__':
     image = single_peak_image(nx=25, ny=25, freq_shift=7.5, linewidth=0.7)
 
-    fit = bp.analysis.fitmodel.DHO(expected_peaks=1, p0=[5e-3, 7.5, 0.7, 0, 0], bounds=None)
+    fit = bp.analysis.fit.DHO(expected_peaks=1, p0=[5e-3, 7.5, 0.7, 0, 0], bounds=None)
     params, covariances = fit.apply(image)
 
     # Everything computable, in one call. loss_tangent always; the rest because

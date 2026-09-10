@@ -5,11 +5,15 @@ Analysis
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinpy.analysis.FitStep
+.. automodule:: brillouinpy.analysis.fit.step
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinpy.analysis.fitmodel
+.. automodule:: brillouinpy.analysis.fit.core
+   :members:
+   :show-inheritance:
+
+.. automodule:: brillouinpy.analysis.fit.lineshapes
    :members:
    :show-inheritance:
 
@@ -17,7 +21,7 @@ Analysis
    :members:
    :show-inheritance:
 
-.. automodule:: brillouinpy.analysis.segmented
+.. automodule:: brillouinpy.analysis.fit.segmented
    :members:
    :show-inheritance:
 

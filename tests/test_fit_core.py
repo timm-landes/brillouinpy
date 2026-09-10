@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from brillouinpy.analysis.fitmodel import (
+from brillouinpy.analysis.fit.core import (
     _DHO_1,
     _DHO_2,
     _DHO_3,

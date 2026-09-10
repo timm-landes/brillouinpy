@@ -6,7 +6,80 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-10
+
+### Added
+- **New `Gaussian` fit model** - a Gaussian doublet with the same interface,
+  parameter layout, `irf=` support and return values as `DHO` / `Lorentzian`;
+  also selectable as `segmented_fit(model='gaussian')`.
+- **`elastic=True`** on `DHO` / `Lorentzian` / `Gaussian` fits the `*_elastic`
+  variant, whose shared baseline is `Background + elastic_slope * (x -
+  axis_shift)` (one extra trailing parameter) to absorb the sloping residual wing
+  of an un-blanked elastic peak. Incompatible with `irf=`.
+- **Lineshape registry.** `fit.lineshapes.register_lineshape(name, core=...)`
+  adds a lineshape family from a single single-mode core function; the 1/2/3-mode
+  model functions are assembled automatically. Fit any registered family with the
+  new generic `fit.PeakFit(model=...)`.
+- `estimate_p0` gained a `model=` keyword (default `'dho'`, unchanged behaviour;
+  the `*_elastic` families get an extra trailing `0.0`).
+
+### Fixed
+- **`to_brim` no longer crashes on a flat metadata dict.** It expected
+  `spectral_object.metadata` to be keyed by brim categories, so a plain vendor /
+  `META.json` dict (e.g. attached by a loader) raised `KeyError` on the first
+  non-category key. Such a dict is now normalised: well-known keys (`Date`,
+  `Sample`, laser wavelength/power, ...) are mapped onto the brim schema and the
+  rest is bundled into `Experiment.Info` so nothing is lost.
+- **`to_hdf5_bls`** no longer masks a validation error (e.g. a `fit_result`
+  without `expected_peaks`) with a `WrapperError_Save` from the cleanup path.
+- **`brillouinpy.plot`** used `plt.cm.get_cmap()`, removed in matplotlib 3.9, in
+  `plot.image`/`plot.volume`/`plot.spectra` - every default-colour plot raised on
+  matplotlib >= 3.9. Switched to `plt.get_cmap()`; `matplotlib>=3.7` is now the
+  declared lower bound.
+- **`plot.peak_dist`** raised `TypeError` when given a single spectral object
+  (as its own docstring/signature allow) instead of a list; it now wraps a bare
+  object like the other plot functions.
+- **`plot.spectra` / `plot.mean_spectra` with `plot_type="stacked"`** raised
+  `AttributeError` (`Figure` has no `set_yscale`); the y-scale is now applied to
+  each stacked sub-axes.
+- **`plot.save`** was defined but never exported from `brillouinpy.plot`, so
+  `plot.save(...)` raised `AttributeError`.
+- **`HDF5_BLS` test/optional dependency** now requires Python >= 3.12 (was
+  `>= 3.11`): the installed package's own code uses a nested same-quote
+  f-string, which is a `SyntaxError` on 3.10/3.11 despite its declared
+  `requires-python = ">=3.6"` - an upstream bug
+  ([bio-brillouin/HDF5_BLS](https://github.com/bio-brillouin/HDF5_BLS)).
+  `tests/test_export_hdf5_bls.py` now skips cleanly instead of failing
+  collection when this happens.
+
+### CI / tests
+- CI now runs the test suite on Python 3.10, 3.11 and 3.12 (was 3.12 only), and
+  installs `brimfile` / `HDF5_BLS` on 3.11+ so `tests/test_export_brim.py` and
+  the new `tests/test_export_hdf5_bls.py` actually run instead of skipping
+  everywhere. Added a `test` extra (`pip install ".[test]"`).
+- New `tests/test_analysis_fit_deprecation.py` locks in the backwards
+  compatibility of the old `brillouinpy.analysis.fitmodel` / `.lineshapes` /
+  `.segmented` / `.FitStep` import paths.
+- New `tests/test_plot_smoke.py` (every public `brillouinpy.plot` function,
+  including `save`, all `plot_type`s, on the Agg backend) and
+  `tests/test_plot_core.py` (the internal `plot._core` helpers, including an
+  `xfail(strict=False)` reproducing the `np.unique` ragged-shift-axes case
+  tracked in #10). The plot modules previously had no coverage - that's where
+  the `plt.cm.get_cmap`, `peak_dist`, `plot_type="stacked"` and `plot.save`
+  export bugs above were hiding.
+- Added a `Documentation` URL (GitHub Pages site) to the project metadata.
+
 ### Changed
+- **Fitting reorganised into the `brillouinpy.analysis.fit` subpackage.** The
+  lineshape models moved out of the old `fitmodel` module into
+  `fit.lineshapes`; the fitters (`DHO`, `Lorentzian`, `Gaussian`, `PeakFit`,
+  `estimate_p0`, `estimate_peak_count`, `irf_kernel`) are in `fit.core`;
+  `segmented_fit` is in `fit.segmented`; the `FitStep` base class is in
+  `fit.step`. Everything is re-exported flat, so `bp.analysis.fit.DHO`,
+  `bp.analysis.fit.segmented_fit`, `bp.analysis.segmented_fit` all work. The old
+  paths (`brillouinpy.analysis.fitmodel`, `.segmented`, `.lineshapes`,
+  `.FitStep`) still import as thin re-exports with a `DeprecationWarning` and
+  will be removed in a future release.
 - **Packaging moved to PEP 621.** `setup.py` is removed; all metadata now lives
   in `pyproject.toml` (`[build-system]` + `[project]`). `requires-python` is
   `>=3.10` (was an inconsistent `>=3.8`), the license is declared as the SPDX

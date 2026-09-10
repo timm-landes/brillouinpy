@@ -171,7 +171,7 @@ def to_hdf5_bls(
         Additional free-form metadata stored as attributes on the Measure group.
     fit_result : numpy.ndarray of shape (..., n_params), optional
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
-        ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
+        ``brillouinpy.analysis.fit.DHO``/``Lorentzian``). The last axis
         is expected to hold, per fitted peak, the triplet (I0, freqShift,
         LineWidth), followed by a single shared (Background, axis_shift) pair.
     expected_peaks : int, optional
@@ -189,6 +189,7 @@ def to_hdf5_bls(
         Overwrite ``filepath`` if it already exists, by default False.
     """
     wrapper = _open_hdf5_bls(None)
+    saved = False
     try:
         wrapper.create_group("Measure", parent_group="Brillouin", brillouin_type="Measure")
         wrapper.add_PSD(np.ma.filled(spectral_object.spectral_data, np.nan), parent_group="Brillouin/Measure")
@@ -252,8 +253,19 @@ def to_hdf5_bls(
                 )
 
         wrapper.save_as_hdf5(filepath, overwrite=overwrite)
+        saved = True
     finally:
-        wrapper.close()
+        if saved:
+            wrapper.close()
+        else:
+            # We bailed out before save_as_hdf5 (e.g. a ValueError on a bad
+            # fit_result). A plain wrapper.close() then raises
+            # WrapperError_Save and masks the real error - drop the unsaved
+            # temp file instead and let the original exception propagate.
+            try:
+                wrapper.close(delete_temp_file=True)
+            except Exception:
+                pass
 
 
 def fit_to_tiff(
@@ -272,7 +284,7 @@ def fit_to_tiff(
     ----------
     fit_result : numpy.ndarray of shape (x, y, n_params)
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
-        ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``).
+        ``brillouinpy.analysis.fit.DHO``/``Lorentzian``).
     output_directory : str
         Directory the TIFF files are written to. Created if it doesn't exist.
     expected_peaks : int, optional
@@ -368,6 +380,89 @@ def _spatial_map_to_zyx(array) -> np.ndarray:
         raise ValueError(f"Expected a 2D (x, y) or 3D (x, y, z) spatial map, got shape {array.shape}.")
 
 
+#: The five metadata categories brim knows (``brimfile.Metadata.Type`` members).
+_BRIM_METADATA_CATEGORIES = ("Experiment", "Optics", "Brillouin", "Acquisition", "Spectrometer")
+
+#: Best-effort mapping of common flat vendor / ``META.json`` metadata keys
+#: (compared lower-cased) onto ``(brim category, attribute, units or None)``.
+#: ``"Info"`` as the attribute routes the value into the free-form
+#: ``Experiment.Info`` string rather than a schema field.
+_FLAT_METADATA_MAP = {
+    "date": ("Experiment", "Datetime", None),
+    "datetime": ("Experiment", "Datetime", None),
+    "timestamp": ("Experiment", "Timestamp", None),
+    "sample": ("Experiment", "Sample", None),
+    "sample_name": ("Experiment", "Sample", None),
+    "temperature": ("Experiment", "Temperature", None),
+    "operator": ("Experiment", "Info", None),
+    "notes": ("Experiment", "Info", None),
+    "note": ("Experiment", "Info", None),
+    "info": ("Experiment", "Info", None),
+    "comment": ("Experiment", "Info", None),
+    "comments": ("Experiment", "Info", None),
+    "description": ("Experiment", "Info", None),
+    "wavelength": ("Optics", "Wavelength", None),
+    "wavelength_nm": ("Optics", "Wavelength", "nm"),
+    "laser_wavelength_nm": ("Optics", "Wavelength", "nm"),
+    "laser_wavelenght_nm": ("Optics", "Wavelength", "nm"),  # sic - legacy misspelling
+    "laser_power": ("Optics", "Power", None),
+    "power_mw": ("Optics", "Power", "mW"),
+    "laser_power_mw": ("Optics", "Power", "mW"),
+    "laser": ("Optics", "Laser_model", None),
+    "laser_model": ("Optics", "Laser_model", None),
+    "objective": ("Optics", "Objective_model", None),
+    "objective_model": ("Optics", "Objective_model", None),
+    "scattering_angle": ("Brillouin", "Scattering_angle", None),
+}
+
+
+def _normalise_brim_metadata(metadata, *, drop_sample=False, drop_wavelength=False):
+    """Coerce an arbitrary metadata dict into brim's ``{category: {attribute:
+    value}}`` shape.
+
+    Entries already keyed by a brim category (:data:`_BRIM_METADATA_CATEGORIES`)
+    pass straight through. A flat vendor / ``META.json`` dict is best-effort
+    mapped onto the brim schema via :data:`_FLAT_METADATA_MAP`; everything that
+    doesn't map is bundled into ``Experiment.Info`` as a ``key: value; ...``
+    string, so no metadata is silently dropped (just not given a schema field).
+
+    ``drop_sample`` / ``drop_wavelength`` remove the mapped ``Experiment.Sample``
+    / ``Optics.Wavelength`` so an explicit ``sample=`` / ``laser_wavelength_nm=``
+    argument to :func:`to_brim` wins over whatever the dict carried.
+    """
+    if not metadata:
+        return {}
+
+    normalised = {category: {} for category in _BRIM_METADATA_CATEGORIES}
+    info_parts = []
+
+    for key, value in metadata.items():
+        if key in _BRIM_METADATA_CATEGORIES and isinstance(value, dict):
+            normalised[key].update(value)
+            continue
+        category, attribute, units = _FLAT_METADATA_MAP.get(
+            str(key).strip().lower(), (None, None, None))
+        if attribute == "Info":
+            info_parts.append(f"{key}: {value}")
+        elif category is not None:
+            normalised[category][attribute] = (value, units) if units else value
+        else:
+            info_parts.append(f"{key}: {value}")
+
+    if info_parts:
+        existing = normalised["Experiment"].get("Info")
+        existing = existing[0] if isinstance(existing, tuple) else existing
+        normalised["Experiment"]["Info"] = "; ".join(
+            str(part) for part in ([existing] if existing else []) + info_parts)
+
+    if drop_sample:
+        normalised["Experiment"].pop("Sample", None)
+    if drop_wavelength:
+        normalised["Optics"].pop("Wavelength", None)
+
+    return {category: attrs for category, attrs in normalised.items() if attrs}
+
+
 def to_brim(
     spectral_object: core.SpectralObject,
     filepath: str,
@@ -425,19 +520,26 @@ def to_brim(
         local time. brillouinpy always writes this field because some viewers
         (BrimView) error out on a file whose Experiment metadata section is
         missing entirely.
-    metadata : dict[str, dict], optional
+    metadata : dict, optional
         Defaults to ``spectral_object.metadata`` if the object has one (e.g. when
-        it came from :func:`from_brim`); pass a dict here to override that.
-        Additional metadata, as ``{category: {attribute: value_or_(value, units)}}``,
-        where ``category`` is the name of a ``brimfile.Metadata.Type`` member (e.g.
-        ``"Brillouin"``, ``"Acquisition"``, ``"Spectrometer"``) and each attribute
-        name must match the brim metadata schema (call
-        ``brimfile.metadata.print_schema()`` to see it). Values without units (e.g.
-        plain strings) can be given directly; numeric values needing units must be
-        given as a ``(value, units)`` tuple.
+        it came from :func:`from_brim`, or from a loader that attached the
+        acquisition ``META.json``); pass a dict here to override that.
+
+        Ideally already in brim form - ``{category: {attribute: value_or_(value,
+        units)}}``, where ``category`` is a ``brimfile.Metadata.Type`` member
+        (``"Experiment"``, ``"Optics"``, ``"Brillouin"``, ``"Acquisition"``,
+        ``"Spectrometer"``) and each attribute matches the brim schema (call
+        ``brimfile.metadata.print_schema()``). Values without units can be given
+        directly; a value needing units as a ``(value, units)`` tuple.
+
+        A **flat** dict (plain ``{key: value}``, e.g. a vendor ``META.json``) is
+        accepted too: well-known keys (``Date``, ``Sample``, laser
+        wavelength/power, ...) are mapped onto the brim schema and everything
+        else is bundled into ``Experiment.Info`` as a ``key: value; ...`` string,
+        so nothing is lost even though it isn't given a dedicated field.
     fit_result : numpy.ndarray of shape (..., n_params), optional
         The array of fitted parameters as returned by ``FitStep.apply`` (e.g.
-        ``brillouinpy.analysis.fitmodel.DHO``/``Lorentzian``). The last axis
+        ``brillouinpy.analysis.fit.DHO``/``Lorentzian``). The last axis
         is expected to hold, per fitted peak, the triplet (I0, freqShift,
         LineWidth), followed by a single shared (Background, axis_shift) pair. Since
         brillouinpy's peak models fit one symmetric peak per mode, the same
@@ -521,15 +623,18 @@ def to_brim(
             md.add(brim.Metadata.Type.Experiment, {"Sample": Item(sample)})
         if laser_wavelength_nm is not None:
             md.add(brim.Metadata.Type.Optics, {"Wavelength": Item(laser_wavelength_nm, "nm")})
-        for category_name, attributes in (metadata or {}).items():
-            category = brim.Metadata.Type[category_name]
+
+        normalised_metadata = _normalise_brim_metadata(
+            metadata, drop_sample=sample is not None,
+            drop_wavelength=laser_wavelength_nm is not None)
+        for category_name, attributes in normalised_metadata.items():
             items = {
                 key: value if isinstance(value, brim.Metadata.Item)
                 else Item(*value) if isinstance(value, tuple)
                 else Item(value)
                 for key, value in attributes.items()
             }
-            md.add(category, items)
+            md.add(brim.Metadata.Type[category_name], items)
 
         # Always write an Experiment.Datetime. It is optional in the brim spec,
         # but at least one viewer (BrimView) assumes the Experiment metadata
@@ -537,7 +642,7 @@ def to_brim(
         # no attribute 'get'" on a file that has none. Prefer, in order: an
         # explicit 'acquisition_datetime', a value already carried in 'metadata'
         # (e.g. round-tripped by from_brim), otherwise the current local time.
-        if "Datetime" not in (metadata or {}).get("Experiment", {}):
+        if "Datetime" not in normalised_metadata.get("Experiment", {}):
             import datetime as _dt
 
             value = acquisition_datetime

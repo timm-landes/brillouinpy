@@ -182,7 +182,7 @@ def spectra_plot_wrapper(plotting_function, genus, plot_type, yscale = 'log', **
         kwargs['label'] = [kwargs['label']] * len(genus)
 
     if kwargs.get('color', None) is None:
-        cmap = plt.cm.get_cmap()  # using matplotlib's default colormap
+        cmap = plt.get_cmap()  # using matplotlib's default colormap
         kwargs['color'] = cmap(np.linspace(0, 1, len(genus)))
     else:
         kwargs['color'] = kwargs['color'] if isinstance(kwargs['color'], list) else [kwargs['color']] * len(genus)
@@ -199,9 +199,10 @@ def spectra_plot_wrapper(plotting_function, genus, plot_type, yscale = 'log', **
 
 
     elif plot_type == "stacked":
-        ax = stacked_plots(plotting_function, genus, **kwargs)
-        ax.set_yscale(yscale)
-        return ax
+        fig = stacked_plots(plotting_function, genus, **kwargs)
+        for ax in fig.axes:
+            ax.set_yscale(yscale)
+        return fig
 
     elif plot_type == "separate":
         axs = []

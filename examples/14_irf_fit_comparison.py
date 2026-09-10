@@ -33,7 +33,7 @@ PROJECT_PATH = r'C:\Users\Timm\Desktop\Leipzig\Zygo_2_4'
 
 
 def _fit(image, p0, bounds, irf=None):
-    return np.asarray(bp.analysis.fitmodel.DHO(
+    return np.asarray(bp.analysis.fit.DHO(
         expected_peaks=1, p0=p0, bounds=bounds, **({} if irf is None else {'irf': irf}),
     ).apply(image)[0])
 
