@@ -48,6 +48,18 @@ def _create_data(spectral_data, spectral_axis, *, metadata=None, px_size_um=None
               instrument_response_function=instrument_response_function)
 
 
+def _validate_channels(channels: dict) -> None:
+    """Raise TypeError if any channel value isn't a SpectralObject."""
+    for name, value in channels.items():
+        if not isinstance(value, SpectralContainer):
+            raise TypeError(
+                f"channel {name!r} is a {type(value).__name__}, not a SpectralObject "
+                "(Spectrum/SpectralImage/SpectralVolume/SpectralContainer). Arrays with no "
+                "spectral axis (labels, masks, fit-result maps) must be wrapped with "
+                "as_channel() first; spectral data (Raman, fluorescence, brightfield) is "
+                "already a SpectralObject and can be passed to channels directly.")
+
+
 def _stack_irf(sources):
     """Combine the per-source instrument response functions when stacking. Returns
     a stacked ``(N, B)`` array if every source carries a grid-conformant per-pixel
@@ -141,6 +153,7 @@ class SpectralContainer:
             else np.asarray(instrument_response_function))
         self.metadata = {} if metadata is None else dict(metadata)
         self.channels = {} if channels is None else dict(channels)
+        _validate_channels(self.channels)
         self.px_size_um = _empty_px_size()
         if px_size_um:
             self.px_size_um.update(px_size_um)
@@ -204,6 +217,81 @@ class SpectralContainer:
         """Apply ``op`` to grid-conformant channels; pass the rest through unchanged."""
         conformant = self.channels_grid_conformant
         return {name: op(ch) if conformant[name] else ch for name, ch in self.channels.items()}
+
+    def with_channel(self, name, obj) -> SpectralContainer:
+        """
+        Return a new object with channel ``name`` set to ``obj``.
+
+        ``obj`` must already be a :class:`SpectralObject`; wrap a bare array with
+        no spectral axis using :func:`as_channel` first. Does not mutate ``self``.
+        The returned object's ``channels`` dict is fully independent of ``self``'s -
+        every channel, not only the one being added, is deep-copied - matching the
+        "derived channels are copies" rule spatial operations already follow.
+
+        Parameters
+        ----------
+        name : str
+            The channel name.
+        obj : SpectralObject
+            The channel value.
+
+        Returns
+        -------
+        SpectralContainer
+        """
+        _validate_channels({name: obj})
+        new_channels = copy.deepcopy(self.channels)
+        new_channels[name] = copy.deepcopy(obj)
+        return self._derive(self.spectral_data, channels=new_channels)
+
+    def drop_channel(self, name) -> SpectralContainer:
+        """
+        Return a new object with channel ``name`` removed.
+
+        Does not mutate ``self``; the returned object's ``channels`` dict is a
+        full deep copy of the remaining channels (see :meth:`with_channel`).
+
+        Parameters
+        ----------
+        name : str
+            The channel name to remove.
+
+        Returns
+        -------
+        SpectralContainer
+
+        Raises
+        ------
+        KeyError
+            If ``name`` is not a current channel.
+        """
+        new_channels = copy.deepcopy(self.channels)
+        del new_channels[name]
+        return self._derive(self.spectral_data, channels=new_channels)
+
+    def apply_to_channel(self, name, step) -> SpectralContainer:
+        """
+        Return a new object with channel ``name`` replaced by
+        ``step.apply(self.channels[name])``.
+
+        Does not mutate ``self``. Every other channel is deep-copied into the
+        returned object (see :meth:`with_channel`); the transformed channel is
+        stored as returned by ``step.apply`` without an additional copy.
+
+        Parameters
+        ----------
+        name : str
+            The channel name to transform.
+        step
+            A preprocessing step exposing ``.apply(spectral_object)``.
+
+        Returns
+        -------
+        SpectralContainer
+        """
+        new_channels = copy.deepcopy(self.channels)
+        new_channels[name] = step.apply(self.channels[name])
+        return self._derive(self.spectral_data, channels=new_channels)
 
     def _child_irf(self, *, key=None, flatten=False, reduce=None):
         """Carry :attr:`instrument_response_function` through a spatial operation. A
@@ -600,3 +688,47 @@ class SpectralVolume(SpectralContainer):
 
 # for typing
 SpectralObject = Union[SpectralContainer, Spectrum, SpectralImage, SpectralVolume]
+
+
+def as_channel(array, *, axis_label=0) -> SpectralObject:
+    """
+    Wrap a per-pixel array with no spectral axis as a channel-ready SpectralObject.
+
+    Only for arrays that don't already carry a spectral axis - a classification
+    map, a mask, a fit-result map. Raman, fluorescence and brightfield data are
+    already SpectralObjects and should be passed to ``channels`` directly,
+    unwrapped.
+
+    Parameters
+    ----------
+    array : numpy.ndarray
+        Array of shape ``(*spatial,)``. Its dtype is preserved.
+    axis_label : optional
+        Value stored on the resulting length-1 spectral axis. Default 0.
+
+    Returns
+    -------
+    SpectralObject
+        Shape ``(*spatial, 1)``; dispatched to Spectrum/SpectralImage/
+        SpectralVolume/SpectralContainer by spatial ndim, same as any other
+        spectral object (see :func:`_create_data`).
+    """
+    array = np.asarray(array)
+    return _create_data(array[..., np.newaxis], np.asarray([axis_label]))
+
+
+def from_channel(obj: SpectralObject) -> np.ndarray:
+    """
+    Undo :func:`as_channel`, returning the wrapped ``(*spatial,)`` array.
+
+    Parameters
+    ----------
+    obj : SpectralObject
+        A spectral object built by :func:`as_channel` (spectral length 1).
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape ``(*spatial,)``, same dtype as originally wrapped.
+    """
+    return obj.spectral_data[..., 0]

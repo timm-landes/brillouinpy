@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- **`as_channel`/`from_channel`** wrap a per-pixel array with no spectral axis
+  (classification labels, masks, fit-result maps) as a channel-ready
+  `SpectralObject` and back. `SpectralContainer.with_channel`/`drop_channel`/
+  `apply_to_channel` add, remove, or transform a single named channel,
+  returning a new object and leaving the original untouched.
+
+### Changed
+- **`channels` values must now be `SpectralObject`s.** A bare `numpy.ndarray`
+  (previously accepted silently, then failing later in `flat`, `__getitem__`,
+  or stacking) now raises `TypeError` pointing at `as_channel` at
+  construction time.
+
 ## [0.5.0] - 2026-09-10
 
 ### Added

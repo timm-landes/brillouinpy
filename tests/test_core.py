@@ -9,6 +9,8 @@ from brillouinpy.core import (
     SpectralImage,
     SpectralVolume,
     _create_data,
+    as_channel,
+    from_channel,
 )
 
 
@@ -234,6 +236,119 @@ def test_channels_survive_pickle_and_legacy_setstate():
     legacy = SpectralImage(np.random.rand(3, 3, 10), axis)
     del legacy.__dict__["channels"]
     assert pickle.loads(pickle.dumps(legacy)).channels == {}
+
+
+def test_as_channel_from_channel_roundtrip():
+    array = np.arange(12, dtype=np.int32).reshape(4, 3)
+
+    wrapped = as_channel(array)
+    assert wrapped.shape == (4, 3)
+
+    recovered = from_channel(wrapped)
+    assert recovered.shape == array.shape
+    assert recovered.dtype == array.dtype
+    assert np.array_equal(recovered, array)
+
+
+def test_channels_reject_bare_ndarray():
+    axis = np.linspace(-20, 20, 10)
+    with pytest.raises(TypeError, match="as_channel"):
+        SpectralImage(np.random.rand(4, 3, 10), axis, channels={"labels": np.zeros((4, 3))})
+
+
+def test_channels_all_kinds_through_spatial_ops():
+    axis = np.linspace(-20, 20, 10)
+    raman = SpectralImage(np.arange(4 * 3 * 6).reshape(4, 3, 6), np.linspace(0, 100, 6))
+    camera = SpectralImage(np.random.rand(8, 8, 1), np.array([550.0]))
+    labels = as_channel(np.zeros((4, 3), dtype=int))
+    image = SpectralImage(np.random.rand(4, 3, 10), axis,
+                          channels={"raman": raman, "camera": camera, "labels": labels})
+
+    sliced = image[1:3, 0:2]
+    assert sliced.channels["raman"].shape == (2, 2)
+    assert sliced.channels["labels"].shape == (2, 2)
+    assert sliced.channels["camera"].shape == (8, 8)  # non-conformant: untouched
+    assert sliced.channels["camera"] is image.channels["camera"]
+
+    flat = image.flat
+    assert flat.channels["raman"].shape == (12,)
+    assert flat.channels["labels"].shape == (12,)
+    assert flat.channels["camera"].shape == (8, 8)
+    assert flat.channels["camera"] is image.channels["camera"]
+
+
+def test_from_image_stack_with_label_channel():
+    axis = np.linspace(-20, 20, 10)
+
+    def img(with_camera=False):
+        chans = {
+            "raman": SpectralImage(np.random.rand(3, 3, 6), np.linspace(0, 100, 6)),
+            "labels": as_channel(np.ones((3, 3), dtype=int)),
+        }
+        if with_camera:
+            chans["camera"] = SpectralImage(np.random.rand(5, 5, 1), np.array([550.0]))
+        return SpectralImage(np.random.rand(3, 3, 10), axis, channels=chans)
+
+    merged = SpectralVolume.from_image_stack([img(), img()])
+    assert merged.channels["raman"].shape == (3, 3, 2)
+    assert merged.channels["labels"].shape == (3, 3, 2)
+
+    # non-conformant camera channel drops ALL channels, not just itself
+    dropped = SpectralVolume.from_image_stack([img(with_camera=True), img(with_camera=True)])
+    assert dropped.channels == {}
+
+
+def test_with_channel_returns_new_object_and_validates():
+    axis = np.linspace(-20, 20, 10)
+    image = SpectralImage(np.random.rand(4, 3, 10), axis)
+    raman = SpectralImage(np.random.rand(4, 3, 6), np.linspace(0, 100, 6))
+
+    with_raman = image.with_channel("raman", raman)
+    assert image.channels == {}
+    assert list(with_raman.channels) == ["raman"]
+
+    with_raman.channels["raman"].spectral_data[:] = 0
+    assert raman.spectral_data.sum() != 0  # deep copy, not a view
+
+    with pytest.raises(TypeError, match="as_channel"):
+        image.with_channel("bad", np.zeros((4, 3)))
+
+
+def test_drop_channel_removes_and_copies_remaining():
+    axis = np.linspace(-20, 20, 10)
+    raman = SpectralImage(np.random.rand(4, 3, 6), np.linspace(0, 100, 6))
+    camera = SpectralImage(np.random.rand(8, 8, 1), np.array([550.0]))
+    image = SpectralImage(np.random.rand(4, 3, 10), axis,
+                          channels={"raman": raman, "camera": camera})
+
+    dropped = image.drop_channel("camera")
+    assert list(dropped.channels) == ["raman"]
+    assert list(image.channels) == ["raman", "camera"]  # original unchanged
+
+    dropped.channels["raman"].spectral_data[:] = 0
+    assert raman.spectral_data.sum() != 0  # deep copy, not a view
+
+    with pytest.raises(KeyError):
+        image.drop_channel("missing")
+
+
+def test_apply_to_channel_transforms_and_copies_others():
+    axis = np.linspace(-20, 20, 10)
+    raman = SpectralImage(np.arange(4 * 3 * 6, dtype=float).reshape(4, 3, 6), np.linspace(0, 100, 6))
+    camera = SpectralImage(np.random.rand(8, 8, 1), np.array([550.0]))
+    image = SpectralImage(np.random.rand(4, 3, 10), axis,
+                          channels={"raman": raman, "camera": camera})
+
+    class _DoubleStep:
+        def apply(self, obj):
+            return SpectralImage(np.asarray(obj.spectral_data) * 2, obj.spectral_axis)
+
+    transformed = image.apply_to_channel("raman", _DoubleStep())
+    assert np.array_equal(transformed.channels["raman"].spectral_data, raman.spectral_data * 2)
+    assert np.array_equal(image.channels["raman"].spectral_data, raman.spectral_data)  # original unchanged
+
+    transformed.channels["camera"].spectral_data[:] = 0
+    assert camera.spectral_data.sum() != 0  # untouched channel is still deep-copied
 
 
 def test_metadata_and_px_size_default_to_empty():

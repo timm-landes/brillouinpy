@@ -15,7 +15,7 @@ try:
 except PackageNotFoundError:  # running from a source tree that was never installed
     __version__ = "0.0.0+unknown"
 
-from .core import Spectrum, SpectralImage, SpectralVolume, SpectralContainer
+from .core import Spectrum, SpectralImage, SpectralVolume, SpectralContainer, as_channel, from_channel
 from . import utils
 from . import preprocessing
 from . import analysis
@@ -26,6 +26,8 @@ __all__ = [
     "SpectralImage",
     "SpectralVolume",
     "SpectralContainer",
+    "as_channel",
+    "from_channel",
     "plot",
     "preprocessing",
     "analysis",
