@@ -728,7 +728,20 @@ def from_channel(obj: SpectralObject) -> np.ndarray:
 
     Returns
     -------
-    numpy.ndarray
-        Array of shape ``(*spatial,)``, same dtype as originally wrapped.
+    numpy.ma.MaskedArray
+        Array of shape ``(*spatial,)``, same dtype as originally wrapped,
+        carrying the mask of ``obj``.
+
+    Raises
+    ------
+    ValueError
+        If ``obj`` has a spectral axis of length other than 1 - i.e. it wasn't
+        built by :func:`as_channel`.
     """
+    spectral_length = obj.spectral_data.shape[-1]
+    if spectral_length != 1:
+        raise ValueError(
+            f"from_channel() only unwraps objects built by as_channel() (spectral length 1); "
+            f"got a spectral axis of length {spectral_length}. This object carries real "
+            f"spectral data - access it directly via .spectral_data.")
     return obj.spectral_data[..., 0]

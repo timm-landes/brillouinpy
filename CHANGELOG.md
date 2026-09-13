@@ -19,6 +19,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   or stacking) now raises `TypeError` pointing at `as_channel` at
   construction time.
 
+### Fixed
+- **`from_channel` no longer silently mangles a real spectral channel.** Given
+  an object with a genuine spectral axis (e.g. Raman) instead of one built by
+  `as_channel`, it returned `spectral_data[..., 0]` - the right spatial shape,
+  plausible-looking values, wrong data. It now raises `ValueError` for any
+  object whose spectral axis isn't length 1.
+
 ## [0.5.0] - 2026-09-10
 
 ### Added

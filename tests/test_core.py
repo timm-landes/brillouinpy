@@ -250,6 +250,19 @@ def test_as_channel_from_channel_roundtrip():
     assert np.array_equal(recovered, array)
 
 
+def test_from_channel_rejects_real_spectral_channel():
+    raman = SpectralImage(np.zeros((4, 3, 50)), np.arange(50))
+    with pytest.raises(ValueError, match=r"\.spectral_data"):
+        from_channel(raman)
+
+
+def test_from_channel_unwraps_any_length_one_object():
+    obj = SpectralImage(np.arange(12).reshape(4, 3, 1), np.array([0]))
+    recovered = from_channel(obj)
+    assert recovered.shape == (4, 3)
+    assert np.array_equal(recovered, np.arange(12).reshape(4, 3))
+
+
 def test_channels_reject_bare_ndarray():
     axis = np.linspace(-20, 20, 10)
     with pytest.raises(TypeError, match="as_channel"):
