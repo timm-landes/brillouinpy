@@ -13,6 +13,20 @@ if _EXAMPLES not in sys.path:
     sys.path.insert(0, _EXAMPLES)
 
 
+def write_dat_file(directory, prefix, x, y, z, t, values):
+    """Write a synthetic ``.DAT`` spectrum file (11-line header + one value per
+    line), matching ``brillouinpy.io.tfp.import_DAT_File``'s expected layout.
+    Shared by the io.legacy/io.tfp loader tests, which both read ``.DAT`` files
+    through that same function.
+    """
+    path = os.path.join(directory, f"{prefix}_{x}_{y}_{z}_{t}.DAT")
+    with open(path, "w") as f:
+        f.write("header\n" * 11)
+        for v in values:
+            f.write(f"{v}\n")
+    return path
+
+
 def require_optional(module_name):
     """Import an optional test dependency, or skip/fail depending on the environment.
 

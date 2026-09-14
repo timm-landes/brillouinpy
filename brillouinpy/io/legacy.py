@@ -123,12 +123,6 @@ def load_spectral_image_brio2(project_path, spectral_data_type):
     numpy.ma.MaskedArray
         Array of shape ``(x_dim, y_dim, spectral_dimension)``; points for which no matching
         file was found, or which failed to load, remain masked.
-
-    Notes
-    -----
-    The file-count sanity check in this function references ``z_dim``/``timepoint``, which are
-    not defined in this 2D variant; that check currently raises ``NameError`` instead of the
-    intended warning if the file count doesn't match.
     """
     directory = os.path.join(project_path, 'data')
     # sort files

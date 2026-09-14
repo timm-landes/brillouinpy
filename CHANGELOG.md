@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **`tests/test_io_legacy.py`, `tests/test_io_multimodal.py`, extended
+  `tests/test_io_tfp.py`** cover the filename-coordinate-encoded `.DAT`/`.csv`/`.txt`
+  loaders (`io.legacy.load_spectral_image`/`load_spectral_image_brio2`,
+  `io.tfp.extract_coordinates`/`import_DAT_File`/`prepare_brillouin_data`,
+  `io.multimodal.prepare_raman_data`), previously almost entirely untested.
 - **Coverage reporting in CI.** New `pytest-cov` test dependency, `[tool.coverage.run]`
   (`source = ["brillouinpy"]`, omitting `utils.py`/`benchmarks/`), and the
   `integration` CI job now runs `pytest --cov --cov-report=term-missing
@@ -40,6 +45,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   construction time.
 
 ### Fixed
+- **`prepare_raman_data` no longer crashes on a single-data-row Raman CSV file.**
+  Extracting the wavelength axis (and, per-file, the spectrum) from a file with
+  exactly one `(wavelength, intensity)` row hit `np.loadtxt(..., usecols=0)`
+  collapsing to a 0-d array, which `[::-1]` can't slice - `IndexError` outside the
+  per-file `try/except` (a hard crash), or silently caught-and-masked inside it
+  (silent data loss) depending on which occurrence. Both now go through
+  `np.atleast_1d(...)` first.
+- **`load_spectral_image_brio2`'s docstring no longer describes a `NameError` bug
+  that doesn't reproduce.** Verified empirically (mismatched file count under both
+  loaders) - the sanity check it referenced already defines `z_dim`/`timepoint`
+  correctly and warns as intended; the docstring's "Notes" section was stale.
 - **`fit_to_tiff` now honours a masked `fit_result`.** It called `np.asarray()`
   on its input, which silently strips the mask off a `numpy.ma.masked_array` -
   the `np.ma.filled(..., np.nan)` further down was then a no-op, and masked
