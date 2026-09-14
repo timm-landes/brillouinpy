@@ -7,10 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **New tutorial page** [Multimodal data and channels](docs/tutorial/multimodal-channels.md)
+  covers the `channels` API end to end: attaching channels, grid-conformant vs.
+  non-conformant behaviour through spatial operations, `apply_to_channel`/
+  `drop_channel`, `as_channel`/`from_channel` for label/mask maps, and the
+  pickle round-trip. New companion script `examples/18_multimodal_channels.py`.
 - **`tests/test_ramanspy_interop.py`** verifies the duck-typing compatibility
   with RamanSPy that `docs/design/multimodal_container.md` claims: a
   brillouinpy `SpectralObject` passed straight into a RamanSPy preprocessing
-  step. `ramanspy` is a new (test-only) extra.
+  step. `ramanspy` is a new (test-only) extra. This includes passing a
+  **channel value** (`container.channels[name]`) to a RamanSPy step directly, or
+  via `apply_to_channel` - no conversion code needed, since a channel is already
+  a full `SpectralObject`; see `examples/17_channel_ramanspy_interop.py`.
 - **`as_channel`/`from_channel`** wrap a per-pixel array with no spectral axis
   (classification labels, masks, fit-result maps) as a channel-ready
   `SpectralObject` and back. `SpectralContainer.with_channel`/`drop_channel`/

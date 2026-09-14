@@ -60,7 +60,12 @@ Estimate: ~0.5 day (only the bleaching correction is new work).
 - `channels` are not representable in RamanSPy's model and are dropped on `to_ramanspy`, with the same kind of caveat already documented for brim/HDF5_BLS.
 
 Estimate: ~0.5 day.
-Tests: round-trip test (`brillouinpy -> ramanspy -> brillouinpy`), if `ramanspy` is available as a test dependency.
+Tests: round-trip test (`brillouinpy -> ramanspy -> brillouinpy`); `ramanspy` is now available as a test dependency (`tests/test_ramanspy_interop.py`).
+
+This phase is about explicit, whole-container conversion (and about `channels`
+being dropped in that conversion) - a separate concern from the direct duck-typing
+passthrough already available today for individual channel values, see
+Compatibility notes below.
 
 ### Phase 6 - Documentation
 - A new tutorial page under `docs/tutorial/` plus a new example in `examples/` (multimodal workflow: load Brillouin+Raman+brightfield/fluorescence, calibrate/register, colocalize).
@@ -74,5 +79,5 @@ Rough total: **4-5 focused working days**, matching the intended "short sub-chap
 
 ## Compatibility notes
 
-- **RamanSPy**: duck-typing compatibility (same `spectral_data`/`spectral_axis` attribute shape) is preserved since `channels` is purely additive; the explicit `to_ramanspy`/`from_ramanspy` converters (Phase 5) make this compatibility testable rather than implicit.
+- **RamanSPy**: duck-typing compatibility (same `spectral_data`/`spectral_axis` attribute shape) is preserved since `channels` is purely additive; the explicit `to_ramanspy`/`from_ramanspy` converters (Phase 5) make this compatibility testable rather than implicit. This applies just as directly to a **channel value** as to the top-level object: a channel is validated (`core._validate_channels`) to be a full `SpectralObject`, so it carries the same untouched attributes and can be handed straight to a RamanSPy `PreprocessingStep` - either directly (`ramanspy_step.apply(container.channels["raman"])`) or via `SpectralContainer.apply_to_channel(name, step)`, which only ever calls `step.apply(...)` with no type check on `step`. No conversion code is needed for this; see `tests/test_ramanspy_interop.py` and `examples/17_channel_ramanspy_interop.py`.
 - **brimfile / HDF5_BLS**: both are Brillouin-specific standards with no concept of auxiliary channels. `to_brim`/`from_brim` and `to_hdf5_bls`/`from_hdf5_bls` continue to round-trip the primary Brillouin data correctly, but `channels` content is not exported/imported through them. Only the existing pickle-based `save`/`load` round-trips `channels` losslessly (non-interoperably).

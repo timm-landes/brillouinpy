@@ -49,6 +49,63 @@ def test_ramanspy_cropper_accepts_brillouinpy_spectral_object():
     assert image.spectral_data.shape == (4, 3, 60)
 
 
+def _image_with_raman_channel():
+    axis = np.linspace(-20, 20, 60)
+    data = np.stack([
+        [_dho(axis, 5e-3, 8.5, 1.0) for _ in range(3)]
+        for _ in range(4)
+    ])
+    raman_axis = np.linspace(500, 3000, 40)
+    raman_data = np.stack([
+        [_dho(raman_axis, 1.0, 1800, 50.0) for _ in range(3)]
+        for _ in range(4)
+    ])
+    raman = SpectralImage(raman_data, raman_axis)
+    return SpectralImage(data, axis, channels={"raman": raman}), raman
+
+
+def test_ramanspy_step_applies_directly_to_a_channel_value():
+    # A channel value is validated (core._validate_channels) to be a full
+    # SpectralObject, not a bare array - so it carries the same untouched
+    # spectral_data/spectral_axis attributes as any top-level object, and the
+    # same duck-typing compatibility applies to it directly.
+    image, raman = _image_with_raman_channel()
+
+    cropper = ramanspy.preprocessing.misc.Cropper(region=(1000, 2000))
+    cropped = cropper.apply(image.channels["raman"])
+
+    in_region = (raman.spectral_axis >= 1000) & (raman.spectral_axis <= 2000)
+
+    assert type(cropped) is SpectralImage
+    assert cropped.spectral_data.shape == (4, 3, int(in_region.sum()))
+    assert np.allclose(cropped.spectral_axis, raman.spectral_axis[in_region])
+    assert np.allclose(
+        np.ma.filled(cropped.spectral_data, np.nan),
+        np.ma.filled(raman.spectral_data[..., in_region], np.nan),
+        equal_nan=True,
+    )
+    # the channel on the original container is untouched
+    assert image.channels["raman"].spectral_data.shape == (4, 3, 40)
+
+
+def test_apply_to_channel_with_real_ramanspy_step():
+    # SpectralContainer.apply_to_channel(name, step) only ever calls
+    # step.apply(self.channels[name]), with no isinstance check on `step` - so a
+    # real RamanSPy PreprocessingStep is a drop-in `step` for it.
+    image, raman = _image_with_raman_channel()
+
+    cropper = ramanspy.preprocessing.misc.Cropper(region=(1000, 2000))
+    transformed = image.apply_to_channel("raman", cropper)
+
+    in_region = (raman.spectral_axis >= 1000) & (raman.spectral_axis <= 2000)
+
+    assert transformed.channels["raman"].spectral_data.shape == (4, 3, int(in_region.sum()))
+    assert np.allclose(transformed.channels["raman"].spectral_axis, raman.spectral_axis[in_region])
+    # the original container's channel is untouched
+    assert image.channels["raman"].spectral_data.shape == (4, 3, 40)
+    assert np.allclose(image.channels["raman"].spectral_axis, raman.spectral_axis)
+
+
 def test_ramanspy_arrays_into_brillouinpy_container_then_spatial_op():
     # Cheap regression guard for the reverse direction: arrays coming out of a
     # RamanSPy SpectralImage are plain ndarrays that brillouinpy's constructor
