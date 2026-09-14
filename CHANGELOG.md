@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Coverage reporting in CI.** New `pytest-cov` test dependency, `[tool.coverage.run]`
+  (`source = ["brillouinpy"]`, omitting `utils.py`/`benchmarks/`), and the
+  `integration` CI job now runs `pytest --cov --cov-report=term-missing
+  --cov-report=xml` (the tolerant `test` matrix job is unchanged).
+- **`tests/test_export_misc.py`** covers `io.export.fit_to_tiff` and
+  `_dho_parameter_names` (previously untested): file naming, `parameter_names`
+  override/length-mismatch, wrong-`ndim`/missing-`expected_peaks` errors, and
+  masked-array handling.
 - **New tutorial page** [Multimodal data and channels](docs/tutorial/multimodal-channels.md)
   covers the `channels` API end to end: attaching channels, grid-conformant vs.
   non-conformant behaviour through spatial operations, `apply_to_channel`/
@@ -32,6 +40,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   construction time.
 
 ### Fixed
+- **`fit_to_tiff` now honours a masked `fit_result`.** It called `np.asarray()`
+  on its input, which silently strips the mask off a `numpy.ma.masked_array` -
+  the `np.ma.filled(..., np.nan)` further down was then a no-op, and masked
+  pixels were written with their raw underlying value instead of `NaN`. Now
+  uses `np.ma.asarray()`, which preserves a mask if present.
 - **`from_channel` no longer silently mangles a real spectral channel.** Given
   an object with a genuine spectral axis (e.g. Raman) instead of one built by
   `as_channel`, it returned `spectral_data[..., 0]` - the right spatial shape,

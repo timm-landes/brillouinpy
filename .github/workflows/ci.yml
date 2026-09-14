@@ -48,6 +48,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install .[test]
-      - run: pytest tests/ -v
+      - run: pytest tests/ -v --cov --cov-report=term-missing --cov-report=xml
         env:
           BRILLOUINPY_REQUIRE_OPTIONAL: "1"

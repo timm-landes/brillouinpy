@@ -304,7 +304,10 @@ def fit_to_tiff(
     """
     import os
 
-    fit_result = np.asarray(fit_result)
+    # np.asarray() would silently strip the mask off a masked-array input, making
+    # the np.ma.filled(..., np.nan) below a no-op; np.ma.asarray() preserves it
+    # (and is a no-op itself for a plain ndarray).
+    fit_result = np.ma.asarray(fit_result)
     if fit_result.ndim != 3:
         raise ValueError(
             f"'fit_result' must have shape (x, y, n_params), got shape {fit_result.shape}."
