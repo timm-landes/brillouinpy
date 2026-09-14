@@ -27,13 +27,27 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install .
-      - run: pip install pytest
-      # brimfile / HDF5_BLS only publish wheels for Python >= 3.11; on 3.10 the
-      # brim / HDF5_BLS tests skip themselves via pytest.importorskip. Kept
-      # non-fatal so a transient packaging issue in a third-party lib doesn't
-      # turn CI red - the tests then just skip.
-      - name: Install optional export backends
-        if: matrix.python-version != '3.10'
-        continue-on-error: true
-        run: pip install brimfile HDF5_BLS
+      # brimfile / HDF5_BLS only publish wheels for Python >= 3.11 / 3.12
+      # respectively (see the version markers on the `test` extra); on older
+      # Pythons the corresponding tests skip themselves via
+      # conftest.require_optional. BRILLOUINPY_REQUIRE_OPTIONAL is deliberately
+      # left unset here, so a missing optional backend stays a skip rather than
+      # a failure - the strict check lives in the `integration` job below.
+      - run: pip install .[test]
       - run: pytest tests/ -v
+
+  # Unlike `test` above, this job treats a missing optional backend as a hard
+  # failure (BRILLOUINPY_REQUIRE_OPTIONAL=1), so a green run here is proof that
+  # the brim / HDF5_BLS / ramanspy tests actually executed rather than skipping
+  # silently.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install .[test]
+      - run: pytest tests/ -v
+        env:
+          BRILLOUINPY_REQUIRE_OPTIONAL: "1"

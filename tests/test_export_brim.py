@@ -3,10 +3,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-pytest.importorskip("brimfile")
-
+from conftest import require_optional
 from brillouinpy.io import export
 from brillouinpy.core import SpectralImage, SpectralVolume, Spectrum
+
+require_optional("brimfile")
 
 
 def _dho(x, amplitude, freq_shift, linewidth, background=0.0, axis_shift=0.0):

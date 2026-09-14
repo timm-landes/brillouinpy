@@ -47,6 +47,11 @@ test = [
     "pytest",
     "brimfile; python_version >= '3.11'",
     "HDF5_BLS; python_version >= '3.12'",
+    # Only for tests/test_ramanspy_interop.py, which checks the duck-typing
+    # compatibility with RamanSPy that docs/design/multimodal_container.md claims;
+    # not a runtime dependency of brillouinpy itself. No version marker needed:
+    # ramanspy itself requires only Python >= 3.8.
+    "ramanspy",
 ]
 
 [project.urls]
