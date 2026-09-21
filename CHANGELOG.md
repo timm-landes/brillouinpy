@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-21
+
 ### Added
 - **`tests/test_io_legacy.py`, `tests/test_io_multimodal.py`, extended
   `tests/test_io_tfp.py`** cover the filename-coordinate-encoded `.DAT`/`.csv`/`.txt`
