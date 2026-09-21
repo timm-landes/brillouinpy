@@ -1,5 +1,8 @@
+import importlib
 import os
 import sys
+
+import pytest
 
 # The synthetic-data generators used by several tests live next to the
 # runnable examples (examples/_synthetic_data.py), not in the package. Put that
@@ -8,3 +11,46 @@ import sys
 _EXAMPLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 if _EXAMPLES not in sys.path:
     sys.path.insert(0, _EXAMPLES)
+
+
+def write_dat_file(directory, prefix, x, y, z, t, values):
+    """Write a synthetic ``.DAT`` spectrum file (11-line header + one value per
+    line), matching ``brillouinpy.io.tfp.import_DAT_File``'s expected layout.
+    Shared by the io.legacy/io.tfp loader tests, which both read ``.DAT`` files
+    through that same function.
+    """
+    path = os.path.join(directory, f"{prefix}_{x}_{y}_{z}_{t}.DAT")
+    with open(path, "w") as f:
+        f.write("header\n" * 11)
+        for v in values:
+            f.write(f"{v}\n")
+    return path
+
+
+def require_optional(module_name):
+    """Import an optional test dependency, or skip/fail depending on the environment.
+
+    Behaves like ``pytest.importorskip`` by default: a missing (or otherwise
+    unimportable, e.g. a ``SyntaxError`` from a backend that doesn't support this
+    Python version) module skips the test. When the ``BRILLOUINPY_REQUIRE_OPTIONAL``
+    environment variable is set to ``"1"``, a missing module is a hard failure
+    instead, so a CI job that means to exercise every optional backend can't pass
+    with them silently skipped.
+
+    Parameters
+    ----------
+    module_name : str
+        The importable name of the optional module (e.g. ``"brimfile"``).
+
+    Returns
+    -------
+    module
+        The imported module.
+    """
+    try:
+        return importlib.import_module(module_name)
+    except (ImportError, SyntaxError) as exc:
+        message = f"{module_name} not importable: {exc}"
+        if os.environ.get("BRILLOUINPY_REQUIRE_OPTIONAL") == "1":
+            pytest.fail(message, pytrace=False)
+        pytest.skip(message, allow_module_level=True)

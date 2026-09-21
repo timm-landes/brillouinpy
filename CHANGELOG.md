@@ -6,6 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-21
+
+### Added
+- **`tests/test_io_legacy.py`, `tests/test_io_multimodal.py`, extended
+  `tests/test_io_tfp.py`** cover the filename-coordinate-encoded `.DAT`/`.csv`/`.txt`
+  loaders (`io.legacy.load_spectral_image`/`load_spectral_image_brio2`,
+  `io.tfp.extract_coordinates`/`import_DAT_File`/`prepare_brillouin_data`,
+  `io.multimodal.prepare_raman_data`), previously almost entirely untested.
+- **Coverage reporting in CI.** New `pytest-cov` test dependency, `[tool.coverage.run]`
+  (`source = ["brillouinpy"]`, omitting `utils.py`/`benchmarks/`), and the
+  `integration` CI job now runs `pytest --cov --cov-report=term-missing
+  --cov-report=xml` (the tolerant `test` matrix job is unchanged).
+- **`tests/test_export_misc.py`** covers `io.export.fit_to_tiff` and
+  `_dho_parameter_names` (previously untested): file naming, `parameter_names`
+  override/length-mismatch, wrong-`ndim`/missing-`expected_peaks` errors, and
+  masked-array handling.
+- **New tutorial page** [Multimodal data and channels](docs/tutorial/multimodal-channels.md)
+  covers the `channels` API end to end: attaching channels, grid-conformant vs.
+  non-conformant behaviour through spatial operations, `apply_to_channel`/
+  `drop_channel`, `as_channel`/`from_channel` for label/mask maps, and the
+  pickle round-trip. New companion script `examples/18_multimodal_channels.py`.
+- **`tests/test_ramanspy_interop.py`** verifies the duck-typing compatibility
+  with RamanSPy that `docs/design/multimodal_container.md` claims: a
+  brillouinpy `SpectralObject` passed straight into a RamanSPy preprocessing
+  step. `ramanspy` is a new (test-only) extra. This includes passing a
+  **channel value** (`container.channels[name]`) to a RamanSPy step directly, or
+  via `apply_to_channel` - no conversion code needed, since a channel is already
+  a full `SpectralObject`; see `examples/17_channel_ramanspy_interop.py`.
+- **`as_channel`/`from_channel`** wrap a per-pixel array with no spectral axis
+  (classification labels, masks, fit-result maps) as a channel-ready
+  `SpectralObject` and back. `SpectralContainer.with_channel`/`drop_channel`/
+  `apply_to_channel` add, remove, or transform a single named channel,
+  returning a new object and leaving the original untouched.
+
+### Changed
+- **`channels` values must now be `SpectralObject`s.** A bare `numpy.ndarray`
+  (previously accepted silently, then failing later in `flat`, `__getitem__`,
+  or stacking) now raises `TypeError` pointing at `as_channel` at
+  construction time.
+
+### Fixed
+- **`prepare_raman_data` no longer crashes on a single-data-row Raman CSV file.**
+  Extracting the wavelength axis (and, per-file, the spectrum) from a file with
+  exactly one `(wavelength, intensity)` row hit `np.loadtxt(..., usecols=0)`
+  collapsing to a 0-d array, which `[::-1]` can't slice - `IndexError` outside the
+  per-file `try/except` (a hard crash), or silently caught-and-masked inside it
+  (silent data loss) depending on which occurrence. Both now go through
+  `np.atleast_1d(...)` first.
+- **`load_spectral_image_brio2`'s docstring no longer describes a `NameError` bug
+  that doesn't reproduce.** Verified empirically (mismatched file count under both
+  loaders) - the sanity check it referenced already defines `z_dim`/`timepoint`
+  correctly and warns as intended; the docstring's "Notes" section was stale.
+- **`fit_to_tiff` now honours a masked `fit_result`.** It called `np.asarray()`
+  on its input, which silently strips the mask off a `numpy.ma.masked_array` -
+  the `np.ma.filled(..., np.nan)` further down was then a no-op, and masked
+  pixels were written with their raw underlying value instead of `NaN`. Now
+  uses `np.ma.asarray()`, which preserves a mask if present.
+- **`from_channel` no longer silently mangles a real spectral channel.** Given
+  an object with a genuine spectral axis (e.g. Raman) instead of one built by
+  `as_channel`, it returned `spectral_data[..., 0]` - the right spatial shape,
+  plausible-looking values, wrong data. It now raises `ValueError` for any
+  object whose spectral axis isn't length 1.
+
 ## [0.5.0] - 2026-09-10
 
 ### Added

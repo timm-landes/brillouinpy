@@ -62,6 +62,7 @@ fitting
 multi-component
 irf-fit-comparison
 exporting
+multimodal-channels
 custom-loader
 ```
 

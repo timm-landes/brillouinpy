@@ -1,0 +1,33 @@
+# This CITATION.cff file was generated with the help of a template.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: BrillouinPy
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Timm
+    family-names: Landes
+    email: timm.landes@hot.uni-hannover.de
+    affiliation: >-
+      Institute of Botany, Phytophotonics Division, Leibniz University
+      Hannover; PhoenixD Cluster of Excellence, Leibniz University Hannover
+    orcid: 'https://orcid.org/0000-0001-8953-3003'
+repository-code: 'https://github.com/timm-landes/brillouinpy'
+url: 'https://timm-landes.github.io/brillouinpy/'
+abstract: >-
+  BrillouinPy (formerly BrillouinAnalyzer) is a Python
+  package for the analysis of Brillouin light scattering
+  spectroscopy and imaging data, architecturally inspired
+  by RamanSPy.
+keywords:
+  - Brillouin spectroscopy
+  - Brillouin microscopy
+  - spectral data analysis
+  - mechanical imaging
+  - Python
+license: BSD-3-Clause
+version: 0.6.0
+date-released: '2026-09-21'

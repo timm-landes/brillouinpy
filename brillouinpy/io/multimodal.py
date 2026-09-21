@@ -28,7 +28,11 @@ def prepare_raman_data(project_path):
     # Extract wavelength axis from the first file (reverse for correct order)
     first_data = np.loadtxt(files[0], delimiter=',', skiprows=1)
     if first_data.ndim == 1:
-        wavelength_axis = np.loadtxt(files[0], delimiter=',', skiprows=1, usecols=0)[::-1]
+        # A single data row makes usecols=0 collapse to a 0-d array, which [::-1]
+        # can't slice - np.atleast_1d guards against that.
+        wavelength_axis = np.atleast_1d(
+            np.loadtxt(files[0], delimiter=',', skiprows=1, usecols=0)
+        )[::-1]
         spectral_dimension = wavelength_axis.shape[0]
     else:
         wavelength_axis = first_data[:, 0][::-1]
@@ -57,7 +61,9 @@ def prepare_raman_data(project_path):
             data = np.loadtxt(f, delimiter=',', skiprows=1)
             if data.ndim == 1:
                 spectrum = (data[1] if len(data) > 1 else data)
-                spectrum = np.array(spectrum)[::-1]
+                # data[1] on a single-row file is a bare scalar, which np.array()
+                # turns into a 0-d array that [::-1] can't slice - same guard as above.
+                spectrum = np.atleast_1d(spectrum)[::-1]
             else:
                 spectrum = data[:, 1][::-1]
             data_array[x, y, z, t, :] = spectrum

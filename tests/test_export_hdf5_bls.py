@@ -3,17 +3,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-try:
-    import HDF5_BLS  # noqa: F401
-except (ImportError, SyntaxError):
-    pytest.skip(
-        "HDF5_BLS not importable (missing, or incompatible with this Python "
-        "version - e.g. its 3.12+-only f-string syntax on older Pythons)",
-        allow_module_level=True,
-    )
-
+from conftest import require_optional
 from brillouinpy.io import export
 from brillouinpy.core import SpectralImage, Spectrum
+
+require_optional("HDF5_BLS")
 
 
 def _dho(x, amplitude, freq_shift, linewidth, background=0.0, axis_shift=0.0):
