@@ -47,6 +47,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `Deconvoluter_IRF`), works on any spatial dimensionality (incl. the raw
   `(x, y, z, t, spectral)` shape), clips `start - offset` at 0 instead of wrapping around,
   and accepts the documented `offset=None` (`Deconvoluter_IRF` too).
+- **'from_brim' now handles nD frequency axes.** Importing brimfile data via `from_brim` 
+  with non-unique frequency axes no longer causes an error because the spectral axis is 
+  expected to be 1D. The frequency axes will be interpolated if the used brimfile 
+  version >= 1.7.6, otherwise return `AttributeError`.
+
 
 ### Changed
 - **Behaviour change:** on raw TFP data the shutter-blocked channels (exactly 0) were
