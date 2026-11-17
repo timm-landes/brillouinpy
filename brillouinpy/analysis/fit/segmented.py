@@ -93,7 +93,7 @@ class SegmentedFitResult:
 
 
 def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_bounds,
-               anchor_tolerance, model):
+               anchor_tolerance, model, new_shift=None, irf=None):
     """Fit ``expected_peaks`` ``model`` peaks (``'dho'`` or ``'lorentzian'``)
     restricted to ``keep`` pixels (all others set to NaN, which the fit already
     skips for free). Peaks
@@ -102,11 +102,16 @@ def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_b
     p0 seeded from ``anchor_seeds[i]``; the last peak is free, seeded from
     half the most recently identified component's amplitude and its own
     linewidth (a generic, whole-window guess is a poor p0 for it once two or
-    more other peaks are already pinned nearby - see the module docstring)."""
+    more other peaks are already pinned nearby - see the module docstring).
+    Its starting shift is ``new_shift`` if given, else 1.5 GHz above the
+    previous peak (or, in the first stage, the :func:`core.estimate_p0` guess).
+    ``irf`` is passed on to the fit (see :class:`core.DHO`); the restricted image
+    keeps ``image``'s instrument response function so ``irf='auto'`` works."""
     data = np.ma.filled(image.spectral_data, np.nan).astype(float)
     masked = data.copy()
     masked[~keep] = np.nan
-    restricted = type(image)(masked, image.spectral_axis)
+    restricted = type(image)(masked, image.spectral_axis,
+                             instrument_response_function=getattr(image, 'instrument_response_function', None))
 
     n_anchored = len(anchor_shifts)
     lo_shift, hi_shift = shift_bounds
@@ -119,6 +124,8 @@ def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_b
     if expected_peaks == 1:
         p0 = np.asarray(core.estimate_p0(restricted, expected_peaks=1), dtype=float)
         p0[1] = abs(p0[1])  # peak detection may land on the anti-Stokes side
+        if new_shift is not None:
+            p0[1] = new_shift
     else:
         stokes_mean = restricted.mean
         inten = np.ma.filled(stokes_mean.spectral_data, np.nan).astype(float)
@@ -135,7 +142,7 @@ def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_b
                     ((amp_guess if i == 0 else 0.3 * amp_guess), 0.8)
                 last_placed = shift_i
             else:
-                shift_i = min(last_placed + 1.5, hi_shift - 0.5)
+                shift_i = new_shift if new_shift is not None else min(last_placed + 1.5, hi_shift - 0.5)
                 if anchor_seeds:
                     prev_amp, prev_width = anchor_seeds[-1]
                     amp_i, width_i = 0.5 * prev_amp, prev_width
@@ -149,7 +156,8 @@ def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_b
 
     fit_cls = {"dho": core.DHO, "lorentzian": core.Lorentzian,
                "gaussian": core.Gaussian}[model]
-    params, _ = fit_cls(expected_peaks=expected_peaks, p0=list(p0), bounds=(lo, hi)).apply(restricted)
+    params, _ = fit_cls(expected_peaks=expected_peaks, p0=list(p0), bounds=(lo, hi),
+                        irf=irf).apply(restricted)
     params = np.asarray(params)
     amps = np.abs(params[..., 0:3 * expected_peaks:3])
     shifts = np.abs(params[..., 1:3 * expected_peaks:3])
@@ -158,7 +166,7 @@ def _fit_stage(image, keep, expected_peaks, anchor_shifts, anchor_seeds, shift_b
 
 
 def segmented_fit(image, n_components, *, classifier='kmeans', model='dho',
-                  shift_bounds=(3.0, 14.0), anchor_tolerance=0.4):
+                  shift_bounds=(3.0, 14.0), anchor_tolerance=0.4, p0_shifts=None, irf=None):
     """
     Classify ``image`` into ``n_components`` nested-additive classes, then fit
     exactly the number of :class:`~brillouinpy.analysis.fit.core.DHO` /
@@ -206,6 +214,28 @@ def segmented_fit(image, n_components, *, classifier='kmeans', model='dho',
     anchor_tolerance : float, optional
         +/- GHz window each already-identified peak's shift is bounded to in
         later stages. Default ``0.4``.
+    p0_shifts : sequence of float or None, optional
+        Starting Brillouin shift (GHz) per component, in class order
+        (``p0_shifts[0]`` for the class-0 peak, ``p0_shifts[1]`` for the peak
+        class 1 adds, ...), length ``n_components``. Each value seeds the
+        *new* peak of its stage; peaks found in earlier stages stay anchored
+        to their fitted medians as usual, and amplitude/linewidth guesses are
+        still derived from the data. ``None`` entries (or ``p0_shifts=None``,
+        the default) keep the automatic guess: :func:`core.estimate_p0` in the
+        first stage, 1.5 GHz above the previous peak in later ones. That
+        automatic guess suits closely spaced peaks; set ``p0_shifts`` when the
+        components are far apart (e.g. water at ~7.5 GHz and a stiff tissue
+        at ~15 GHz), where a peak seeded 1.5 GHz above water can settle in a
+        wrong local minimum in weak-signal pixels. Values outside
+        ``shift_bounds`` are clipped to it.
+    irf : array-like, tuple, ``'auto'`` or None, optional
+        Instrument response function for every stage's fit, as for
+        :class:`~brillouinpy.analysis.fit.core.DHO`: each stage then fits the
+        IRF-convolved model, so ``linewidth`` is the intrinsic linewidth.
+        ``'auto'`` uses the IRF carried by ``image`` (e.g. from
+        :class:`~brillouinpy.preprocessing.misc.IRF_Remover` with
+        ``store_irf=True``), per pixel if it is per pixel. ``None`` (default)
+        fits the plain, unconvolved model.
 
     Returns
     -------
@@ -233,6 +263,16 @@ def segmented_fit(image, n_components, *, classifier='kmeans', model='dho',
     if model not in ("dho", "lorentzian", "gaussian"):
         raise ValueError(f"model must be 'dho', 'lorentzian' or 'gaussian', got {model!r}.")
 
+    if p0_shifts is None:
+        p0_shifts = [None] * n_components
+    else:
+        p0_shifts = list(p0_shifts)
+        if len(p0_shifts) != n_components:
+            raise ValueError(
+                f"p0_shifts needs one starting shift per component ({n_components}), "
+                f"got {len(p0_shifts)}.")
+        p0_shifts = [None if s is None else float(s) for s in p0_shifts]
+
     if classifier == 'kmeans':
         labels = _default_classifier(image, n_components)
     elif callable(classifier):
@@ -251,7 +291,8 @@ def segmented_fit(image, n_components, *, classifier='kmeans', model='dho',
         keep = labels == stage
         if np.any(keep):
             amps, shifts, widths = _fit_stage(image, keep, stage + 1, anchor_shifts, anchor_seeds,
-                                              shift_bounds, anchor_tolerance, model)
+                                              shift_bounds, anchor_tolerance, model,
+                                              new_shift=p0_shifts[stage], irf=irf)
             new_amp, new_shift, new_width = amps[..., stage], shifts[..., stage], widths[..., stage]
             shift = np.where(keep, new_shift, shift)
             linewidth = np.where(keep, new_width, linewidth)
@@ -265,7 +306,10 @@ def segmented_fit(image, n_components, *, classifier='kmeans', model='dho',
             # have something to anchor to, rather than raising.
             stage_amp_med = anchor_seeds[-1][0] if anchor_seeds else 1.0
             stage_width_med = anchor_seeds[-1][1] if anchor_seeds else 0.8
-            stage_shift_med = (anchor_shifts[-1] + 1.0) if anchor_shifts else float(shift_bounds[0])
+            if p0_shifts[stage] is not None:
+                stage_shift_med = p0_shifts[stage]
+            else:
+                stage_shift_med = (anchor_shifts[-1] + 1.0) if anchor_shifts else float(shift_bounds[0])
         stage_shift.append(stage_shift_med)
         stage_amplitude.append(stage_amp_med)
         stage_linewidth.append(stage_width_med)

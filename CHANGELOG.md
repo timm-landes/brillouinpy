@@ -16,6 +16,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   lower bound is clipped to 0, and non-count input triggers a warning.
   `expected_peaks='auto'` with `loss='poisson'` raises `NotImplementedError`.
   `loss='squares'` stays the default, so existing results are unchanged.
+- **`segmented_fit(p0_shifts=...)`**: optional starting Brillouin shift per component
+  (GHz, in class order; `None` entries keep the automatic guess). Recommended when the
+  components' peaks are far apart, since the automatic guess for each added peak (1.5 GHz
+  above the previous one) is meant for closely spaced peaks. The default is unchanged.
+- **`segmented_fit(irf=...)`**: fits every stage with the IRF-convolved model, as
+  `DHO(irf=...)` does, so the returned line widths are intrinsic. `irf='auto'` uses the
+  IRF carried by the image, per pixel if it is per pixel. The default (`None`) is unchanged.
 
 ### Fixed
 - **`utils.brillouin_spectral_axis` channel spacing is now `2L/N` instead of `2L/(N−1)`.**
